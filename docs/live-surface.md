@@ -4,8 +4,9 @@ This repository is the pre-launch **source** of connect.md: FastAPI in `apps/api
 
 A separately hosted live network (for example a Grok App Builder preview) is **not** this tree. It must not replace `apps/web` or `apps/api`. It may read the same product invariants:
 
-- Markdown is canonical. Humans own publication.
-- Drafts stay private.
+- Markdown is canonical. Humans own publication. See [publication.md](publication.md).
+- Drafts stay private. Publish is explicit. Handle is chosen before the first save.
+- After publish, the owner is shown the public URL, canonical Markdown, and JSON.
 - Contact is a request.
 - Agents do not submit applications.
 - No arbitrary URL fetch.

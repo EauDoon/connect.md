@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-08-26
+
+### Added
+
+- [`docs/publication.md`](docs/publication.md): the human-gated publication contract any live surface must honor.
+  Drafts stay private. Publish is explicit. Handle is chosen before the first save.
+  After publish, the human is shown the public URL, canonical Markdown, and JSON.
+  Unpublish conceals the profile and rewrites visibility in the stored Markdown.
+  Directory catalogs must set `writesOffered: false` until a running API issues scoped grants.
+
+### Changed
+
+- [`docs/live-surface.md`](docs/live-surface.md) points at the publication contract.
+- [`docs/versioning.md`](docs/versioning.md) records source tag `v0.2.3`.
+
+### Notes
+
+This is a source-version upgrade. It does not replace `apps/web` or `apps/api`.
+It is not a production-deployment claim. Never rewrite `55cfc6e`.
+
 ## [0.2.2] - 2026-08-26
 
 ### Added
@@ -50,7 +70,8 @@ This is a source-version upgrade of the pre-launch foundation. It is not a produ
 
 First recorded pre-launch foundation (commit `55cfc6e`). Immutable document versions live at runtime under `storage/` (gitignored) and in PostgreSQL. This version records the published source; it is not a production-deployment claim.
 
-[unreleased]: https://github.com/EauDoon/connect.md/compare/v0.2.2...HEAD
+[unreleased]: https://github.com/EauDoon/connect.md/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/EauDoon/connect.md/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/EauDoon/connect.md/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/EauDoon/connect.md/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/EauDoon/connect.md/releases/tag/v0.2.0

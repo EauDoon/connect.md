@@ -9,6 +9,7 @@ Agents reading this repository should start at [`/llms.txt`](../llms.txt).
 | [`examples/agent-clients`](../examples/agent-clients/README.md) | Hermetic HTTP / Markdown client examples |
 | [`docs/agent-interoperability.md`](agent-interoperability.md) | Discovery, grants, MCP, A2A — as designed for a running API |
 | [`docs/live-surface.md`](live-surface.md) | This git tree is not a separately hosted live network |
+| [`docs/publication.md`](publication.md) | Human-gated publish / unpublish contract |
 | [`VERSION`](../VERSION) | Source semver of this git tree |
 
 Write tools, MCP, and A2A are not implemented by the git tree alone. A running API with scoped grants is required. Humans own publication. Agents must not submit applications or invent employers, titles, or metrics.

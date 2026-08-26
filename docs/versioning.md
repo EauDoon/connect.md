@@ -6,11 +6,11 @@ Document versions are a different object. Canonical Profile and Resume Markdown 
 
 ## Source release objects
 
-- `VERSION` holds the current source version as `MAJOR.MINOR.PATCH` (currently `0.2.2`).
+- `VERSION` holds the current source version as `MAJOR.MINOR.PATCH` (currently `0.2.3`).
 - `CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Annotated Git tags use the `v*` form and must point at the commit that introduces that changelog section.
-- Published tags: [`v0.1.0`](https://github.com/EauDoon/connect.md/releases/tag/v0.1.0) at `55cfc6e`, [`v0.2.0`](https://github.com/EauDoon/connect.md/releases/tag/v0.2.0) at `512e4cd`, [`v0.2.1`](https://github.com/EauDoon/connect.md/releases/tag/v0.2.1) after the agent source map, [`v0.2.2`](https://github.com/EauDoon/connect.md/releases/tag/v0.2.2) for live-surface vs source clarification.
-- GitHub Releases are created from those annotated tags. [`.github/workflows/release.yml`](../.github/workflows/release.yml) copies the matching `CHANGELOG.md` section when a `v*` tag is pushed. [`.github/workflows/mint-source-tags.yml`](../.github/workflows/mint-source-tags.yml) can mint a missing annotated tag and Release from `CHANGELOG.md` (used once for `v0.1.0` / `v0.2.0`).
+- Published tags: [`v0.1.0`](https://github.com/EauDoon/connect.md/releases/tag/v0.1.0) at `55cfc6e`, [`v0.2.0`](https://github.com/EauDoon/connect.md/releases/tag/v0.2.0) at `512e4cd`, [`v0.2.1`](https://github.com/EauDoon/connect.md/releases/tag/v0.2.1) after the agent source map, [`v0.2.2`](https://github.com/EauDoon/connect.md/releases/tag/v0.2.2) for live-surface vs source clarification, [`v0.2.3`](https://github.com/EauDoon/connect.md/releases/tag/v0.2.3) for the human-gated publication contract.
+- GitHub Releases are created from those annotated tags. [`.github/workflows/release.yml`](../.github/workflows/release.yml) copies the matching `CHANGELOG.md` section when a `v*` tag is pushed. [`.github/workflows/mint-source-tags.yml`](../.github/workflows/mint-source-tags.yml) can mint a missing annotated tag and Release from `CHANGELOG.md` (used once for `v0.1.0` / `v0.2.0`; also mints the current `VERSION` when the section exists).
 
 A source tag records the published source. It is not evidence that production Clerk, PostgreSQL, Meilisearch, TLS, witness, worker, backup, or restore gates have passed.
 
