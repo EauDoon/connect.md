@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-26
+
+### Added
+
+- Root [`llms.txt`](llms.txt) describing this source repository for agents: schemas, examples, and the rule that discovery is not permission.
+- [`docs/agent-source-map.md`](docs/agent-source-map.md) pointing agents at those files.
+
+### Notes
+
+This is a source-version upgrade. It is not a production-deployment claim. Write tools (MCP, A2A) still require a running API with grants.
+
 ## [0.2.0] - 2026-08-27
 
 ### Added
@@ -24,6 +35,7 @@ This is a source-version upgrade of the pre-launch foundation. It is not a produ
 
 First recorded pre-launch foundation (commit `55cfc6e`). Immutable document versions live at runtime under `storage/` (gitignored) and in PostgreSQL. This version records the published source; it is not a production-deployment claim.
 
-[unreleased]: https://github.com/EauDoon/connect.md/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/EauDoon/connect.md/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/EauDoon/connect.md/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/EauDoon/connect.md/releases/tag/v0.2.0
 [0.1.0]: https://github.com/EauDoon/connect.md/releases/tag/v0.1.0

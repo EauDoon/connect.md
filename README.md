@@ -98,7 +98,7 @@ Read the full [architecture](docs/architecture.md) for runtime topology, documen
 
 ## Source versioning
 
-The current source version is [`0.2.0`](VERSION). Source releases follow [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/). Annotated `v*` tags name source commits and drive changelog-based GitHub Releases; they do not claim a production deployment.
+The current source version is [`0.2.1`](VERSION). Source releases follow [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/). Annotated `v*` tags name source commits and drive changelog-based GitHub Releases; they do not claim a production deployment.
 
 Canonical Profile and Resume versions are a separate object: content-addressed Markdown identified by SHA-256 and stored outside Git. See the [changelog](CHANGELOG.md) and [versioning policy](docs/versioning.md).
 
