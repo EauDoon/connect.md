@@ -118,8 +118,10 @@ _ALLOWED_ROOT_FILES = frozenset(
         ".editorconfig",
         ".env.example",
         ".gitignore",
+        "CHANGELOG.md",
         "LICENSE",
         "README.md",
+        "VERSION",
         "compose.prod.yaml",
         "compose.yaml",
     }

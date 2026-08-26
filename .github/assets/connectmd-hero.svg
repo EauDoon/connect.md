@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" role="img" aria-labelledby="title description" focusable="false">
+  <title id="title">connect.md human and agent architecture</title>
+  <desc id="description">Human Mode, Markdown Mode, and agent protocols connect through a FastAPI authority boundary to canonical Markdown, with PostgreSQL and Meilisearch as surrounding projections. This is a pre-launch source architecture view.</desc>
+  <metadata>Original vector artwork for connect.md, distributed under the Apache License 2.0 with this repository.</metadata>
+  <defs>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#1B3048" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow-cyan" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#5CE1E6"/>
+    </marker>
+    <marker id="arrow-lime" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#D7FF5F"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="760" fill="#08111F"/>
+  <rect width="1600" height="760" fill="url(#grid)" opacity="0.72"/>
+  <rect x="40" y="40" width="1520" height="680" rx="36" fill="#0C192A" stroke="#29415B" stroke-width="2"/>
+
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <rect x="86" y="86" width="88" height="88" rx="24" fill="#D7FF5F"/>
+    <text x="130" y="143" text-anchor="middle" font-size="32" font-weight="800" fill="#102A43">.md</text>
+
+    <text x="86" y="246" font-size="76" font-weight="800" letter-spacing="-3" fill="#F5F7FA">connect.md</text>
+    <text x="86" y="298" font-size="28" font-weight="650" fill="#D7FF5F">One professional identity.</text>
+    <text x="86" y="340" font-size="24" fill="#C2CFDC">Human-native. Agent-native.</text>
+    <text x="86" y="374" font-size="24" fill="#C2CFDC">Canonical Markdown.</text>
+
+    <rect x="86" y="422" width="194" height="48" rx="24" fill="#102036" stroke="#5CE1E6" stroke-width="2"/>
+    <text x="183" y="453" text-anchor="middle" font-size="18" font-weight="700" fill="#5CE1E6">CONSENT FIRST</text>
+    <rect x="296" y="422" width="166" height="48" rx="24" fill="#102036" stroke="#FF8A6B" stroke-width="2"/>
+    <text x="379" y="453" text-anchor="middle" font-size="18" font-weight="700" fill="#FFB39F">PRE-LAUNCH</text>
+
+    <text x="86" y="528" font-size="20" font-weight="650" fill="#F5F7FA">Private social graph</text>
+    <circle cx="66" cy="521" r="6" fill="#D7FF5F"/>
+    <text x="86" y="574" font-size="20" font-weight="650" fill="#F5F7FA">Gated recruitment</text>
+    <circle cx="66" cy="567" r="6" fill="#5CE1E6"/>
+    <text x="86" y="620" font-size="20" font-weight="650" fill="#F5F7FA">HTTP · MCP · A2A</text>
+    <circle cx="66" cy="613" r="6" fill="#B8A8FF"/>
+
+    <line x1="630" y1="88" x2="630" y2="650" stroke="#29415B" stroke-width="2"/>
+
+    <text x="688" y="102" font-size="18" font-weight="750" letter-spacing="2" fill="#9FB1C4">ONE AUTHORITY FLOW</text>
+
+    <g>
+      <rect x="688" y="136" width="232" height="92" rx="20" fill="#102036" stroke="#5CE1E6" stroke-width="2"/>
+      <text x="714" y="174" font-size="22" font-weight="750" fill="#F5F7FA">Human Mode</text>
+      <text x="714" y="204" font-size="18" fill="#C2CFDC">Guided product UI</text>
+
+      <rect x="688" y="274" width="232" height="92" rx="20" fill="#102036" stroke="#D7FF5F" stroke-width="2"/>
+      <text x="714" y="312" font-size="22" font-weight="750" fill="#F5F7FA">Markdown Mode</text>
+      <text x="714" y="342" font-size="18" fill="#C2CFDC">Lossless document view</text>
+
+      <rect x="688" y="412" width="232" height="92" rx="20" fill="#102036" stroke="#B8A8FF" stroke-width="2"/>
+      <text x="714" y="450" font-size="22" font-weight="750" fill="#F5F7FA">Agent protocols</text>
+      <text x="714" y="480" font-size="18" fill="#C2CFDC">HTTP · MCP · A2A</text>
+    </g>
+
+    <g fill="none" stroke="#5CE1E6" stroke-width="3" marker-end="url(#arrow-cyan)">
+      <path d="M920 182 C964 182 962 278 1006 278"/>
+      <path d="M920 320 L1006 320"/>
+      <path d="M920 458 C964 458 962 362 1006 362"/>
+    </g>
+
+    <rect x="1014" y="244" width="220" height="154" rx="24" fill="#102036" stroke="#5CE1E6" stroke-width="3"/>
+    <text x="1124" y="294" text-anchor="middle" font-size="24" font-weight="800" fill="#F5F7FA">FastAPI</text>
+    <text x="1124" y="328" text-anchor="middle" font-size="18" fill="#C2CFDC">Auth · validation</text>
+    <text x="1124" y="358" text-anchor="middle" font-size="18" fill="#C2CFDC">consent · versions</text>
+
+    <path d="M1234 321 L1282 321" fill="none" stroke="#D7FF5F" stroke-width="4" marker-end="url(#arrow-lime)"/>
+
+    <rect x="1290" y="214" width="230" height="214" rx="28" fill="#F5F7FA" stroke="#D7FF5F" stroke-width="4"/>
+    <text x="1405" y="270" text-anchor="middle" font-size="24" font-weight="800" fill="#102A43">Canonical</text>
+    <text x="1405" y="304" text-anchor="middle" font-size="24" font-weight="800" fill="#102A43">Markdown</text>
+    <line x1="1332" y1="328" x2="1478" y2="328" stroke="#C2CFDC" stroke-width="2"/>
+    <text x="1405" y="364" text-anchor="middle" font-size="18" font-weight="650" fill="#102A43">Profile + Resume</text>
+    <text x="1405" y="394" text-anchor="middle" font-size="18" fill="#52677D">Validated versions</text>
+
+    <path d="M1405 428 L1405 464" fill="none" stroke="#B8A8FF" stroke-width="3"/>
+    <path d="M1405 464 L1124 464 L1124 500" fill="none" stroke="#FF8A6B" stroke-width="3"/>
+    <path d="M1405 464 L1405 500" fill="none" stroke="#B8A8FF" stroke-width="3"/>
+
+    <rect x="1014" y="500" width="220" height="104" rx="20" fill="#F5F7FA" stroke="#FF8A6B" stroke-width="3"/>
+    <text x="1124" y="542" text-anchor="middle" font-size="21" font-weight="800" fill="#102A43">PostgreSQL</text>
+    <text x="1124" y="574" text-anchor="middle" font-size="18" fill="#52677D">Authority + projections</text>
+
+    <rect x="1290" y="500" width="230" height="104" rx="20" fill="#F5F7FA" stroke="#B8A8FF" stroke-width="3"/>
+    <text x="1405" y="542" text-anchor="middle" font-size="21" font-weight="800" fill="#102A43">Meilisearch</text>
+    <text x="1405" y="574" text-anchor="middle" font-size="18" fill="#52677D">Rebuildable search</text>
+
+    <text x="688" y="664" font-size="18" font-weight="650" fill="#9FB1C4">SOURCE ARCHITECTURE · DEPLOYMENT EVIDENCE REMAINS A SEPARATE GATE</text>
+  </g>
+</svg>

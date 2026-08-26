@@ -106,6 +106,22 @@ class SourceDistributionTests(unittest.TestCase):
             )
         self.assertEqual(result.file_count, 2)
 
+    def test_export_allows_root_release_metadata(self) -> None:
+        fake = FakeGit(
+            [
+                entry("CHANGELOG.md", b"# Changelog\n"),
+                entry("README.md", b"# Connect.md\n"),
+                entry("VERSION", b"0.2.0\n"),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            result = distribution.export_distribution(
+                Path(temporary) / "repo",
+                Path(temporary) / "out" / "source.tar.gz",
+                git_runner=fake,
+            )
+        self.assertEqual(result.file_count, 3)
+
     def test_export_rejects_forbidden_tracked_paths_and_modes(self) -> None:
         cases = [
             [entry("README.md"), entry("apps/web/node_modules/package/index.js")],
