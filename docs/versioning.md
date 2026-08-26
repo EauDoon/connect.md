@@ -8,11 +8,12 @@ Document versions are a different object. Canonical Profile and Resume Markdown 
 
 - `VERSION` holds the current source version as `MAJOR.MINOR.PATCH` (currently `0.2.0`).
 - `CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-- Annotated Git tags use the `v*` form, for example `v0.2.0`, and must point at the commit that introduces that changelog section.
-- GitHub Releases are created from those annotated tags by [`.github/workflows/release.yml`](../.github/workflows/release.yml), which copies the matching `CHANGELOG.md` section into the release notes.
+- Annotated Git tags use the `v*` form and must point at the commit that introduces that changelog section.
+- Published tags: [`v0.1.0`](https://github.com/EauDoon/connect.md/releases/tag/v0.1.0) at `55cfc6e`, [`v0.2.0`](https://github.com/EauDoon/connect.md/releases/tag/v0.2.0) at `512e4cd`.
+- GitHub Releases are created from those annotated tags. [`.github/workflows/release.yml`](../.github/workflows/release.yml) copies the matching `CHANGELOG.md` section when a `v*` tag is pushed. [`.github/workflows/mint-source-tags.yml`](../.github/workflows/mint-source-tags.yml) can mint a missing annotated tag and Release from `CHANGELOG.md` (used once for `v0.1.0` / `v0.2.0`).
 
 A source tag records the published source. It is not evidence that production Clerk, PostgreSQL, Meilisearch, TLS, witness, worker, backup, or restore gates have passed.
 
 ## History policy
 
-Never rewrite tagged history. Do not force-push `main` over a tagged commit, delete a published `v*` tag, or retarget a tag that already has a GitHub Release. Correct a mistake with a new patch version and a new annotated tag.
+Never rewrite tagged history. Do not force-push `main` over a tagged commit, delete a published `v*` tag, or retarget a tag that already has a GitHub Release. Correct a mistake with a new patch version and a new annotated tag. Never rewrite `55cfc6e`.
