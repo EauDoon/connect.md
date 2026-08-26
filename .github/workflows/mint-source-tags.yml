@@ -28,24 +28,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          extract_notes() {
-            python3 - "$1" <<'PY'
-import re, sys
-from pathlib import Path
-tag = sys.argv[1]
-version = tag[1:]
-changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-heading = re.compile(rf"^## \[{re.escape(version)}\](?:\s+-.*)?\s*$", re.MULTILINE)
-match = heading.search(changelog)
-if match is None:
-    raise SystemExit(f"CHANGELOG.md has no section for {version}")
-rest = changelog[match.end():]
-nxt = re.search(r"^## ", rest, re.MULTILINE)
-section = changelog[match.start(): match.end() + (nxt.start() if nxt else len(rest))]
-Path("release-notes.md").write_text(section.strip() + "\n", encoding="utf-8")
-PY
-          }
-
           mint() {
             local tag="$1"
             local sha="$2"
@@ -61,7 +43,7 @@ PY
               echo "release ${tag} already exists"
               return 0
             fi
-            extract_notes "$tag"
+            python3 scripts/extract-changelog-section.py "$tag"
             gh release create "$tag" --target "$sha" --title "connect.md ${tag#v}" --notes-file release-notes.md
           }
 
