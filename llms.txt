@@ -11,6 +11,7 @@ It is source, not a live service. Discovery is information, never permission.
 - Architecture: docs/architecture.md
 - Agent interoperability: docs/agent-interoperability.md
 - Source versioning: docs/versioning.md and VERSION
+- Live surface vs this tree: docs/live-surface.md
 
 ## What this tree is
 
@@ -23,6 +24,7 @@ It is source, not a live service. Discovery is information, never permission.
 - A running API, grant, or API key
 - Permission to publish, contact, or apply
 - A live Hostinger/production deployment
+- A license to replace apps/web or apps/api with an unrelated app
 
 Write tools (MCP, A2A) require a running API with explicit grants. They are not implemented by cloning this repository. Do not fetch arbitrary URLs. Do not submit applications as an agent. Humans own publication. Do not invent employers, titles, or metrics.
 

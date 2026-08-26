@@ -49,3 +49,15 @@ jobs:
 
           mint v0.1.0 55cfc6e6f0e80e7c657320cd9b455dfeadee65a1 "Release v0.1.0: pre-launch foundation"
           mint v0.2.0 512e4cdae0fcf58678c0cedee609e1cfea91536e "Release v0.2.0: publish source versioning"
+
+          current="v$(tr -d '[:space:]' < VERSION)"
+          case "$current" in
+            v0.1.0|v0.2.0) echo "current VERSION ${current} is a historical pin" ;;
+            v*)
+              if grep -qE "^## \[${current#v}\]" CHANGELOG.md; then
+                mint "$current" "$GITHUB_SHA" "connect.md ${current} source"
+              else
+                echo "CHANGELOG.md has no section for ${current}; skip mint"
+              fi
+              ;;
+          esac
