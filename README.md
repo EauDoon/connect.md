@@ -2,6 +2,8 @@
 
 connect.md is a Markdown-native professional network built for agent-first access and a polished human experience.
 
+Source releases follow [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/). Annotated git tags such as `v0.2.0` record published source and mint GitHub Releases; they are not production-deployment claims. Canonical document versions are content-addressed Markdown (SHA-256) stored outside git. See [VERSION](VERSION), [CHANGELOG.md](CHANGELOG.md), and [versioning](docs/versioning.md).
+
 The repository is organized as a small monorepo:
 
 ```text
@@ -16,7 +18,7 @@ infra/
   scripts/                VPS deployment and operational helpers
 docs/                     Architecture and Hostinger runbooks
 storage/                  Runtime Markdown versions (ignored except README)
-.github/workflows/        CI checks
+.github/workflows/        CI checks and tagged GitHub Releases
 ```
 
 Start with the [architecture](docs/architecture.md), [platform integration scaffold](docs/platform/README.md), [social-network contract](docs/social-network.md), [trust and safety gates](docs/trust-safety.md), [agent interoperability contract](docs/agent-interoperability.md), [account lifecycle contract](docs/account-lifecycle.md), and [acceptance contract](docs/acceptance.md). Local API and web commands live in [apps/api/README.md](apps/api/README.md) and [apps/web/README.md](apps/web/README.md); the fresh-VPS-only production path is documented in [deployment.md](docs/deployment.md) and [operations.md](docs/operations.md).

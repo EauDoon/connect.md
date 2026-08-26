@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Create GitHub Release from CHANGELOG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 <<'PY'
+          from __future__ import annotations
+
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          if re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", tag) is None:
+              sys.exit(f"unsupported source tag: {tag}")
+          version = tag[1:]
+          recorded = Path("VERSION").read_text(encoding="utf-8").strip()
+          if recorded != version:
+              sys.exit(f"VERSION {recorded!r} does not match tag {tag}")
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          heading = re.compile(
+              rf"^## \[{re.escape(version)}\](?:\s+-.*)?\s*$",
+              re.MULTILINE,
+          )
+          match = heading.search(changelog)
+          if match is None:
+              sys.exit(f"CHANGELOG.md has no section for {version}")
+          rest = changelog[match.end() :]
+          nxt = re.search(r"^## ", rest, re.MULTILINE)
+          section = changelog[match.start() : match.end() + (nxt.start() if nxt else len(rest))]
+          Path("release-notes.md").write_text(section.strip() + "\n", encoding="utf-8")
+          PY
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "connect.md ${GITHUB_REF_NAME#v}" \
+            --notes-file release-notes.md
