@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://connect.md/schemas/post.write/1.json",
+  "title": "connect.md professional Post client-write frontmatter",
+  "description": "Posts are public-only in v1. Server-owned fields are intentionally forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "title", "topics", "visibility"],
+  "properties": {
+    "schema": {"const": "connect.md/post"},
+    "schema_version": {"const": 1},
+    "title": {"type": "string", "minLength": 1, "maxLength": 160, "pattern": "^(?=\\S)(?!.*\\s$)(?!.*#$)[^\\r\\n]+$"},
+    "topics": {"type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 50, "pattern": "^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$"}},
+    "visibility": {"const": "public"}
+  },
+  "x-connectmd": {
+    "kind": "post",
+    "operation": "create",
+    "forbidden_server_fields": ["id", "author_profile_handle", "version", "published_at", "updated_at"],
+    "required_headings": ["# {title}"]
+  }
+}

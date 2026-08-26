@@ -1,0 +1,225 @@
+﻿name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - run: python tools/secret_scan.py
+
+  platform-contract:
+    name: Platform feature contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+      - name: Agent-client conformance
+        run: |
+          python examples/agent-clients/check_agent_client.py
+          python -m unittest discover -s examples/agent-clients -p 'test_*.py' -q
+      - run: python tools/check_platform_features.py
+      - run: python -m unittest discover -s tools/tests -p 'test_*.py'
+      - name: Export and verify committed source distribution
+        run: |
+          archive="$RUNNER_TEMP/connectmd-source.tar.gz"
+          python tools/source_distribution.py export --repo . --output "$archive"
+          python tools/source_distribution.py verify --archive "$archive" --repo .
+
+  api:
+    name: API and live contract
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+        env:
+          POSTGRES_DB: connectmd_integration
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-operator-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d connectmd_integration"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      meilisearch:
+        image: getmeili/meilisearch:v1.45.0@sha256:7fde2b22e9a7ccfe7551613a521fc1b3abdbec20fedbd9aa0fb8ff133cd83c5d
+        env:
+          MEILI_ENV: production
+          MEILI_MASTER_KEY: ci-meili-master-key-at-least-16
+          MEILI_NO_ANALYTICS: "true"
+        ports: ["7700:7700"]
+        options: >-
+          --health-cmd "wget --no-verbose --spider http://127.0.0.1:7700/health"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_api:ci-api-password@127.0.0.1:5432/connectmd_integration
+      CONNECTMD_SEARCH_PROJECTION_DATABASE_URL: postgresql+asyncpg://connectmd_search_projection:ci-search-projection-password@127.0.0.1:5432/connectmd_integration
+      CONNECTMD_MIGRATOR_DB_PASSWORD: ci-migrator-password
+      CONNECTMD_API_DB_PASSWORD: ci-api-password
+      CONNECTMD_SEARCH_PROJECTION_DB_PASSWORD: ci-search-projection-password
+      CONNECTMD_PROJECTION_ADMIN_DB_PASSWORD: ci-projection-admin-password
+      CONNECTMD_ACCOUNT_ERASURE_DB_PASSWORD: ci-account-erasure-password
+      CONNECTMD_BACKUP_DB_PASSWORD: ci-backup-password
+      CONNECTMD_MEILISEARCH_URL: http://127.0.0.1:7700
+      CONNECTMD_MEILISEARCH_API_KEY: ci-meili-master-key-at-least-16
+      CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING: '[{"kid":"ci-v1","secret":"Y2ktZXhhY3Qtc2VhcmNoLWN1cnNvci1zZWNyZXQtMDAw"}]'
+      CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS: '900'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Bootstrap least-privilege database roles
+        env:
+          PGPASSWORD: ci-postgres-operator-password
+          PGOPTIONS: >-
+            -c connectmd.migrator_password=ci-migrator-password
+            -c connectmd.api_password=ci-api-password
+            -c connectmd.search_projection_password=ci-search-projection-password
+            -c connectmd.projection_admin_password=ci-projection-admin-password
+            -c connectmd.account_erasure_password=ci-account-erasure-password
+            -c connectmd.backup_password=ci-backup-password
+        run: >-
+          docker run --rm -i --network host
+          -e PGPASSWORD -e PGOPTIONS
+          postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+          psql -h 127.0.0.1 -U postgres -d connectmd_integration
+          --set ON_ERROR_STOP=1
+          --set connectmd_mutate=true
+          --set connectmd_reconcile=false
+          --set connectmd_verify=false
+          -f - < ../../infra/postgres/database-role-contract.sql
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/api/requirements-test.lock
+      - run: python -m pip install --require-hashes -r requirements-test.lock
+      - run: python ../../infra/tests/operational-contracts.py
+      - run: python -m pip install --no-deps --no-build-isolation -e .
+      - run: python ../../infra/tests/proxy-trust-contract.py
+      - run: ruff format --check .
+      - run: ruff check .
+      - run: mypy app
+      - run: pytest -q
+      - run: alembic upgrade head
+        env:
+          CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_migrator:ci-migrator-password@127.0.0.1:5432/connectmd_integration
+      - name: Reconcile and verify database roles
+        env:
+          PGPASSWORD: ci-postgres-operator-password
+          PGOPTIONS: >-
+            -c connectmd.migrator_password=ci-migrator-password
+            -c connectmd.api_password=ci-api-password
+            -c connectmd.search_projection_password=ci-search-projection-password
+            -c connectmd.projection_admin_password=ci-projection-admin-password
+            -c connectmd.account_erasure_password=ci-account-erasure-password
+            -c connectmd.backup_password=ci-backup-password
+        run: >-
+          docker run --rm -i --network host
+          -e PGPASSWORD -e PGOPTIONS
+          postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+          psql -h 127.0.0.1 -U postgres -d connectmd_integration
+          --set ON_ERROR_STOP=1
+          --set connectmd_mutate=true
+          --set connectmd_reconcile=true
+          --set connectmd_verify=true
+          -f - < ../../infra/postgres/database-role-contract.sql
+      - run: python -m app.cli taxonomy backfill --if-required
+        env:
+          CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_projection_admin:ci-projection-admin-password@127.0.0.1:5432/connectmd_integration
+      - run: python -m app.cli taxonomy verify
+        env:
+          CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_projection_admin:ci-projection-admin-password@127.0.0.1:5432/connectmd_integration
+      - run: python -m app.cli exact-search backfill --if-required
+        env:
+          CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_projection_admin:ci-projection-admin-password@127.0.0.1:5432/connectmd_integration
+      - run: python -m app.cli exact-search verify
+        env:
+          CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_projection_admin:ci-projection-admin-password@127.0.0.1:5432/connectmd_integration
+      - run: CONNECTMD_RUN_LIVE_INTEGRATION=1 pytest -q tests/test_live_stack.py
+      - name: Generate and validate API dependency SBOM
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.ci-sboms"
+          python -m pip_audit -r requirements.lock --format cyclonedx-json --disable-pip --no-deps --progress-spinner off --output "$GITHUB_WORKSPACE/.ci-sboms/api.cdx.json"
+          python ../../tools/check_dependency_sboms.py --kind api --lock requirements.lock --sbom "$GITHUB_WORKSPACE/.ci-sboms/api.cdx.json" --receipt "$GITHUB_WORKSPACE/.ci-sboms/api.receipt.json"
+          cat "$GITHUB_WORKSPACE/.ci-sboms/api.receipt.json"
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - name: Generate and validate web dependency SBOM
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.ci-sboms"
+          npm sbom --package-lock-only --sbom-format cyclonedx --sbom-type application > "$GITHUB_WORKSPACE/.ci-sboms/web.cdx.json"
+          python3 ../../tools/check_dependency_sboms.py --kind web --lock package-lock.json --sbom "$GITHUB_WORKSPACE/.ci-sboms/web.cdx.json" --receipt "$GITHUB_WORKSPACE/.ci-sboms/web.receipt.json"
+          cat "$GITHUB_WORKSPACE/.ci-sboms/web.receipt.json"
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:e2e
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm audit
+      - run: npm audit --omit=dev
+
+  infrastructure:
+    name: Images, Compose, and Nginx
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - run: cp .env.example .env
+      - run: bash -n infra/scripts/*.sh infra/tests/*.sh
+      - run: bash infra/tests/acceptance-state-contract.sh
+      - run: bash infra/tests/release-accept-hermetic.sh
+      - run: bash infra/tests/exact-search-env-contract.sh
+      - run: bash infra/tests/environment-example-contract.sh
+      - run: bash infra/tests/init-deletion-journal-image-contract.sh
+      - run: bash infra/tests/hostname-contract.sh
+      - run: docker compose --env-file .env -f compose.yaml config -q
+      - run: docker compose --env-file .env -f compose.yaml -f compose.prod.yaml config -q
+      - run: docker compose --env-file .env -f compose.yaml -f compose.prod.yaml build api frontend nginx
+      - run: docker run --rm connectmd-api:local tesseract --version
+      - run: docker compose --env-file .env -f compose.yaml -f compose.prod.yaml up -d --no-build converter
+      - run: timeout 60 bash -c 'until [ "$(docker inspect --format="{{.State.Health.Status}}" "$(docker compose --env-file .env -f compose.yaml -f compose.prod.yaml ps -q converter)")" = healthy ]; do sleep 1; done'
+      - run: bash infra/tests/converter-built-image.sh
+      - run: docker compose --env-file .env -f compose.yaml -f compose.prod.yaml rm -sf converter
+      - run: bash infra/tests/recovery-roundtrip.sh
+        timeout-minutes: 20
+      - run: docker run --rm --add-host api:127.0.0.1 --add-host frontend:127.0.0.1 connectmd-nginx:local nginx -t
+      - run: mkdir -p .ci-certs/live/connectmd.example.test && openssl req -x509 -newkey rsa:2048 -sha256 -nodes -keyout .ci-certs/live/connectmd.example.test/privkey.pem -out .ci-certs/live/connectmd.example.test/fullchain.pem -subj /CN=connectmd.example.test -days 1 > /dev/null 2>&1
+      - run: docker run --rm --add-host api:127.0.0.1 --add-host frontend:127.0.0.1 -e CONNECTMD_DOMAIN=connectmd.example.test -v "$PWD/.ci-certs:/etc/letsencrypt:ro" connectmd-nginx:local nginx -t
+      - run: bash infra/tests/https-smoke.sh

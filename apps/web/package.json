@@ -1,0 +1,62 @@
+{
+  "name": "@connectmd/web",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "predev": "node scripts/copy-monaco-assets.mjs",
+    "dev": "next dev",
+    "prebuild": "node scripts/copy-monaco-assets.mjs",
+    "build": "next build",
+    "postbuild": "node scripts/check-route-js-budgets.mjs",
+    "build:e2e": "node scripts/build-production-e2e.mjs",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "node e2e/production-harness.mjs"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^6.31.5",
+    "@monaco-editor/react": "^4.7.0",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.468.0",
+    "monaco-editor": "0.56.0",
+    "next": "15.5.22",
+    "react": "19.1.4",
+    "react-dom": "19.1.4",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.3.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.4",
+    "autoprefixer": "^10.4.20",
+    "axe-core": "4.12.1",
+    "eslint": "^9.33.0",
+    "eslint-config-next": "15.5.22",
+    "postcss": "8.5.25",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "postcss": "$postcss",
+    "monaco-editor": {
+      "dompurify": "3.4.13"
+    },
+    "nanoid": "3.3.17",
+    "next": {
+      "sharp": "0.35.3"
+    }
+  }
+}

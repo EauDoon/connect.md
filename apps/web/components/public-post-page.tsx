@@ -1,0 +1,16 @@
+import { ArrowLeft, Braces, CalendarClock, Flag, UserRound } from "lucide-react";
+import Link from "next/link";
+
+import { MarkdownPreview } from "@/components/markdown-preview";
+import { PostReportControl } from "@/components/post-report-control";
+import { publicApiMarkdownUrl } from "@/lib/api";
+import type { ProfessionalPost } from "@/lib/posts-api";
+import { postArticleJsonLd } from "@/lib/public-projections";
+import { safeJsonLd } from "@/lib/public-document";
+
+export function PublicPostPage({ post }: { post: ProfessionalPost }) {
+  const markdownHref = publicApiMarkdownUrl(post.markdownUrl);
+  return <main className="mx-auto max-w-4xl px-5 py-9 sm:py-14 lg:px-8"><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(postArticleJsonLd(post)) }} /><div className="flex flex-wrap items-center justify-between gap-3"><Link href={`/p/${encodeURIComponent(post.authorProfileHandle)}/posts`} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-mist hover:text-white"><ArrowLeft className="size-4" aria-hidden /> @{post.authorProfileHandle}&apos;s archive</Link>{markdownHref && <a href={markdownHref} type="text/markdown" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 bg-white/[.04] px-4 py-2 text-sm font-semibold text-white hover:border-acid/40 hover:bg-acid/[.08]"><Braces className="size-4 text-acid" aria-hidden /> View canonical Markdown</a>}</div><article className="mt-7 overflow-hidden rounded-[2rem] border border-white/10 bg-panel shadow-glow"><header className="border-b border-white/10 px-6 py-9 sm:px-10 sm:py-12"><p className="eyebrow">Canonical professional post</p><h1 className="mt-5 max-w-4xl break-anywhere font-display text-4xl font-semibold tracking-[-.05em] text-white sm:text-6xl">{post.title}</h1><div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-mist"><Link href={`/p/${encodeURIComponent(post.authorProfileHandle)}`} className="inline-flex min-h-11 items-center gap-2 font-semibold text-acid underline-offset-4 hover:underline"><UserRound className="size-4" aria-hidden /> @{post.authorProfileHandle}</Link><span className="inline-flex items-center gap-2"><CalendarClock className="size-4 text-acid" aria-hidden /><time dateTime={post.publishedAt}>{formatDate(post.publishedAt)}</time></span></div>{post.topics.length > 0 && <ul className="mt-6 flex flex-wrap gap-2" aria-label="Post topics">{post.topics.map((topic) => <li key={topic} className="rounded-full border border-acid/20 bg-acid/[.07] px-3 py-1.5 text-xs text-acid">{topic}</li>)}</ul>}</header><div className="px-6 py-8 sm:px-10 sm:py-11"><MarkdownPreview markdown={post.markdown} omitTitle /><PostReportControl postId={post.id} /><p className="mt-7 flex gap-2 border-t border-white/10 pt-5 text-xs leading-5 text-mist/75"><Flag className="size-4 shrink-0 text-acid" aria-hidden />Posts are public and immutable Markdown. A private report is available only to signed-in humans and does not automatically sanction this post.</p></div></article></main>;
+}
+
+function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat("en", { dateStyle: "long", timeStyle: "short" }).format(date); }

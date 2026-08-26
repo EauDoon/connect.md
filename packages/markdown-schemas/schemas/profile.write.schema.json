@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://connect.md/schemas/profile.write/1.json",
+  "title": "connect.md Profile client-write frontmatter",
+  "description": "Frontmatter accepted when creating a Profile. Server-owned fields are intentionally forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "handle", "name", "headline", "location", "skills", "visibility"],
+  "properties": {
+    "schema": {"const": "connect.md/profile"},
+    "schema_version": {"const": 1},
+    "handle": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 160, "pattern": "^(?=\\S)(?!.*\\s$)(?!.*#$)[^\\r\\n]+$"},
+    "headline": {"type": "string", "minLength": 1, "maxLength": 280, "pattern": "^(?=\\S)(?!.*\\s$)[^\\r\\n]+$"},
+    "location": {"type": "string", "minLength": 1, "maxLength": 160, "pattern": "^(?=\\S)(?!.*\\s$)[^\\r\\n]+$"},
+    "skills": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^(?=\\S)(?!.*\\s$)[^\\r\\n]+$"}},
+    "visibility": {"enum": ["public", "private"]}
+  },
+  "x-connectmd": {
+    "kind": "profile",
+    "operation": "create",
+    "identity_field": "handle",
+    "canonical_limits_ref": "canonical-markdown-limits.json",
+    "canonical_size_scope": "final_utf8_bytes_after_lf_canonicalization",
+    "forbidden_server_fields": ["id", "owner_id", "version", "updated_at"],
+    "required_headings": ["# {name}", "## About", "## Experience", "## Skills"]
+  }
+}

@@ -1,0 +1,41 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.connectmd-release.env
+.connectmd-staged-release.env
+.connectmd-restore-state.env
+.connectmd-operations.lock
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+apps/web/public/monaco/
+apps/web/test-results/
+apps/web/playwright-report/
+
+# Runtime data
+storage/profiles/
+storage/resumes/
+postgres-data/
+meili-data/
+backups/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local audit artifact
+/(23-08-26)Connect.md Development Record.md

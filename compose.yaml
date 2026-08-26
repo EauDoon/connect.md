@@ -1,0 +1,593 @@
+name: connectmd
+
+x-logging: &connectmd-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: unless-stopped
+    logging: *connectmd-logging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-connectmd}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: --data-checksums
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - connectmd_data
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.45.0@sha256:7fde2b22e9a7ccfe7551613a521fc1b3abdbec20fedbd9aa0fb8ff133cd83c5d
+    restart: unless-stopped
+    logging: *connectmd-logging
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MAX_INDEXING_MEMORY: ${MEILI_MAX_INDEXING_MEMORY:-201326592}
+      MEILI_MAX_INDEXING_THREADS: ${MEILI_MAX_INDEXING_THREADS:-1}
+    volumes:
+      - meilisearch_data:/meili_data
+    networks:
+      - connectmd_data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --spider http://127.0.0.1:7700/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  db-migrate:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    command: ["alembic", "upgrade", "head"]
+    profiles: ["database-operations"]
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_migrator:${CONNECTMD_MIGRATOR_DB_PASSWORD:?Set CONNECTMD_MIGRATOR_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-connectmd}
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  database-backup:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    command: ["true"]
+    profiles: ["database-operations"]
+    user: "999:999"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-connectmd}
+      PGUSER: connectmd_backup
+      PGPASSWORD: ${CONNECTMD_BACKUP_DB_PASSWORD:?Set CONNECTMD_BACKUP_DB_PASSWORD in .env}
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  database-restore:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    command: ["true"]
+    profiles: ["database-operations"]
+    user: "999:999"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-connectmd}
+      PGUSER: connectmd_migrator
+      PGPASSWORD: ${CONNECTMD_MIGRATOR_DB_PASSWORD:?Set CONNECTMD_MIGRATOR_DB_PASSWORD in .env}
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    logging: *connectmd-logging
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    pids_limit: 128
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--proxy-headers", "--forwarded-allow-ips", "172.31.254.2"]
+    environment:
+      CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_api:${CONNECTMD_API_DB_PASSWORD:?Set CONNECTMD_API_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-connectmd}
+      CONNECTMD_STORAGE_PATH: /app/storage
+      CONNECTMD_INGEST_JOBS_PATH: /ingest-jobs
+      CONNECTMD_INGEST_TIMEOUT_SECONDS: ${CONNECTMD_INGEST_TIMEOUT_SECONDS:-45}
+      CONNECTMD_MAX_EXTRACTED_BYTES: ${CONNECTMD_MAX_EXTRACTED_BYTES:-8388608}
+      CONNECTMD_ENVIRONMENT: production
+      CONNECTMD_MEILISEARCH_URL: http://meilisearch:7700
+      CONNECTMD_MEILISEARCH_API_KEY: ${CONNECTMD_MEILISEARCH_SEARCH_KEY:?Set CONNECTMD_MEILISEARCH_SEARCH_KEY in .env}
+      CONNECTMD_MEILISEARCH_INDEX: ${CONNECTMD_MEILISEARCH_INDEX:-documents}
+      CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING: ${CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING:?Set CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING in .env}
+      CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS: ${CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS:-900}
+      CONNECTMD_CLERK_JWKS_URL: ${CONNECTMD_CLERK_JWKS_URL:?Set CONNECTMD_CLERK_JWKS_URL in .env}
+      CONNECTMD_CLERK_ISSUER: ${CONNECTMD_CLERK_ISSUER:?Set CONNECTMD_CLERK_ISSUER in .env}
+      CONNECTMD_CLERK_AUDIENCE: ${CONNECTMD_CLERK_AUDIENCE:-}
+      CONNECTMD_CLERK_AUTHORIZED_PARTIES: ${CONNECTMD_CLERK_AUTHORIZED_PARTIES:?Set CONNECTMD_CLERK_AUTHORIZED_PARTIES in .env}
+      CONNECTMD_API_KEY_PEPPER: ${CONNECTMD_API_KEY_PEPPER:?Set CONNECTMD_API_KEY_PEPPER in .env}
+      CONNECTMD_CORS_ORIGINS: ${CONNECTMD_CORS_ORIGINS:-[]}
+      CONNECTMD_PUBLIC_BASE_URL: ${CONNECTMD_PUBLIC_BASE_URL:-}
+      CONNECTMD_VERIFICATION_REVIEWER_ID: ${CONNECTMD_VERIFICATION_REVIEWER_ID:?Set CONNECTMD_VERIFICATION_REVIEWER_ID in .env}
+      CONNECTMD_VERIFICATION_REVIEWER_ROLE: ${CONNECTMD_VERIFICATION_REVIEWER_ROLE:?Set CONNECTMD_VERIFICATION_REVIEWER_ROLE in .env}
+      CONNECTMD_RECRUITING_ENABLED: ${CONNECTMD_RECRUITING_ENABLED:-false}
+      CONNECTMD_POST_MODERATOR_ID: ${CONNECTMD_POST_MODERATOR_ID:?Set CONNECTMD_POST_MODERATOR_ID in .env}
+      CONNECTMD_POST_MODERATOR_ROLE: ${CONNECTMD_POST_MODERATOR_ROLE:?Set CONNECTMD_POST_MODERATOR_ROLE in .env}
+      CONNECTMD_APPEAL_REVIEWER_ID: ${CONNECTMD_APPEAL_REVIEWER_ID:?Set CONNECTMD_APPEAL_REVIEWER_ID in .env}
+      CONNECTMD_APPEAL_REVIEWER_ROLE: ${CONNECTMD_APPEAL_REVIEWER_ROLE:?Set CONNECTMD_APPEAL_REVIEWER_ROLE in .env}
+      CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED: ${CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED:-false}
+      CONNECTMD_LIFECYCLE_HMAC_KEY: ${CONNECTMD_LIFECYCLE_HMAC_KEY:-}
+      CONNECTMD_LIFECYCLE_AEAD_KEY: ${CONNECTMD_LIFECYCLE_AEAD_KEY:-}
+      CONNECTMD_DELETION_JOURNAL_PATH: /deletion-journal
+      CONNECTMD_DELETION_WITNESS_PATH: /deletion-head-witness
+      CONNECTMD_DELETION_WITNESS_HMAC_KEY: ${CONNECTMD_DELETION_WITNESS_HMAC_KEY:?Set CONNECTMD_DELETION_WITNESS_HMAC_KEY in .env}
+      CONNECTMD_ACCOUNT_EXPORT_MAX_BYTES: ${CONNECTMD_ACCOUNT_EXPORT_MAX_BYTES:-5242880}
+      CONNECTMD_ACCOUNT_LIFECYCLE_WORKER_ID: ${CONNECTMD_ACCOUNT_LIFECYCLE_WORKER_ID:-account-lifecycle-worker}
+      CONNECTMD_ACCOUNT_LIFECYCLE_POLL_SECONDS: ${CONNECTMD_ACCOUNT_LIFECYCLE_POLL_SECONDS:-10}
+      CONNECTMD_ACCOUNT_LIFECYCLE_POLICY_VERSION: ${CONNECTMD_ACCOUNT_LIFECYCLE_POLICY_VERSION:-account-lifecycle-v1}
+      # Production health is the readiness contract and must not be downgraded
+      # by a host environment override.
+      API_READINESS_PATH: /readyz
+      # One API process matches the single isolated conversion worker protocol.
+      WEB_CONCURRENCY: "1"
+    volumes:
+      - markdown_storage:/app/storage
+      - ingest_jobs:/ingest-jobs
+      - type: bind
+        source: ${CONNECTMD_BACKUP_DIR:-./backups}/.connectmd-lifecycle/deletion-journal
+        target: /deletion-journal
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CONNECTMD_DELETION_WITNESS_DIR:?Set CONNECTMD_DELETION_WITNESS_DIR in .env}
+        target: /deletion-head-witness
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      connectmd_app:
+      connectmd_data:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:8000' + os.environ['API_READINESS_PATH'], timeout=3).read()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+  converter:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    command: ["python", "-m", "app.ingest_worker"]
+    restart: unless-stopped
+    logging: *connectmd-logging
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      CONNECTMD_INGEST_JOBS_PATH: /ingest-jobs
+    volumes:
+      - ingest_jobs:/ingest-jobs
+    network_mode: none
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,time; p='/ingest-jobs/.worker-ready'; assert os.path.isfile(p) and time.time()-os.path.getmtime(p)<5\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  search-projection-worker:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    command: ["python", "-m", "app.search_projection_worker", "run"]
+    restart: unless-stopped
+    logging: *connectmd-logging
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_search_projection:${CONNECTMD_SEARCH_PROJECTION_DB_PASSWORD:?Set CONNECTMD_SEARCH_PROJECTION_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-connectmd}
+      CONNECTMD_STORAGE_PATH: /app/storage
+      CONNECTMD_MEILISEARCH_URL: http://meilisearch:7700
+      CONNECTMD_MEILISEARCH_API_KEY: ${CONNECTMD_SEARCH_PROJECTION_MEILI_KEY:?Set CONNECTMD_SEARCH_PROJECTION_MEILI_KEY in .env}
+      CONNECTMD_MEILISEARCH_INDEX: ${CONNECTMD_MEILISEARCH_INDEX:-documents}
+      CONNECTMD_SEARCH_PROJECTION_WORKER_ID: ${CONNECTMD_SEARCH_PROJECTION_WORKER_ID:-search-projection-worker}
+      CONNECTMD_SEARCH_PROJECTION_POLL_SECONDS: ${CONNECTMD_SEARCH_PROJECTION_POLL_SECONDS:-2}
+      CONNECTMD_SEARCH_PROJECTION_LEASE_SECONDS: ${CONNECTMD_SEARCH_PROJECTION_LEASE_SECONDS:-60}
+      CONNECTMD_SEARCH_PROJECTION_MAX_ATTEMPTS: ${CONNECTMD_SEARCH_PROJECTION_MAX_ATTEMPTS:-8}
+      CONNECTMD_SEARCH_PROJECTION_MAX_BACKOFF_SECONDS: ${CONNECTMD_SEARCH_PROJECTION_MAX_BACKOFF_SECONDS:-300}
+      CONNECTMD_SEARCH_PROJECTION_MAX_HEALTHY_DEAD_LETTERS: ${CONNECTMD_SEARCH_PROJECTION_MAX_HEALTHY_DEAD_LETTERS:-0}
+      CONNECTMD_SEARCH_PROJECTION_MAX_HEALTHY_BACKLOG_AGE_SECONDS: ${CONNECTMD_SEARCH_PROJECTION_MAX_HEALTHY_BACKLOG_AGE_SECONDS:-600}
+      CONNECTMD_SEARCH_PROJECTION_HEARTBEAT_PATH: /tmp/connectmd-search-projection-worker-ready
+    volumes:
+      - markdown_storage:/app/storage:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import json,os,time; p=os.environ['CONNECTMD_SEARCH_PROJECTION_HEARTBEAT_PATH']; d=json.load(open(p,encoding='utf-8')); assert d['state']=='healthy' and time.time()-os.path.getmtime(p)<45\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  search-admin:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    command: ["python", "-m", "app.cli", "rebuild-search"]
+    profiles: ["search-operations"]
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_projection_admin:${CONNECTMD_PROJECTION_ADMIN_DB_PASSWORD:?Set CONNECTMD_PROJECTION_ADMIN_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-connectmd}
+      CONNECTMD_STORAGE_PATH: /app/storage
+      CONNECTMD_MEILISEARCH_URL: http://meilisearch:7700
+      CONNECTMD_MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}
+      CONNECTMD_MEILISEARCH_INDEX: ${CONNECTMD_MEILISEARCH_INDEX:-documents}
+      CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED: ${CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED:-false}
+      CONNECTMD_LIFECYCLE_HMAC_KEY: ${CONNECTMD_LIFECYCLE_HMAC_KEY:-}
+      CONNECTMD_LIFECYCLE_AEAD_KEY: ${CONNECTMD_LIFECYCLE_AEAD_KEY:-}
+      CONNECTMD_DELETION_JOURNAL_PATH: /deletion-journal
+      CONNECTMD_DELETION_WITNESS_PATH: /deletion-head-witness
+      CONNECTMD_DELETION_WITNESS_HMAC_KEY: ${CONNECTMD_DELETION_WITNESS_HMAC_KEY:?Set CONNECTMD_DELETION_WITNESS_HMAC_KEY in .env}
+    volumes:
+      - markdown_storage:/app/storage:ro
+      - type: bind
+        source: ${CONNECTMD_BACKUP_DIR:-./backups}/.connectmd-lifecycle/deletion-journal
+        target: /deletion-journal
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CONNECTMD_DELETION_WITNESS_DIR:?Set CONNECTMD_DELETION_WITNESS_DIR in .env}
+        target: /deletion-head-witness
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+
+  taxonomy-admin:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    command: ["python", "-m", "app.cli", "taxonomy", "verify"]
+    profiles: ["taxonomy-operations"]
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_projection_admin:${CONNECTMD_PROJECTION_ADMIN_DB_PASSWORD:?Set CONNECTMD_PROJECTION_ADMIN_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-connectmd}
+      CONNECTMD_STORAGE_PATH: /app/storage
+    volumes:
+      - markdown_storage:/app/storage:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  exact-search-admin:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    command: ["python", "-m", "app.cli", "exact-search", "verify"]
+    profiles: ["exact-search-operations"]
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_projection_admin:${CONNECTMD_PROJECTION_ADMIN_DB_PASSWORD:?Set CONNECTMD_PROJECTION_ADMIN_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-connectmd}
+      CONNECTMD_STORAGE_PATH: /app/storage
+      CONNECTMD_ENVIRONMENT: production
+      CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING: ${CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING:?Set CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING in .env}
+      CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS: ${CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS:-900}
+    volumes:
+      - markdown_storage:/app/storage:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  search-key-bootstrap:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    command: ["python", "-m", "app.search_key_bootstrap"]
+    profiles: ["search-bootstrap"]
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      CONNECTMD_MEILISEARCH_URL: http://meilisearch:7700
+      CONNECTMD_MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}
+      CONNECTMD_MEILISEARCH_INDEX: ${CONNECTMD_MEILISEARCH_INDEX:-documents}
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_data
+    depends_on:
+      meilisearch:
+        condition: service_healthy
+
+  account-erasure-worker:
+    image: connectmd-api:${CONNECTMD_IMAGE_TAG:-local}
+    command: ["python", "-m", "app.account_erasure_worker"]
+    profiles: ["account-lifecycle"]
+    restart: unless-stopped
+    logging: *connectmd-logging
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      CONNECTMD_DATABASE_URL: postgresql+asyncpg://connectmd_account_erasure:${CONNECTMD_ACCOUNT_ERASURE_DB_PASSWORD:?Set CONNECTMD_ACCOUNT_ERASURE_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-connectmd}
+      CONNECTMD_STORAGE_PATH: /app/storage
+      CONNECTMD_INGEST_JOBS_PATH: /ingest-jobs
+      CONNECTMD_ENVIRONMENT: production
+      CONNECTMD_MEILISEARCH_URL: http://meilisearch:7700
+      CONNECTMD_MEILISEARCH_API_KEY: ${CONNECTMD_ACCOUNT_ERASURE_MEILI_KEY:-}
+      CONNECTMD_MEILISEARCH_INDEX: ${CONNECTMD_MEILISEARCH_INDEX:-documents}
+      CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING: ${CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING:?Set CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING in .env}
+      CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS: ${CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS:-900}
+      CONNECTMD_CLERK_JWKS_URL: ${CONNECTMD_CLERK_JWKS_URL:?Set CONNECTMD_CLERK_JWKS_URL in .env}
+      CONNECTMD_CLERK_ISSUER: ${CONNECTMD_CLERK_ISSUER:?Set CONNECTMD_CLERK_ISSUER in .env}
+      CONNECTMD_CLERK_AUDIENCE: ${CONNECTMD_CLERK_AUDIENCE:-}
+      CONNECTMD_CLERK_AUTHORIZED_PARTIES: ${CONNECTMD_CLERK_AUTHORIZED_PARTIES:?Set CONNECTMD_CLERK_AUTHORIZED_PARTIES in .env}
+      CONNECTMD_API_KEY_PEPPER: ${CONNECTMD_API_KEY_PEPPER:?Set CONNECTMD_API_KEY_PEPPER in .env}
+      CONNECTMD_CORS_ORIGINS: ${CONNECTMD_CORS_ORIGINS:-[]}
+      CONNECTMD_PUBLIC_BASE_URL: ${CONNECTMD_PUBLIC_BASE_URL:-}
+      CONNECTMD_VERIFICATION_REVIEWER_ID: ${CONNECTMD_VERIFICATION_REVIEWER_ID:?Set CONNECTMD_VERIFICATION_REVIEWER_ID in .env}
+      CONNECTMD_VERIFICATION_REVIEWER_ROLE: ${CONNECTMD_VERIFICATION_REVIEWER_ROLE:?Set CONNECTMD_VERIFICATION_REVIEWER_ROLE in .env}
+      CONNECTMD_POST_MODERATOR_ID: ${CONNECTMD_POST_MODERATOR_ID:?Set CONNECTMD_POST_MODERATOR_ID in .env}
+      CONNECTMD_POST_MODERATOR_ROLE: ${CONNECTMD_POST_MODERATOR_ROLE:?Set CONNECTMD_POST_MODERATOR_ROLE in .env}
+      CONNECTMD_APPEAL_REVIEWER_ID: ${CONNECTMD_APPEAL_REVIEWER_ID:?Set CONNECTMD_APPEAL_REVIEWER_ID in .env}
+      CONNECTMD_APPEAL_REVIEWER_ROLE: ${CONNECTMD_APPEAL_REVIEWER_ROLE:?Set CONNECTMD_APPEAL_REVIEWER_ROLE in .env}
+      CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED: ${CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED:-false}
+      CONNECTMD_LIFECYCLE_HMAC_KEY: ${CONNECTMD_LIFECYCLE_HMAC_KEY:-}
+      CONNECTMD_LIFECYCLE_AEAD_KEY: ${CONNECTMD_LIFECYCLE_AEAD_KEY:-}
+      CONNECTMD_DELETION_JOURNAL_PATH: /deletion-journal
+      CONNECTMD_DELETION_WITNESS_PATH: /deletion-head-witness
+      CONNECTMD_DELETION_WITNESS_HMAC_KEY: ${CONNECTMD_DELETION_WITNESS_HMAC_KEY:?Set CONNECTMD_DELETION_WITNESS_HMAC_KEY in .env}
+      CONNECTMD_CLERK_BACKEND_SECRET: ${CONNECTMD_CLERK_BACKEND_SECRET:-}
+      CONNECTMD_CLERK_BACKEND_BASE_URL: ${CONNECTMD_CLERK_BACKEND_BASE_URL:-}
+      CONNECTMD_ACCOUNT_EXPORT_MAX_BYTES: ${CONNECTMD_ACCOUNT_EXPORT_MAX_BYTES:-5242880}
+      CONNECTMD_ACCOUNT_LIFECYCLE_WORKER_ID: ${CONNECTMD_ACCOUNT_LIFECYCLE_WORKER_ID:-account-lifecycle-worker}
+      CONNECTMD_ACCOUNT_LIFECYCLE_POLL_SECONDS: ${CONNECTMD_ACCOUNT_LIFECYCLE_POLL_SECONDS:-10}
+      CONNECTMD_ACCOUNT_LIFECYCLE_MAX_HEALTHY_BACKLOG: ${CONNECTMD_ACCOUNT_LIFECYCLE_MAX_HEALTHY_BACKLOG:-10000}
+      CONNECTMD_ACCOUNT_LIFECYCLE_MAX_HEALTHY_DEAD_LETTERS: ${CONNECTMD_ACCOUNT_LIFECYCLE_MAX_HEALTHY_DEAD_LETTERS:-0}
+      CONNECTMD_ACCOUNT_LIFECYCLE_MAX_HEALTHY_ELIGIBLE_AGE_SECONDS: ${CONNECTMD_ACCOUNT_LIFECYCLE_MAX_HEALTHY_ELIGIBLE_AGE_SECONDS:-600}
+      CONNECTMD_ACCOUNT_LIFECYCLE_HEARTBEAT_PATH: /tmp/connectmd-account-lifecycle-worker-ready
+      CONNECTMD_ACCOUNT_LIFECYCLE_POLICY_VERSION: ${CONNECTMD_ACCOUNT_LIFECYCLE_POLICY_VERSION:-account-lifecycle-v1}
+    volumes:
+      - markdown_storage:/app/storage
+      - type: bind
+        source: ${CONNECTMD_BACKUP_DIR:-./backups}/.connectmd-lifecycle/deletion-journal
+        target: /deletion-journal
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CONNECTMD_DELETION_WITNESS_DIR:?Set CONNECTMD_DELETION_WITNESS_DIR in .env}
+        target: /deletion-head-witness
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      - connectmd_app
+      - connectmd_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import json,os,time; p=os.environ['CONNECTMD_ACCOUNT_LIFECYCLE_HEARTBEAT_PATH']; d=json.load(open(p,encoding='utf-8')); assert d['state']=='healthy' and d['database_ready'] and d['deletion_journal_ready'] and d['provider_ready'] and d['search_ready'] and time.time()-os.path.getmtime(p)<45\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    image: connectmd-web:${CONNECTMD_IMAGE_TAG:-local}
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY in .env}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+        NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED: ${NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED:-false}
+    restart: unless-stopped
+    logging: *connectmd-logging
+    user: "1001:1001"
+    cap_drop:
+      - ALL
+    cap_add: []
+    privileged: false
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    pids_limit: 128
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      CONNECTMD_API_BASE_URL: http://api:8000
+      CONNECTMD_RECRUITING_ENABLED: ${CONNECTMD_RECRUITING_ENABLED:-false}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY in .env}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?Set CLERK_SECRET_KEY in .env}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+      NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED: ${NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED:-false}
+      FRONTEND_HEALTHCHECK_PATH: ${FRONTEND_HEALTHCHECK_PATH:-/}
+    networks:
+      - connectmd_app
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const http=require('http'); const p=process.env.FRONTEND_HEALTHCHECK_PATH; const r=http.get('http://127.0.0.1:3000'+p, x=>process.exit(x.statusCode < 500 ? 0 : 1)); r.setTimeout(3000,()=>{r.destroy();process.exit(1)}); r.on('error',()=>process.exit(1));\""]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+  nginx:
+    image: connectmd-nginx:${CONNECTMD_IMAGE_TAG:-local}
+    build:
+      context: ./infra/nginx
+    restart: unless-stopped
+    logging: *connectmd-logging
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    privileged: false
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    pids_limit: 64
+    tmpfs:
+      - /etc/nginx/conf.d:size=1m,mode=0755
+      - /var/cache/nginx:size=16m,mode=0755
+      - /var/run:size=1m,mode=0755
+    environment:
+      CONNECTMD_DOMAIN: ${CONNECTMD_DOMAIN:-}
+      CONNECTMD_RELEASE_TAG: ${CONNECTMD_IMAGE_TAG:-local}
+    ports:
+      - "${CONNECTMD_HTTP_PORT:-80}:80"
+    volumes:
+      - certbot_etc:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+    networks:
+      connectmd_app:
+        ipv4_address: 172.31.254.2
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --spider http://127.0.0.1/nginx-health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
+  storage-backup:
+    image: alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+    profiles: ["ops"]
+    user: "10001:10001"
+    network_mode: none
+    volumes:
+      - markdown_storage:/storage:ro
+
+  storage-restore:
+    image: alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+    profiles: ["ops"]
+    network_mode: none
+    volumes:
+      - markdown_storage:/storage
+
+  backup-verify:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    profiles: ["ops"]
+    network_mode: none
+
+volumes:
+  postgres_data:
+  meilisearch_data:
+  markdown_storage:
+  ingest_jobs:
+  certbot_etc:
+  certbot_webroot:
+
+networks:
+  connectmd_app:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.254.0/24
+  connectmd_data:
+    internal: true

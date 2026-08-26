@@ -1,0 +1,2453 @@
+{
+  "api_routes": {
+    "DELETE /v1/agent-grants/{grant_id}": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 403, response.text",
+          "assert response.json()[\"detail\"] == detail"
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(path)",
+        "request_path": "/v1/agent-grants/missing-grant",
+        "response_binding": "response",
+        "test": "test_impersonated_clerk_is_denied_before_lookup_or_persistence",
+        "test_path": "apps/api/tests/test_impersonation_authority.py"
+      }
+    },
+    "DELETE /v1/agent-identities/{agent_handle}": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert first.status_code == 204",
+          "assert first.content == b\"\""
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(\n        \"/v1/agent-identities/withdraw-agent\",\n        headers={\"Idempotency-Key\": \"withdraw-agent-0001\"},\n    )",
+        "request_path": "/v1/agent-identities/withdraw-agent",
+        "response_binding": "first",
+        "test": "test_agent_identity_withdraw_replays_empty_response_and_removes_public_identity",
+        "test_path": "apps/api/tests/test_agent_identity_lifecycle_durability.py"
+      }
+    },
+    "DELETE /v1/agent-identities/{agent_handle}/mandates/{mandate_id}": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert missing_revocation.status_code == 404",
+          "assert missing_revocation.json()[\"detail\"] == \"agent mandate was not found\""
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(\n        \"/v1/agent-identities/sender-agent/mandates/missing-mandate\"\n    )",
+        "request_path": "/v1/agent-identities/sender-agent/mandates/missing-mandate",
+        "response_binding": "missing_revocation",
+        "test": "test_agent_outreach_status_rejects_revoked_and_expired_origin_credentials",
+        "test_path": "apps/api/tests/test_agent_identity_mandates.py"
+      }
+    },
+    "DELETE /v1/api-keys/{key_id}": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert unknown.status_code == 404",
+          "assert unknown.json()[\"detail\"] == \"API key was not found\""
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(\n        \"/v1/api-keys/does-not-exist\",\n        headers={\"Idempotency-Key\": \"api-key-revoke-unknown-0001\"},\n    )",
+        "request_path": "/v1/api-keys/does-not-exist",
+        "response_binding": "unknown",
+        "test": "test_revoke_replays_before_lookup_and_only_emits_transition_event",
+        "test_path": "apps/api/tests/test_api_key_atomicity.py"
+      }
+    },
+    "DELETE /v1/connections/{connection_id}": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert first.status_code == 204",
+          "assert first.content == b\"\""
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(path, headers={\"Idempotency-Key\": key})",
+        "request_path": "/v1/connections/{param}",
+        "response_binding": "first",
+        "test": "test_remove_connection_is_durably_idempotent",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "DELETE /v1/content-blocks/{profile_handle}": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert unblocked.status_code == unblocked_replay.status_code == 204",
+          "assert unblocked_replay.headers[\"idempotency-replayed\"] == \"true\""
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(\n        \"/v1/content-blocks/target-profile\", headers=key_header(\"unblock-exact-0001\")\n    )",
+        "request_path": "/v1/content-blocks/target-profile",
+        "response_binding": "unblocked_replay",
+        "test": "test_block_receipt_binds_both_follow_side_effects_and_unblock",
+        "test_path": "apps/api/tests/test_follow_block_durability.py"
+      }
+    },
+    "DELETE /v1/follows/{profile_handle}": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert (\n        removed.status_code\n        == removed_replay.status_code\n        == noop.status_code\n        == noop_replay.status_code\n        == 204\n    )",
+          "assert removed.text == removed_replay.text == noop.text == noop_replay.text == \"\""
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(\n        \"/v1/follows/target-profile\", headers=key_header(\"unfollow-exact-0001\")\n    )",
+        "request_path": "/v1/follows/target-profile",
+        "response_binding": "removed",
+        "test": "test_follow_exact_replay_quota_and_noop_unfollow_are_durable",
+        "test_path": "apps/api/tests/test_follow_block_durability.py"
+      }
+    },
+    "DELETE /v1/organizations/{organization_slug}/memberships/{membership_id}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert impersonated_remove.status_code == 403, impersonated_remove.text",
+          "assert impersonated_remove.json()[\"detail\"] == IMPERSONATION_READ_ONLY_CODE"
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(\n        f\"/v1/organizations/northstar/memberships/{membership_id}\",\n        headers={\"Idempotency-Key\": \"impersonated-membership-remove-0001\"},\n    )",
+        "request_path": "/v1/organizations/northstar/memberships/{param}",
+        "response_binding": "impersonated_remove",
+        "test": "test_member_invitation_and_agents_cannot_establish_or_publish",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "DELETE /v1/posts/{post_id}": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert withdrawn.status_code == 204",
+          "assert withdrawn.content == b\"\""
+        ],
+        "method": "DELETE",
+        "request_anchor": "client.delete(\n        f\"/v1/posts/{withdrawn_create.json()['id']}\",\n        headers={\n            \"Idempotency-Key\": \"post-withdrawn-state-0001\",\n            \"If-Match\": withdrawn_create.headers[\"etag\"],\n        },\n    )",
+        "request_path": "/v1/posts/{param}",
+        "response_binding": "withdrawn",
+        "test": "test_post_canonicalization_public_reads_and_lost_ack_receipt_recovery",
+        "test_path": "apps/api/tests/test_professional_posts.py"
+      }
+    },
+    "GET /.well-known/agent-card.json": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert card.status_code == 200",
+          "assert card.json()[\"supportedInterfaces\"] == [\n        {\n            \"url\": \"http://testserver/a2a\",\n            \"protocolBinding\": \"HTTP+JSON\",\n            \"protocolVersion\": \"1.0\",\n        }\n    ]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/.well-known/agent-card.json\")",
+        "request_path": "/.well-known/agent-card.json",
+        "response_binding": "card",
+        "test": "test_agent_card_protected_resource_metadata_and_mcp_boundary",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /.well-known/oauth-protected-resource": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert metadata.status_code == 200",
+          "assert \"applications:read\" not in metadata.json()[\"scopes_supported\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/.well-known/oauth-protected-resource\")",
+        "request_path": "/.well-known/oauth-protected-resource",
+        "response_binding": "metadata",
+        "test": "test_application_authority_is_human_only_in_scopes_discovery_openapi_and_change_feeds",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /.well-known/oauth-protected-resource/mcp": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert metadata.status_code == 200",
+          "assert metadata.json()[\"resource\"].endswith(\"/mcp\")"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/.well-known/oauth-protected-resource/mcp\")",
+        "request_path": "/.well-known/oauth-protected-resource/mcp",
+        "response_binding": "metadata",
+        "test": "test_agent_card_protected_resource_metadata_and_mcp_boundary",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /agent-readme.md": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert readme.status_code == 200",
+          "assert readme.headers[\"content-type\"].startswith(\"text/markdown\")"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/agent-readme.md\")",
+        "request_path": "/agent-readme.md",
+        "response_binding": "readme",
+        "test": "test_agent_readme_is_public_markdown_and_fail_closed_onboarding_contract",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /healthz": {
+      "owner": "production-operations",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 200",
+          "assert response.headers[\"X-Request-ID\"] == \"request-observe-0001\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n                f\"/healthz?probe={private_query}\",\n                headers={\"X-Request-ID\": \"request-observe-0001\"},\n            )",
+        "request_path": "/healthz?probe=PRIVATE_QUERY_SENTINEL_7c9e6f",
+        "response_binding": "response",
+        "test": "test_request_log_is_single_line_json_with_only_route_template",
+        "test_path": "apps/api/tests/test_observability.py"
+      }
+    },
+    "GET /llms-full.txt": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert \"Search is a public-directory projection for all callers\" in complete.text",
+          "assert \"authenticated owners may also see their own private projections\" not in complete.text"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/llms-full.txt\")",
+        "request_path": "/llms-full.txt",
+        "response_binding": "complete",
+        "test": "test_agent_discovery_links_v2_schemas_and_full_safety_contract",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /llms.txt": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert concise.status_code == 200",
+          "assert concise.headers[\"content-type\"].startswith(\"text/plain\")"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/llms.txt\")",
+        "request_path": "/llms.txt",
+        "response_binding": "concise",
+        "test": "test_agent_discovery_links_v2_schemas_and_full_safety_contract",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /mcp": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 405",
+          "assert response.headers[\"content-type\"].startswith(\"application/problem+json\")"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/mcp\", headers={\"X-Request-ID\": \"mcp-get-405-0001\"})",
+        "request_path": "/mcp",
+        "response_binding": "response",
+        "test": "test_mcp_get_is_a_bounded_method_not_allowed_problem",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /readyz": {
+      "owner": "production-operations",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 503",
+          "assert response.json() == {\n        \"status\": \"not_ready\",\n        \"database\": \"ok\",\n        \"storage\": \"ok\",\n        \"search\": \"unavailable\",\n    }"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/readyz\")",
+        "request_path": "/readyz",
+        "response_binding": "response",
+        "test": "test_readyz_fails_closed_when_configured_search_is_unavailable",
+        "test_path": "apps/api/tests/test_readiness.py"
+      }
+    },
+    "GET /schemas/{kind}.schema.json": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert profile_v2.status_code == 200",
+          "assert profile_v2.json()[\"properties\"][\"schema_version\"][\"const\"] == 2"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/schemas/profile.v2.write.schema.json\")",
+        "request_path": "/schemas/profile.v2.write.schema.json",
+        "response_binding": "profile_v2",
+        "test": "test_agent_discovery_links_v2_schemas_and_full_safety_contract",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/agent-directory": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert second_page.status_code == 200, second_page.text",
+          "assert second_page.json()[\"identities\"][0][\"handle\"] != first_body[\"identities\"][0][\"handle\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        \"/v1/agent-directory\", params={\"q\": \"agent\", \"limit\": 1, \"cursor\": cursor}\n    )",
+        "request_path": "/v1/agent-directory",
+        "response_binding": "second_page",
+        "test": "test_agent_directory_is_public_bounded_and_hides_ineligible_identities",
+        "test_path": "apps/api/tests/test_agent_identity_directory.py"
+      }
+    },
+    "GET /v1/agent-grants": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 403, response.text",
+          "assert response.json()[\"detail\"] == detail"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(path)",
+        "request_path": "/v1/agent-grants",
+        "response_binding": "response",
+        "test": "test_impersonated_clerk_is_denied_before_lookup_or_persistence",
+        "test_path": "apps/api/tests/test_impersonation_authority.py"
+      }
+    },
+    "GET /v1/agent-identities": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert owned.status_code == 200",
+          "assert len(owned.json()) == 1"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/agent-identities\")",
+        "request_path": "/v1/agent-identities",
+        "response_binding": "owned",
+        "test": "test_public_identity_and_mandate_lost_ack_recovery_are_safe",
+        "test_path": "apps/api/tests/test_agent_identity_mandates.py"
+      }
+    },
+    "GET /v1/agent-identities/{agent_handle}": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert http.status_code == 200",
+          "assert http.json() == expected"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/agent-identities/single-read-agent\")",
+        "request_path": "/v1/agent-identities/single-read-agent",
+        "response_binding": "http",
+        "test": "test_single_public_agent_identity_http_mcp_a2a_parity_and_safe_errors",
+        "test_path": "apps/api/tests/test_agent_identity_directory.py"
+      }
+    },
+    "GET /v1/agent-identities/{agent_handle}/mandates": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert inventory.status_code == 200",
+          "assert len(inventory.json()) == 1"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/agent-identities/sender-agent/mandates\")",
+        "request_path": "/v1/agent-identities/sender-agent/mandates",
+        "response_binding": "inventory",
+        "test": "test_public_identity_and_mandate_lost_ack_recovery_are_safe",
+        "test_path": "apps/api/tests/test_agent_identity_mandates.py"
+      }
+    },
+    "GET /v1/agent-outreach/{request_id}": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert status.status_code == 200, status.text",
+          "assert set(status.json()) == {\n        \"id\",\n        \"origin\",\n        \"status\",\n        \"sender_identity_handle\",\n        \"target_identity_handle\",\n        \"created_at\",\n        \"decided_at\",\n    }"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        f\"/v1/agent-outreach/{request_id}\",\n        headers={\"Authorization\": f\"Bearer {raw_key}\"},\n    )",
+        "request_path": "/v1/agent-outreach/{param}",
+        "response_binding": "status",
+        "test": "test_agent_outreach_status_is_exact_origin_private_and_a2a_equivalent",
+        "test_path": "apps/api/tests/test_agent_identity_mandates.py"
+      }
+    },
+    "GET /v1/api-keys": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 403, response.text",
+          "assert response.json()[\"detail\"] == detail"
+        ],
+        "method": "GET",
+        "request_anchor": "client.request(method, path)",
+        "request_path": "/v1/api-keys",
+        "response_binding": "response",
+        "test": "test_non_impersonated_clerk_can_issue_and_use_credentials_while_impersonation_cannot_retain_them",
+        "test_path": "apps/api/tests/test_impersonation_authority.py"
+      }
+    },
+    "GET /v1/applications": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert allowed.status_code == 200",
+          "assert allowed.json() == {\"applications\": [], \"next_cursor\": None}"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/applications\")",
+        "request_path": "/v1/applications",
+        "response_binding": "allowed",
+        "test": "test_impersonated_clerk_principal_cannot_use_private_application_surfaces",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/applications/{application_id}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert own_detail.status_code == 200",
+          "assert own_detail.json()[\"message\"] == note"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(f\"/v1/applications/{application.json()['id']}\")",
+        "request_path": "/v1/applications/{param}",
+        "response_binding": "own_detail",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/capabilities": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert capabilities.status_code == 200",
+          "assert capabilities.json()[\"taxonomy_discovery\"][\"agent_tools\"] == [\n        \"list_taxonomies\",\n        \"list_taxonomy_terms\",\n    ]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/capabilities\")",
+        "request_path": "/v1/capabilities",
+        "response_binding": "capabilities",
+        "test": "test_agent_card_protected_resource_metadata_and_mcp_boundary",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/changes": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert changes.status_code == 200",
+          "assert changes.json()[\"events\"][0][\"type\"] == \"document.created\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/changes?limit=1\")",
+        "request_path": "/v1/changes?limit=1",
+        "response_binding": "changes",
+        "test": "test_owner_inventory_change_feed_capabilities_and_me",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/changes/recent": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert recent.status_code == 200, recent.text",
+          "assert set(recent.json()) == {\"events\"}"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/changes/recent\")",
+        "request_path": "/v1/changes/recent",
+        "response_binding": "recent",
+        "test": "test_recent_changes_is_human_bounded_descending_and_separate_from_sync_feed",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/connection-requests/inbox": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert inbox.status_code == 200",
+          "assert inbox.json()[\"requests\"][0][\"id\"] == connection_request.json()[\"id\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/connection-requests/inbox?limit=1\")",
+        "request_path": "/v1/connection-requests/inbox?limit=1",
+        "response_binding": "inbox",
+        "test": "test_private_connections_conversations_messages_and_notifications",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "GET /v1/connections": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert connections.status_code == 200",
+          "assert connections.json()[\"connections\"][0][\"counterparty_profile_handle\"] == \"sender-profile\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/connections\")",
+        "request_path": "/v1/connections",
+        "response_binding": "connections",
+        "test": "test_private_connections_conversations_messages_and_notifications",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "GET /v1/contact-policy": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert initial.status_code == 200",
+          "assert initial.headers[\"etag\"] == '\"policy-0\"'"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/contact-policy\")",
+        "request_path": "/v1/contact-policy",
+        "response_binding": "initial",
+        "test": "test_contact_policy_receipt_replay_concurrency_and_integrity",
+        "test_path": "apps/api/tests/test_contact_durability.py"
+      }
+    },
+    "GET /v1/contact-requests/inbox": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert denied_inbox_read.status_code == 403",
+          "assert \"Interview request\" not in denied_inbox_read.text"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/contact-requests/inbox\", headers=proposal_read_auth)",
+        "request_path": "/v1/contact-requests/inbox",
+        "response_binding": "denied_inbox_read",
+        "test": "test_contact_policy_idempotent_request_rate_limit_and_representative_action",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/conversations": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert allowed.status_code == 200",
+          "assert allowed.json() == {\"conversations\": [], \"next_cursor\": None}"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/conversations\")",
+        "request_path": "/v1/conversations",
+        "response_binding": "allowed",
+        "test": "test_impersonated_clerk_principal_cannot_use_private_social_surfaces",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "GET /v1/conversations/{conversation_id}/messages": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert received.status_code == 200",
+          "assert received.json()[\"messages\"][0][\"markdown\"] == private_markdown"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(f\"/v1/conversations/{conversation_id}/messages?limit=1\")",
+        "request_path": "/v1/conversations/{param}/messages?limit=1",
+        "response_binding": "received",
+        "test": "test_private_connections_conversations_messages_and_notifications",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "GET /v1/documents": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert first_page.status_code == 200",
+          "assert len(first_page.json()[\"documents\"]) == 1"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/documents?limit=1\")",
+        "request_path": "/v1/documents?limit=1",
+        "response_binding": "first_page",
+        "test": "test_owner_inventory_change_feed_capabilities_and_me",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/employer/jobs": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert jobs_response.status_code == 200, jobs_response.text",
+          "assert forbidden not in jobs_response.text"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/employer/jobs\", params={\"limit\": 100})",
+        "request_path": "/v1/employer/jobs",
+        "response_binding": "jobs_response",
+        "test": "test_employer_inventory_is_private_tenant_scoped_and_lifecycle_complete",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/employer/organizations": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert organizations.status_code == 200, organizations.text",
+          "assert forbidden not in organizations.text"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/employer/organizations\", params={\"limit\": 100})",
+        "request_path": "/v1/employer/organizations",
+        "response_binding": "organizations",
+        "test": "test_employer_inventory_is_private_tenant_scoped_and_lifecycle_complete",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/feed": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert page_one.status_code == 200",
+          "assert page_one.json()[\"posts\"][0][\"id\"] == second.json()[\"id\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/feed?limit=1\")",
+        "request_path": "/v1/feed?limit=1",
+        "response_binding": "page_one",
+        "test": "test_follow_block_feed_report_and_terminal_withdrawal",
+        "test_path": "apps/api/tests/test_professional_posts.py"
+      }
+    },
+    "GET /v1/follows": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert follows_after_block.status_code == 200, follows_after_block.text",
+          "assert follows_after_block.json()[\"follows\"] == []"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/follows\")",
+        "request_path": "/v1/follows",
+        "response_binding": "follows_after_block",
+        "test": "test_follow_block_feed_report_and_terminal_withdrawal",
+        "test_path": "apps/api/tests/test_professional_posts.py"
+      }
+    },
+    "GET /v1/internal/post-moderation/appeals": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert queue.status_code == 200, queue.text",
+          "assert set(queue.json()) == {\"appeals\", \"next_cursor\"}"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/internal/post-moderation/appeals\")",
+        "request_path": "/v1/internal/post-moderation/appeals",
+        "response_binding": "queue",
+        "test": "test_appeal_review_queue_detail_and_replay",
+        "test_path": "apps/api/tests/test_post_moderation_review_http.py"
+      }
+    },
+    "GET /v1/internal/post-moderation/appeals/{appeal_id}": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert detail.status_code == 200, detail.text",
+          "assert detail.headers[\"etag\"] == payload[\"etag\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(f\"/v1/internal/post-moderation/appeals/{appeal_id}\")",
+        "request_path": "/v1/internal/post-moderation/appeals/{param}",
+        "response_binding": "detail",
+        "test": "test_appeal_review_queue_detail_and_replay",
+        "test_path": "apps/api/tests/test_post_moderation_review_http.py"
+      }
+    },
+    "GET /v1/internal/post-moderation/cases": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert {response.status_code for response in (wrong_staff, agent_key, impersonated)} == {403}",
+          "assert {response.json()[\"detail\"] for response in (wrong_staff, agent_key, impersonated)} == {\n        \"moderation review access is forbidden\"\n    }"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(path)",
+        "request_path": "/v1/internal/post-moderation/cases",
+        "response_binding": "wrong_staff",
+        "test": "test_hidden_moderation_review_authority_privacy_and_discovery",
+        "test_path": "apps/api/tests/test_post_moderation_review_http.py"
+      }
+    },
+    "GET /v1/internal/post-moderation/cases/{case_id}": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert detail.headers[\"cache-control\"] == \"no-store\"",
+          "assert detail.headers[\"etag\"] == payload[\"etag\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(f\"/v1/internal/post-moderation/cases/{case_id}\")",
+        "request_path": "/v1/internal/post-moderation/cases/{param}",
+        "response_binding": "detail",
+        "test": "test_hidden_moderation_review_authority_privacy_and_discovery",
+        "test_path": "apps/api/tests/test_post_moderation_review_http.py"
+      }
+    },
+    "GET /v1/internal/recruiting-verifications": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert api_key_denied.status_code == 403",
+          "assert {\n        response.json()[\"detail\"]\n        for response in (\n            agent_denied,\n            api_key_denied,\n            api_key_decision_denied,\n            impersonated_denied,\n        )\n    } == {\"configured recruiting-verifier authority is required\"}"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/internal/recruiting-verifications\")",
+        "request_path": "/v1/internal/recruiting-verifications",
+        "response_binding": "api_key_denied",
+        "test": "test_recruiting_verification_reviewer_api_is_private_idempotent_and_fails_closed",
+        "test_path": "apps/api/tests/test_organization_verification.py"
+      }
+    },
+    "GET /v1/internal/recruiting-verifications/{verification_id}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert agent_denied.status_code == 403",
+          "assert secret_metadata not in agent_denied.text"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(f\"/v1/internal/recruiting-verifications/{verification_id}\")",
+        "request_path": "/v1/internal/recruiting-verifications/{param}",
+        "response_binding": "agent_denied",
+        "test": "test_recruiting_verification_reviewer_api_is_private_idempotent_and_fails_closed",
+        "test_path": "apps/api/tests/test_organization_verification.py"
+      }
+    },
+    "GET /v1/internal/recruiting-verifications/{verification_id}/evidence": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert missing_evidence.status_code == 404",
+          "assert missing_evidence.json()[\"detail\"] == \"verification was not found\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        \"/v1/internal/recruiting-verifications/missing-verification/evidence\"\n    )",
+        "request_path": "/v1/internal/recruiting-verifications/missing-verification/evidence",
+        "response_binding": "missing_evidence",
+        "test": "test_private_reviewer_reads_are_authorized_bounded_and_hidden",
+        "test_path": "apps/api/tests/test_recruiting_verification_evidence.py"
+      }
+    },
+    "GET /v1/jobs": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert unverified_public_jobs.status_code == 200",
+          "assert unverified_public_jobs.json()[\"jobs\"] == []"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/jobs\")",
+        "request_path": "/v1/jobs",
+        "response_binding": "unverified_public_jobs",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/me": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert read_response.status_code == 200, read_response.text",
+          "assert read_response.json()[\"authentication_method\"] == \"clerk_jwt\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/me\", headers=impersonated_headers)",
+        "request_path": "/v1/me",
+        "response_binding": "read_response",
+        "test": "test_real_clerk_impersonation_is_read_only_at_http_boundary",
+        "test_path": "apps/api/tests/test_impersonation_authority.py"
+      }
+    },
+    "GET /v1/moderation/cases": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert cases.status_code == 200, cases.text",
+          "assert cases.json()[\"cases\"][0][\"reason_code\"] == \"spam\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/moderation/cases\")",
+        "request_path": "/v1/moderation/cases",
+        "response_binding": "cases",
+        "test": "test_case_linked_reports_private_appeal_and_withdrawn_overturn",
+        "test_path": "apps/api/tests/test_post_moderation_casework.py"
+      }
+    },
+    "GET /v1/notifications": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert notifications.status_code == 200",
+          "assert private_markdown not in notifications.text"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/notifications?limit=1\")",
+        "request_path": "/v1/notifications?limit=1",
+        "response_binding": "notifications",
+        "test": "test_private_connections_conversations_messages_and_notifications",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "GET /v1/organization-membership-invitations": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert inbox_read.status_code == 200, inbox_read.text",
+          "assert any(item[\"id\"] == membership_id for item in inbox_read.json()[\"invitations\"])"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/organization-membership-invitations\")",
+        "request_path": "/v1/organization-membership-invitations",
+        "response_binding": "inbox_read",
+        "test": "test_member_invitation_and_agents_cannot_establish_or_publish",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/organizations": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert public_organizations.status_code == 200",
+          "assert all(\n        item[\"slug\"] != public_unverified[\"slug\"]\n        for item in public_organizations.json()[\"organizations\"]\n    )"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/organizations\")",
+        "request_path": "/v1/organizations",
+        "response_binding": "public_organizations",
+        "test": "test_employer_inventory_is_private_tenant_scoped_and_lifecycle_complete",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/organizations/{organization_slug}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert owner_organization.status_code == 200, owner_organization.text",
+          "assert owner_organization.json()[\"slug\"] == \"acme\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/organizations/acme\")",
+        "request_path": "/v1/organizations/acme",
+        "response_binding": "owner_organization",
+        "test": "test_recruiting_verification_is_private_immutable_and_fails_closed_on_material_drift",
+        "test_path": "apps/api/tests/test_organization_verification.py"
+      }
+    },
+    "GET /v1/organizations/{organization_slug}/jobs/{job_slug}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert current_before_rename.status_code == 200, current_before_rename.text",
+          "assert current_after_rename.json()[\"version\"] == current_before_rename.json()[\"version\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/organizations/acme/jobs/backend-engineer\")",
+        "request_path": "/v1/organizations/acme/jobs/backend-engineer",
+        "response_binding": "current_before_rename",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/organizations/{organization_slug}/jobs/{job_slug}/applications": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert private_list.status_code == 200",
+          "assert note not in private_list.text"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        \"/v1/organizations/acme/jobs/backend-engineer/applications\",\n        headers={\"X-Connectmd-Purpose\": \"job_application_review\"},\n    )",
+        "request_path": "/v1/organizations/acme/jobs/backend-engineer/applications",
+        "response_binding": "private_list",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/organizations/{organization_slug}/jobs/{job_slug}/applications/{application_id}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert purpose_limited_detail.status_code == 200",
+          "assert purpose_limited_detail.json()[\"message\"] == note"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        f\"/v1/organizations/acme/jobs/backend-engineer/applications/{application.json()['id']}\",\n        headers={\"X-Connectmd-Purpose\": \"job_application_review\"},\n    )",
+        "request_path": "/v1/organizations/acme/jobs/backend-engineer/applications/{param}",
+        "response_binding": "purpose_limited_detail",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/organizations/{organization_slug}/jobs/{job_slug}/applications/{application_id}/snapshot": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert snapshot_json.status_code == 200, snapshot_json.text",
+          "assert snapshot_json.json() == {\n        \"application_id\": application.json()[\"id\"],\n        \"snapshot_kind\": \"profile\",\n        \"snapshot_identifier\": \"ada-lovelace\",\n        \"snapshot_version\": 1,\n        \"snapshot_sha256\": application.json()[\"snapshot_sha256\"],\n        \"markdown\": submitted_snapshot_markdown,\n        \"markdown_url\": f\"{snapshot_path}.md\",\n    }"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        snapshot_path, headers={\"X-Connectmd-Purpose\": \"job_application_review\"}\n    )",
+        "request_path": "/v1/organizations/acme/jobs/backend-engineer/applications/{param}/snapshot",
+        "response_binding": "snapshot_json",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/organizations/{organization_slug}/jobs/{job_slug}/applications/{application_id}/snapshot.md": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert authorized_snapshot.status_code == 200, authorized_snapshot.text",
+          "assert authorized_snapshot.content == profile.json()[\"markdown\"].encode(\"utf-8\")"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        f\"{snapshot_path}.md\",\n        headers={\"X-Connectmd-Purpose\": \"job_application_review\"},\n    )",
+        "request_path": "/v1/organizations/snapshot-atomicity-org/jobs/snapshot-atomicity-role/applications/{param}/snapshot.md",
+        "response_binding": "authorized_snapshot",
+        "test": "test_application_snapshot_commit_failure_compensates_before_response",
+        "test_path": "apps/api/tests/test_application_snapshot_atomicity.py"
+      }
+    },
+    "GET /v1/organizations/{organization_slug}/members": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert owner_page_one.status_code == 200, owner_page_one.text",
+          "assert len(owner_page_one.json()[\"members\"]) == 1"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/organizations/membership-one/members?limit=1\")",
+        "request_path": "/v1/organizations/membership-one/members?limit=1",
+        "response_binding": "owner_page_one",
+        "test": "test_membership_inbox_and_owner_inventory_are_private_human_workflows",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "GET /v1/organizations/{organization_slug}/verification-status": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert impersonated_status.status_code == 200, impersonated_status.text",
+          "assert impersonated_status.json()[\"state\"] == \"unverified\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/organizations/acme/verification-status\")",
+        "request_path": "/v1/organizations/acme/verification-status",
+        "response_binding": "impersonated_status",
+        "test": "test_recruiting_verification_is_private_immutable_and_fails_closed_on_material_drift",
+        "test_path": "apps/api/tests/test_organization_verification.py"
+      }
+    },
+    "GET /v1/posts": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert result.status_code == 200, result.text",
+          "assert result.headers[\"cache-control\"] == \"no-store\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/posts\")",
+        "request_path": "/v1/posts",
+        "response_binding": "result",
+        "test": "test_public_post_inventory_is_metadata_only_chronological_and_not_search_backed",
+        "test_path": "apps/api/tests/test_public_post_inventory.py"
+      }
+    },
+    "GET /v1/posts/{post_id}": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert explicit_markdown.status_code == negotiated_markdown.status_code == 200",
+          "assert negotiated_markdown.headers[\"content-type\"].startswith(\"text/markdown\")"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        f\"/v1/posts/{payload['id']}\", headers={\"Accept\": \"text/markdown\"}\n    )",
+        "request_path": "/v1/posts/{param}",
+        "response_binding": "negotiated_markdown",
+        "test": "test_post_canonicalization_public_reads_and_lost_ack_receipt_recovery",
+        "test_path": "apps/api/tests/test_professional_posts.py"
+      }
+    },
+    "GET /v1/posts/{post_id}.md": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert explicit_markdown.text == negotiated_markdown.text == payload[\"markdown\"]",
+          "assert explicit_markdown.headers[\"content-type\"].startswith(\"text/markdown\")"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(f\"/v1/posts/{payload['id']}.md\")",
+        "request_path": "/v1/posts/{param}.md",
+        "response_binding": "explicit_markdown",
+        "test": "test_post_canonicalization_public_reads_and_lost_ack_receipt_recovery",
+        "test_path": "apps/api/tests/test_professional_posts.py"
+      }
+    },
+    "GET /v1/profile-post-controls/{profile_handle}": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert initial.status_code == 200",
+          "assert initial.json() == {\n        \"following\": False,\n        \"content_blocked\": False,\n    }"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/profile-post-controls/target-profile\")",
+        "request_path": "/v1/profile-post-controls/target-profile",
+        "response_binding": "initial",
+        "test": "test_profile_post_controls_are_exact_and_human_only",
+        "test_path": "apps/api/tests/test_post_moderation_casework.py"
+      }
+    },
+    "GET /v1/profiles/{handle}": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert markdown.headers[\"content-type\"].startswith(\"text/markdown\")",
+          "assert set(item.strip() for item in markdown.headers[\"vary\"].split(\",\")) == {\n        \"Accept\",\n        \"Authorization\",\n    }"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/profiles/ada-lovelace\", headers={\"Accept\": \"text/markdown\"})",
+        "request_path": "/v1/profiles/ada-lovelace",
+        "response_binding": "markdown",
+        "test": "test_json_and_markdown_reads_match_and_versions_are_append_only",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/profiles/{handle}.md": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert read.headers[\"etag\"] == created.headers[\"etag\"]",
+          "assert read.headers[\"content-digest\"] == created.headers[\"content-digest\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/profiles/ada-lovelace.md\")",
+        "request_path": "/v1/profiles/ada-lovelace.md",
+        "response_binding": "read",
+        "test": "test_strong_etag_if_match_and_durable_idempotency",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/profiles/{handle}/agent-identities": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert profile_agents.status_code == 200, profile_agents.text",
+          "assert {item[\"handle\"] for item in profile_agents.json()[\"identities\"]} == all_handles"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/profiles/public-profile/agent-identities\")",
+        "request_path": "/v1/profiles/public-profile/agent-identities",
+        "response_binding": "profile_agents",
+        "test": "test_agent_directory_is_public_bounded_and_hides_ineligible_identities",
+        "test_path": "apps/api/tests/test_agent_identity_directory.py"
+      }
+    },
+    "GET /v1/profiles/{handle}/posts": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert mismatched_archive.status_code == 200",
+          "assert mismatched_archive.json()[\"posts\"] == []"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/profiles/author-profile/posts\")",
+        "request_path": "/v1/profiles/author-profile/posts",
+        "response_binding": "mismatched_archive",
+        "test": "test_public_inventory_reauthorizes_detail_and_archive_eligibility",
+        "test_path": "apps/api/tests/test_public_post_inventory.py"
+      }
+    },
+    "GET /v1/profiles/{handle}/versions": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert [item[\"version\"] for item in versions.json()[\"versions\"]] == [1, 2, 3]",
+          "assert all(item[\"actor_id\"] != \"user_test\" for item in versions.json()[\"versions\"])"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/profiles/ada-lovelace/versions\")",
+        "request_path": "/v1/profiles/ada-lovelace/versions",
+        "response_binding": "versions",
+        "test": "test_json_and_markdown_reads_match_and_versions_are_append_only",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/profiles/{handle}/versions/{version}": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert historical_json.status_code == 200",
+          "assert historical_json.json()[\"visibility\"] == \"private\""
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/profiles/ada-lovelace/versions/1\")",
+        "request_path": "/v1/profiles/ada-lovelace/versions/1",
+        "response_binding": "historical_json",
+        "test": "test_json_and_markdown_reads_match_and_versions_are_append_only",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/profiles/{handle}/versions/{version}.md": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert historical_explicit.status_code == 200",
+          "assert historical_explicit.content == markdown.content"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/profiles/ada-lovelace/versions/1.md\")",
+        "request_path": "/v1/profiles/ada-lovelace/versions/1.md",
+        "response_binding": "historical_explicit",
+        "test": "test_json_and_markdown_reads_match_and_versions_are_append_only",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/proposals": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert proposals.status_code == 200, proposals.text",
+          "assert proposals.json()[\"proposals\"][0][\"id\"] == submitted_value[\"id\"]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/proposals\")",
+        "request_path": "/v1/proposals",
+        "response_binding": "proposals",
+        "test": "test_mcp_propose_document_update_is_proposal_only_and_resource_scoped",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/public-documents": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "assert first.status_code == 200",
+          "assert len(first.json()[\"items\"]) == 1"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/public-documents\", params={\"limit\": 1})",
+        "request_path": "/v1/public-documents",
+        "response_binding": "first",
+        "test": "test_public_document_inventory_is_public_and_cursor_paginated",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/resumes/{slug}": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 200, response.text",
+          "assert {item.strip() for item in current_negotiated.headers[\"vary\"].split(\",\")} == {\n        \"Accept\",\n        \"Authorization\",\n    }"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\n        \"/v1/resumes/ada-lovelace-resume\", headers={\"Accept\": \"text/markdown\"}\n    )",
+        "request_path": "/v1/resumes/ada-lovelace-resume",
+        "response_binding": "current_negotiated",
+        "test": "test_private_resume_versions_and_markdown_reads_are_owner_bound",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/resumes/{slug}.md": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.content == current_markdown.encode(\"utf-8\")",
+          "assert {item.strip() for item in current_explicit.headers[\"vary\"].split(\",\")} == {\n        \"Authorization\",\n    }"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/resumes/ada-lovelace-resume.md\")",
+        "request_path": "/v1/resumes/ada-lovelace-resume.md",
+        "response_binding": "current_explicit",
+        "test": "test_private_resume_versions_and_markdown_reads_are_owner_bound",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/resumes/{slug}/versions": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert versions.status_code == 200, versions.text",
+          "assert [item[\"version\"] for item in versions.json()[\"versions\"]] == [1, 2]"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/resumes/ada-lovelace-resume/versions\")",
+        "request_path": "/v1/resumes/ada-lovelace-resume/versions",
+        "response_binding": "versions",
+        "test": "test_private_resume_versions_and_markdown_reads_are_owner_bound",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/resumes/{slug}/versions/{version}": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert version_json.status_code == 200, version_json.text",
+          "assert version_json.json()[\"version\"] == 1"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/resumes/ada-lovelace-resume/versions/1\")",
+        "request_path": "/v1/resumes/ada-lovelace-resume/versions/1",
+        "response_binding": "version_json",
+        "test": "test_private_resume_versions_and_markdown_reads_are_owner_bound",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/resumes/{slug}/versions/{version}.md": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert version_negotiated.content == version_explicit.content == v1_markdown.encode(\"utf-8\")",
+          "assert version_explicit.headers[\"content-type\"].startswith(\"text/markdown\")"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/resumes/ada-lovelace-resume/versions/1.md\")",
+        "request_path": "/v1/resumes/ada-lovelace-resume/versions/1.md",
+        "response_binding": "version_explicit",
+        "test": "test_private_resume_versions_and_markdown_reads_are_owner_bound",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "GET /v1/search": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 200, response.text",
+          "assert response.json()[\"hits\"] == []"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/search\", params={\"q\": \"sql-directory-only-agent\"})",
+        "request_path": "/v1/search",
+        "response_binding": "response",
+        "test": "test_agent_identity_never_hydrates_as_a_public_search_hit",
+        "test_path": "apps/api/tests/test_agent_identity_directory.py"
+      }
+    },
+    "GET /v1/taxonomies": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "assert http_catalog.status_code == 200",
+          "assert mcp_value == http_catalog.json()"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/taxonomies\")",
+        "request_path": "/v1/taxonomies",
+        "response_binding": "http_catalog",
+        "test": "test_mcp_and_a2a_taxonomy_list_share_public_registry",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "GET /v1/taxonomies/{taxonomy}": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "assert term_mcp.json()[\"result\"][\"structuredContent\"][\"terms\"] == http_terms.json()[\"terms\"]",
+          "assert (\n        term_a2a.json()[\"task\"][\"artifacts\"][0][\"parts\"][0][\"data\"][\"terms\"]\n        == http_terms.json()[\"terms\"]\n    )"
+        ],
+        "method": "GET",
+        "request_anchor": "client.get(\"/v1/taxonomies/skill?limit=1\")",
+        "request_path": "/v1/taxonomies/skill?limit=1",
+        "response_binding": "http_terms",
+        "test": "test_mcp_and_a2a_taxonomy_list_share_public_registry",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "POST /a2a/message:send": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert denied_a2a.status_code == 200",
+          "assert denied_a2a.json()[\"task\"][\"status\"][\"state\"] == \"TASK_STATE_REJECTED\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/a2a/message:send\",\n        json={\n            \"message\": {\n                \"messageId\": \"mandate-a2a-legacy-0001\",\n                \"role\": \"ROLE_USER\",\n                \"parts\": [\n                    {\n                        \"data\": {\n                            \"action\": \"contact_request\",\n                            \"target_profile_handle\": \"recipient-profile\",\n                            \"purpose\": \"Interview\",\n                            \"message\": \"Mandates must not use the legacy A2A action.\",\n                        },\n                        \"mediaType\": \"application/json\",\n                    }\n                ],\n            }\n        },\n        headers={\n            \"Authorization\": f\"Bearer {raw_key}\",\n            \"A2A-Version\": \"1.0\",\n            \"Idempotency-Key\": \"mandate-a2a-legacy-0001\",\n        },\n    )",
+        "request_path": "/a2a/message:send",
+        "response_binding": "denied_a2a",
+        "test": "test_agent_outreach_uses_mandate_and_safe_receipts",
+        "test_path": "apps/api/tests/test_agent_identity_mandates.py"
+      }
+    },
+    "POST /mcp": {
+      "owner": "agent-protocols",
+      "witness": {
+        "assertion_anchors": [
+          "assert mcp.status_code == 200, mcp.text",
+          "assert private_resource_id not in response.text"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/mcp\",\n        headers=headers,\n        json={\n            \"jsonrpc\": \"2.0\",\n            \"id\": \"agent-grant-change-feed\",\n            \"method\": \"tools/call\",\n            \"params\": {\"name\": \"get_changes\", \"arguments\": {}},\n        },\n    )",
+        "request_path": "/mcp",
+        "response_binding": "mcp",
+        "test": "test_non_clerk_change_feeds_project_credential_identifiers_privately",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "POST /v1/account-deletion-receipts/recover": {
+      "owner": "account-lifecycle",
+      "witness": {
+        "assertion_anchors": [
+          "assert recovered.status_code == 200, recovered.text",
+          "assert recovered.json()[\"deletion_id\"] == deletion_id"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/account-deletion-receipts/recover\",\n        headers={\"Idempotency-Key\": \"receipt-recovery-key-1\"},\n    )",
+        "request_path": "/v1/account-deletion-receipts/recover",
+        "response_binding": "recovered",
+        "test": "test_lifecycle_receipt_recovery_replays_rotates_and_closes_on_confirmation",
+        "test_path": "apps/api/tests/test_account_lifecycle.py"
+      }
+    },
+    "POST /v1/account-deletion-requests": {
+      "owner": "account-lifecycle",
+      "witness": {
+        "assertion_anchors": [
+          "assert created.status_code == 202, created.text",
+          "assert \"user_lifecycle\" not in created.text"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/account-deletion-requests\", headers={\"Idempotency-Key\": \"delete-request-0001\"}\n    )",
+        "request_path": "/v1/account-deletion-requests",
+        "response_binding": "created",
+        "test": "test_deletion_request_is_pending_only_and_cancellation_retains_only_step_up_use",
+        "test_path": "apps/api/tests/test_account_lifecycle.py"
+      }
+    },
+    "POST /v1/account-deletion-requests/{deletion_id}/cancel": {
+      "owner": "account-lifecycle",
+      "witness": {
+        "assertion_anchors": [
+          "assert cancelled.status_code == 204",
+          "assert cancelled.content == b\"\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(f\"/v1/account-deletion-requests/{payload['deletion_id']}/cancel\")",
+        "request_path": "/v1/account-deletion-requests/{param}/cancel",
+        "response_binding": "cancelled",
+        "test": "test_deletion_request_is_pending_only_and_cancellation_retains_only_step_up_use",
+        "test_path": "apps/api/tests/test_account_lifecycle.py"
+      }
+    },
+    "POST /v1/account-deletion-requests/{deletion_id}/confirm": {
+      "owner": "account-lifecycle",
+      "witness": {
+        "assertion_anchors": [
+          "assert first.status_code == 202, first.text",
+          "assert first.json() == {\"deletion_id\": deletion_id}"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(path, headers={\"Idempotency-Key\": key})",
+        "request_path": "/v1/account-deletion-requests/{param}/confirm",
+        "response_binding": "first",
+        "test": "test_lifecycle_confirmation_lost_ack_replays_without_second_step_up_or_mutation",
+        "test_path": "apps/api/tests/test_account_lifecycle.py"
+      }
+    },
+    "POST /v1/account/export": {
+      "owner": "account-lifecycle",
+      "witness": {
+        "assertion_anchors": [
+          "assert missing.status_code == 403",
+          "assert missing.json() == {\n        \"clerk_error\": {\n            \"type\": \"forbidden\",\n            \"reason\": \"reverification-error\",\n            \"metadata\": {\"reverification\": {\"level\": \"second_factor\", \"afterMinutes\": 10}},\n        }\n    }"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\"/v1/account/export\")",
+        "request_path": "/v1/account/export",
+        "response_binding": "missing",
+        "test": "test_lifecycle_requires_exact_clerk_step_up_and_rejects_impersonation",
+        "test_path": "apps/api/tests/test_account_lifecycle.py"
+      }
+    },
+    "POST /v1/account/lifecycle-status": {
+      "owner": "account-lifecycle",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 404",
+          "assert response.json()[\"detail\"] == \"account lifecycle status was not found\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/account/lifecycle-status?unexpected=1\",\n        headers={\"Authorization\": \"Bearer malformed\"},\n        json={\"unexpected\": True},\n    )",
+        "request_path": "/v1/account/lifecycle-status?unexpected=1",
+        "response_binding": "response",
+        "test": "test_disabled_lifecycle_status_returns_404_before_request_parsing_or_database",
+        "test_path": "apps/api/tests/test_account_lifecycle.py"
+      }
+    },
+    "POST /v1/agent-grants": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert replay.status_code == 503",
+          "assert \"different-owner\" not in replay.text"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/agent-grants\",\n        json=body,\n        headers={\"Idempotency-Key\": \"grant-replay-org-grant-0001\"},\n    )",
+        "request_path": "/v1/agent-grants",
+        "response_binding": "replay",
+        "test": "test_agent_grant_replay_rechecks_resource_authority_and_expiry",
+        "test_path": "apps/api/tests/test_agent_grant_atomicity.py"
+      }
+    },
+    "POST /v1/agent-identities": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert first.status_code == 201, first.text",
+          "assert replay.json() == first.json()"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/agent-identities\", json=body, headers={\"Idempotency-Key\": \"identity-create-0001\"}\n    )",
+        "request_path": "/v1/agent-identities",
+        "response_binding": "first",
+        "test": "test_agent_identity_create_replays_and_collisions_are_atomic",
+        "test_path": "apps/api/tests/test_agent_identity_lifecycle_durability.py"
+      }
+    },
+    "POST /v1/agent-identities/{agent_handle}/mandates": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert issued.status_code == 201, issued.text",
+          "assert issued.json()[\"grant\"][\"key\"].startswith(\"cng_\")"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/agent-identities/sender-agent/mandates\",\n        json={\"expires_at\": expiry},\n        headers={\"Idempotency-Key\": \"mandate-lost-ack-0001\"},\n    )",
+        "request_path": "/v1/agent-identities/sender-agent/mandates",
+        "response_binding": "issued",
+        "test": "test_public_identity_and_mandate_lost_ack_recovery_are_safe",
+        "test_path": "apps/api/tests/test_agent_identity_mandates.py"
+      }
+    },
+    "POST /v1/agent-outreach": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert replay.status_code == 201, replay.text",
+          "assert replay.headers[\"idempotency-replayed\"] == \"true\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\"/v1/agent-outreach\", json=body, headers=headers)",
+        "request_path": "/v1/agent-outreach",
+        "response_binding": "replay",
+        "test": "test_agent_outreach_uses_mandate_and_safe_receipts",
+        "test_path": "apps/api/tests/test_agent_identity_mandates.py"
+      }
+    },
+    "POST /v1/api-keys": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 403, response.text",
+          "assert response.json()[\"detail\"] == detail"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n            path,\n            content=b\"{\",\n            headers={\"Content-Type\": \"application/json\"},\n        )",
+        "request_path": "/v1/api-keys",
+        "response_binding": "response",
+        "test": "test_impersonated_clerk_is_denied_before_lookup_or_persistence",
+        "test_path": "apps/api/tests/test_impersonation_authority.py"
+      }
+    },
+    "POST /v1/applications/{application_id}/withdraw": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert missing_withdraw_key.status_code == 428",
+          "assert missing_withdraw_key.json()[\"detail\"] == \"Idempotency-Key is required for this operation\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\"/v1/applications/missing/withdraw\")",
+        "request_path": "/v1/applications/missing/withdraw",
+        "response_binding": "missing_withdraw_key",
+        "test": "test_application_transition_key_openapi_and_protocol_exclusion",
+        "test_path": "apps/api/tests/test_application_decision_durability.py"
+      }
+    },
+    "POST /v1/connection-requests": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert limited.status_code == 429",
+          "assert limited.headers[\"retry-after\"] == \"86400\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/connection-requests\",\n        json={\"recipient_profile_handle\": \"grace-hopper\", \"messaging_requested\": False},\n        headers={\"Idempotency-Key\": \"connection-rate-limit-0001\"},\n    )",
+        "request_path": "/v1/connection-requests",
+        "response_binding": "limited",
+        "test": "test_connection_request_race_and_durable_quota",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "POST /v1/connection-requests/{connection_request_id}/{action}": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert accepted.status_code == 200, accepted.text",
+          "assert accepted.json()[\"status\"] == \"accepted\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/connection-requests/{connection_request.json()['id']}/accept\",\n        json={\"messaging_consent\": True},\n        headers={\"Idempotency-Key\": \"connection-accept-0001\"},\n    )",
+        "request_path": "/v1/connection-requests/{param}/accept",
+        "response_binding": "accepted",
+        "test": "test_private_connections_conversations_messages_and_notifications",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "POST /v1/connections/{connection_id}/block": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert blocked.status_code == 204",
+          "assert blocked.content == b\"\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/connections/{connection_id}/block\",\n        headers={\"Idempotency-Key\": \"connection-block-0001\"},\n    )",
+        "request_path": "/v1/connections/{param}/block",
+        "response_binding": "blocked",
+        "test": "test_private_connections_conversations_messages_and_notifications",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "POST /v1/contact-requests": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert replay.status_code == 503",
+          "assert \"Expired private purpose\" not in replay.text"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/contact-requests\",\n        json={\n            \"target_profile_handle\": handle,\n            \"purpose\": \"Expired private purpose\",\n            \"message\": \"Expired private message\",\n        },\n        headers={\"Idempotency-Key\": \"contact-expired-replay-create-0001\"},\n    )",
+        "request_path": "/v1/contact-requests",
+        "response_binding": "replay",
+        "test": "test_profile_contact_replay_after_retention_expiry_fails_closed",
+        "test_path": "apps/api/tests/test_contact_durability.py"
+      }
+    },
+    "POST /v1/contact-requests/{contact_request_id}/{action}": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert missing_contact.status_code == 404",
+          "assert missing_contact.json()[\"detail\"] == \"contact request was not found\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/contact-requests/does-not-exist/accept\",\n        headers={\"Idempotency-Key\": \"contact-outreach-decision-missing-0001\"},\n    )",
+        "request_path": "/v1/contact-requests/does-not-exist/accept",
+        "response_binding": "missing_contact",
+        "test": "test_nonhuman_agent_outreach_decisions_are_opaque_404",
+        "test_path": "apps/api/tests/test_contact_durability.py"
+      }
+    },
+    "POST /v1/content-blocks/{profile_handle}": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert blocked.status_code == blocked_replay.status_code == 204",
+          "assert blocked.text == blocked_replay.text == \"\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/content-blocks/target-profile\", headers=key_header(\"block-exact-0001\")\n    )",
+        "request_path": "/v1/content-blocks/target-profile",
+        "response_binding": "blocked",
+        "test": "test_block_receipt_binds_both_follow_side_effects_and_unblock",
+        "test_path": "apps/api/tests/test_follow_block_durability.py"
+      }
+    },
+    "POST /v1/conversations": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert {\n        private_read.status_code,\n        private_write.status_code,\n        private_conversation_write.status_code,\n    } == {403}",
+          "assert private_conversation_write.json()[\"detail\"] == (\n        \"this private social operation requires a signed-in human\"\n    )"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/conversations\",\n        json={\"connection_id\": \"00000000-0000-0000-0000-000000000000\"},\n        headers={\"Idempotency-Key\": \"impersonated-conversation-write-0001\"},\n    )",
+        "request_path": "/v1/conversations",
+        "response_binding": "private_conversation_write",
+        "test": "test_impersonated_clerk_principal_cannot_use_private_social_surfaces",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "POST /v1/conversations/{conversation_id}/messages": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert message.status_code == 201, message.text",
+          "assert private_markdown not in message.text"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/conversations/{conversation_id}/messages\",\n        json={\"markdown\": private_markdown},\n        headers={\"Idempotency-Key\": \"message-0001\"},\n    )",
+        "request_path": "/v1/conversations/{param}/messages",
+        "response_binding": "message",
+        "test": "test_private_connections_conversations_messages_and_notifications",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "POST /v1/follows/{profile_handle}": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert first.status_code == replay.status_code == duplicate.status_code == 200",
+          "assert replay.json() == first.json() == duplicate.json()"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\"/v1/follows/target-profile\", headers=key_header(\"follow-exact-0001\"))",
+        "request_path": "/v1/follows/target-profile",
+        "response_binding": "first",
+        "test": "test_follow_exact_replay_quota_and_noop_unfollow_are_durable",
+        "test_path": "apps/api/tests/test_follow_block_durability.py"
+      }
+    },
+    "POST /v1/ingest": {
+      "owner": "document-ingestion",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 503, response.text",
+          "assert response.json()[\"detail\"] == {\n        \"message\": \"isolated conversion worker is unavailable\",\n        \"warnings\": [],\n        \"provenance\": {\"source_type\": \"pdf\", \"converter\": \"none\"},\n    }"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/ingest\",\n        data={\"target_schema\": \"connect.md/resume\"},\n        files={\"file\": (\"resume.pdf\", _real_pdf(), \"application/pdf\")},\n    )",
+        "request_path": "/v1/ingest",
+        "response_binding": "response",
+        "test": "test_configured_binary_endpoint_requires_fresh_worker_heartbeat",
+        "test_path": "apps/api/tests/test_ingest.py"
+      }
+    },
+    "POST /v1/internal/post-moderation/appeals/{appeal_id}/decision": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert tampered_appeal.status_code == 503",
+          "assert (\n        tampered_appeal.json()[\"detail\"]\n        == \"idempotent moderation decision receipt cannot be reconstructed\"\n    )"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(path, json=body, headers=headers)",
+        "request_path": "/v1/internal/post-moderation/appeals/{param}/decision",
+        "response_binding": "tampered_appeal",
+        "test": "test_appeal_review_queue_detail_and_replay",
+        "test_path": "apps/api/tests/test_post_moderation_review_http.py"
+      }
+    },
+    "POST /v1/internal/post-moderation/cases/{case_id}/decision": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert missing_if_match.status_code == 428",
+          "assert missing_if_match.json()[\"detail\"]"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/internal/post-moderation/cases/{case_id}/decision\",\n        json=body,\n    )",
+        "request_path": "/v1/internal/post-moderation/cases/{param}/decision",
+        "response_binding": "missing_if_match",
+        "test": "test_case_review_preconditions_idempotency_and_replay",
+        "test_path": "apps/api/tests/test_post_moderation_review_http.py"
+      }
+    },
+    "POST /v1/internal/recruiting-verifications/{verification_id}/{action}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert reviewed.status_code == 200, reviewed.text",
+          "assert reviewed.json()[\"state\"] == \"under_review\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/internal/recruiting-verifications/{verification_id}/review\",\n        json={\"expected_state\": \"submitted\"},\n        headers={\n            \"If-Match\": review_etag,\n            \"Idempotency-Key\": \"reviewer-api-review-0001\",\n        },\n    )",
+        "request_path": "/v1/internal/recruiting-verifications/{param}/review",
+        "response_binding": "reviewed",
+        "test": "test_recruiting_verification_reviewer_api_is_private_idempotent_and_fails_closed",
+        "test_path": "apps/api/tests/test_organization_verification.py"
+      }
+    },
+    "POST /v1/moderation/cases/{case_id}/appeals": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert attempt.status_code == 409",
+          "assert attempt.json()[\"detail\"] == \"moderation case authority is inconsistent\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/moderation/cases/legacy-withheld-case/appeals\",\n        json={\"rationale\": \"This must not fabricate an appealable decision.\"},\n        headers={\"Idempotency-Key\": \"legacy-disposition-appeal-0001\"},\n    )",
+        "request_path": "/v1/moderation/cases/legacy-withheld-case/appeals",
+        "response_binding": "attempt",
+        "test": "test_legacy_case_disposition_is_visible_but_not_appealable",
+        "test_path": "apps/api/tests/test_post_moderation_casework.py"
+      }
+    },
+    "POST /v1/notifications/{notification_id}/read": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "assert marked.status_code == 200",
+          "assert marked.json()[\"read_at\"]"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/notifications/{first_notification['id']}/read\",\n        headers={\"Idempotency-Key\": \"notification-read-0001\"},\n    )",
+        "request_path": "/v1/notifications/{param}/read",
+        "response_binding": "marked",
+        "test": "test_private_connections_conversations_messages_and_notifications",
+        "test_path": "apps/api/tests/test_private_social_graph.py"
+      }
+    },
+    "POST /v1/organizations": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert created.status_code == 201, created.text",
+          "assert (\n            await session.scalar(\n                select(OrganizationVerification).where(\n                    OrganizationVerification.organization_id == created.json()[\"id\"]\n                )\n            )\n            is None\n        )"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/organizations\",\n        json={\n            \"slug\": \"acme\",\n            \"name\": \"Acme\",\n            \"website_url\": \"https://acme.example/careers\",\n            \"visibility\": \"private\",\n        },\n        headers={\"Idempotency-Key\": \"verification-org-0001\"},\n    )",
+        "request_path": "/v1/organizations",
+        "response_binding": "created",
+        "test": "test_recruiting_verification_is_private_immutable_and_fails_closed_on_material_drift",
+        "test_path": "apps/api/tests/test_organization_verification.py"
+      }
+    },
+    "POST /v1/organizations/{organization_slug}/admins": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert invite.status_code == 201, invite.text",
+          "assert invite.json()[\"status\"] == \"invited\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/organizations/northstar/admins\",\n        json={\"member_profile_handle\": \"admin-profile\", \"role\": \"admin\"},\n        headers={\"Idempotency-Key\": \"membership-northstar-0001\"},\n    )",
+        "request_path": "/v1/organizations/northstar/admins",
+        "response_binding": "invite",
+        "test": "test_member_invitation_and_agents_cannot_establish_or_publish",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "POST /v1/organizations/{organization_slug}/jobs": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert job.status_code == 201, job.text",
+          "assert public_jobs.json()[\"jobs\"][0][\"id\"] == job.json()[\"id\"]"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/organizations/acme/jobs\",\n        json={\n            \"slug\": \"backend-engineer\",\n            \"title\": \"Backend Engineer\",\n            \"description\": \"Build reliable application services.\",\n            \"location\": \"Singapore\",\n            \"work_mode\": \"hybrid\",\n            \"employment_type\": \"full_time\",\n        },\n        headers={\"Idempotency-Key\": \"job-backend-0001\"},\n    )",
+        "request_path": "/v1/organizations/acme/jobs",
+        "response_binding": "job",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "POST /v1/organizations/{organization_slug}/jobs/{job_slug}/applications": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert recovered.status_code == 201, recovered.text",
+          "assert recovered.headers[\"idempotency-replayed\"] == \"true\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/organizations/snapshot-atomicity-org/jobs/snapshot-atomicity-role/applications\",\n        json=request_body,\n        headers={\"Idempotency-Key\": key},\n    )",
+        "request_path": "/v1/organizations/snapshot-atomicity-org/jobs/snapshot-atomicity-role/applications",
+        "response_binding": "recovered",
+        "test": "test_application_snapshot_commit_failure_compensates_before_response",
+        "test_path": "apps/api/tests/test_application_snapshot_atomicity.py"
+      }
+    },
+    "POST /v1/organizations/{organization_slug}/jobs/{job_slug}/applications/{application_id}/{action}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert missing_decision_key.status_code == 428",
+          "assert missing_decision_key.json()[\"detail\"] == \"Idempotency-Key is required for this operation\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/organizations/missing/jobs/missing/applications/missing/review\"\n    )",
+        "request_path": "/v1/organizations/missing/jobs/missing/applications/missing/review",
+        "response_binding": "missing_decision_key",
+        "test": "test_application_transition_key_openapi_and_protocol_exclusion",
+        "test_path": "apps/api/tests/test_application_decision_durability.py"
+      }
+    },
+    "POST /v1/organizations/{organization_slug}/jobs/{job_slug}/lifecycle/{action}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert published.status_code == 200, published.text",
+          "assert published.json()[\"status\"] == \"published\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/organizations/acme/jobs/backend-engineer/lifecycle/publish\",\n        headers={\n            \"If-Match\": job.headers[\"etag\"],\n            \"Idempotency-Key\": \"job-publish-verified-0001\",\n        },\n    )",
+        "request_path": "/v1/organizations/acme/jobs/backend-engineer/lifecycle/publish",
+        "response_binding": "published",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "POST /v1/organizations/{organization_slug}/memberships/{membership_id}/accept": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert impersonated_accept.status_code == 403, impersonated_accept.text",
+          "assert impersonated_accept.json()[\"detail\"] == IMPERSONATION_READ_ONLY_CODE"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/organizations/northstar/memberships/{membership_id}/accept\",\n        headers={\"Idempotency-Key\": \"impersonated-membership-accept-0001\"},\n    )",
+        "request_path": "/v1/organizations/northstar/memberships/{param}/accept",
+        "response_binding": "impersonated_accept",
+        "test": "test_member_invitation_and_agents_cannot_establish_or_publish",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "POST /v1/organizations/{organization_slug}/verification-submissions": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert impersonated_denied.status_code == 403, impersonated_denied.text",
+          "assert impersonated_denied.json()[\"detail\"] == IMPERSONATION_READ_ONLY_CODE"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/organizations/acme/verification-submissions\",\n        json=submission_body,\n        headers={\"Idempotency-Key\": impersonated_submission_key},\n    )",
+        "request_path": "/v1/organizations/acme/verification-submissions",
+        "response_binding": "impersonated_denied",
+        "test": "test_recruiting_verification_is_private_immutable_and_fails_closed_on_material_drift",
+        "test_path": "apps/api/tests/test_organization_verification.py"
+      }
+    },
+    "POST /v1/posts": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 413",
+          "assert response.json()[\"detail\"].startswith(\"canonical post Markdown exceeds\")"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/posts\",\n        json={\"markdown\": oversized},\n        headers={\"Idempotency-Key\": \"post-oversized-input-0001\"},\n    )",
+        "request_path": "/v1/posts",
+        "response_binding": "response",
+        "test": "test_post_oversized_input_fails_as_payload_too_large_before_persistence",
+        "test_path": "apps/api/tests/test_professional_posts.py"
+      }
+    },
+    "POST /v1/posts/{post_id}/report": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "assert first.status_code == 201, first.text",
+          "assert duplicate.json()[\"id\"] == first.json()[\"id\"]"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/posts/{post_id}/report\",\n        json={\"reason_code\": \"spam\"},\n        headers={\"Idempotency-Key\": \"lineage-report-0001\"},\n    )",
+        "request_path": "/v1/posts/{param}/report",
+        "response_binding": "first",
+        "test": "test_terminal_dismissal_reopens_case_lineage_only_for_a_new_reporter",
+        "test_path": "apps/api/tests/test_post_moderation_casework.py"
+      }
+    },
+    "POST /v1/profiles": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert public.status_code == 201, public.text",
+          "assert public.json()[\"visibility\"] == \"public\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/profiles\",\n        json={\"markdown\": profile_markdown(visibility=\"public\")},\n        headers={\"Idempotency-Key\": \"search-facets-profile-create-0001\"},\n    )",
+        "request_path": "/v1/profiles",
+        "response_binding": "public",
+        "test": "test_search_recomputes_facets_after_public_reauthorization_for_every_caller",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "POST /v1/proposals": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert submitted.status_code == 201, submitted.text",
+          "assert replayed_proposal.json() == submitted.json()"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/proposals\",\n        json={\n            \"kind\": \"profile\",\n            \"identifier\": \"ada-lovelace\",\n            \"markdown\": profile_markdown(headline=\"Proposal update\"),\n            \"if_match\": direct_update.headers[\"etag\"],\n        },\n        headers={\n            \"Authorization\": f\"Bearer {proposal_key}\",\n            \"Idempotency-Key\": \"proposal-0001\",\n        },\n    )",
+        "request_path": "/v1/proposals",
+        "response_binding": "submitted",
+        "test": "test_direct_and_proposal_only_grants_are_resource_bound_and_audited",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "POST /v1/proposals/{proposal_id}/{action}": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "assert accepted.status_code == 200, accepted.text",
+          "assert accepted.json()[\"status\"] == \"accepted\""
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        f\"/v1/proposals/{submitted.json()['id']}/accept\",\n        headers={\"Idempotency-Key\": decision_key},\n    )",
+        "request_path": "/v1/proposals/{param}/accept",
+        "response_binding": "accepted",
+        "test": "test_direct_and_proposal_only_grants_are_resource_bound_and_audited",
+        "test_path": "apps/api/tests/test_protocol_core.py"
+      }
+    },
+    "POST /v1/resumes": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert created.status_code == 201, created.text",
+          "assert created.headers[\"etag\"] == v1_etag"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/resumes\",\n        json={\"markdown\": resume_markdown()},\n        headers={\"Idempotency-Key\": \"private-resume-create-0001\"},\n    )",
+        "request_path": "/v1/resumes",
+        "response_binding": "created",
+        "test": "test_private_resume_versions_and_markdown_reads_are_owner_bound",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "POST /v1/search/query": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "assert response.status_code == 200, response.text",
+          "assert response.json()[\"indexing_available\"] is True"
+        ],
+        "method": "POST",
+        "request_anchor": "client.post(\n        \"/v1/search/query\",\n        json={\"q\": \"\", \"skill_ids\": [terms[0][\"canonical_id\"]], \"limit\": 10},\n    )",
+        "request_path": "/v1/search/query",
+        "response_binding": "response",
+        "test": "test_post_search_query_uses_taxonomy_registry",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "PUT /v1/contact-policy": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "assert missing_if_match.status_code == 428",
+          "assert missing_if_match.json()[\"detail\"] == \"If-Match is required to update contact policy\""
+        ],
+        "method": "PUT",
+        "request_anchor": "client.put(\n        \"/v1/contact-policy\",\n        json={\"allow_agent_requests\": True, \"daily_request_limit\": 10},\n        headers={\"Idempotency-Key\": \"contact-policy-missing-precondition-0001\"},\n    )",
+        "request_path": "/v1/contact-policy",
+        "response_binding": "missing_if_match",
+        "test": "test_contact_policy_receipt_replay_concurrency_and_integrity",
+        "test_path": "apps/api/tests/test_contact_durability.py"
+      }
+    },
+    "PUT /v1/organizations/{organization_slug}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert publicized.status_code == 200, publicized.text",
+          "assert publicized.json()[\"recruiting_verification_active\"] is True"
+        ],
+        "method": "PUT",
+        "request_anchor": "client.put(\n        \"/v1/organizations/acme\",\n        json={\"visibility\": \"public\"},\n        headers={\n            \"If-Match\": changed.headers[\"etag\"],\n            \"Idempotency-Key\": \"verification-public-0001\",\n        },\n    )",
+        "request_path": "/v1/organizations/acme",
+        "response_binding": "publicized",
+        "test": "test_recruiting_verification_is_private_immutable_and_fails_closed_on_material_drift",
+        "test_path": "apps/api/tests/test_organization_verification.py"
+      }
+    },
+    "PUT /v1/organizations/{organization_slug}/jobs/{job_slug}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "assert human_update.status_code == 200, human_update.text",
+          "assert human_update.json()[\"status\"] == \"published\""
+        ],
+        "method": "PUT",
+        "request_anchor": "client.put(\n        \"/v1/organizations/acme/jobs/backend-engineer\",\n        json={\"title\": \"Senior Backend Engineer\"},\n        headers={\n            \"If-Match\": published_etag,\n            \"Idempotency-Key\": \"job-published-human-update-0001\",\n        },\n    )",
+        "request_path": "/v1/organizations/acme/jobs/backend-engineer",
+        "response_binding": "human_update",
+        "test": "test_organization_job_and_application_are_gated_and_private",
+        "test_path": "apps/api/tests/test_social_core.py"
+      }
+    },
+    "PUT /v1/profiles/{handle}": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert updated.status_code == 200, updated.text",
+          "assert updated.json()[\"version\"] == 2"
+        ],
+        "method": "PUT",
+        "request_anchor": "client.put(\n        \"/v1/profiles/ada-lovelace\",\n        json={\n            \"markdown\": profile_markdown(headline=\"Principal backend engineer\", visibility=\"public\")\n        },\n        headers={\n            \"If-Match\": created.headers[\"etag\"],\n            \"Idempotency-Key\": \"api-profile-update-0001\",\n        },\n    )",
+        "request_path": "/v1/profiles/ada-lovelace",
+        "response_binding": "updated",
+        "test": "test_json_and_markdown_reads_match_and_versions_are_append_only",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    },
+    "PUT /v1/resumes/{slug}": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "assert updated.status_code == 200, updated.text",
+          "assert updated.json()[\"version\"] == 2"
+        ],
+        "method": "PUT",
+        "request_anchor": "client.put(\n        \"/v1/resumes/ada-lovelace-resume\",\n        json={\"markdown\": updated_markdown},\n        headers={\n            \"If-Match\": created.headers[\"etag\"],\n            \"Idempotency-Key\": \"private-resume-update-0001\",\n        },\n    )",
+        "request_path": "/v1/resumes/ada-lovelace-resume",
+        "response_binding": "updated",
+        "test": "test_private_resume_versions_and_markdown_reads_are_owner_bound",
+        "test_path": "apps/api/tests/test_api.py"
+      }
+    }
+  },
+  "registry_id": "connect-md-platform-route-test-ownership",
+  "schema_version": 1,
+  "ui_routes": {
+    "/": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "expect(homePageSource).toContain('export const dynamic = \"force-dynamic\";');",
+          "expect(homePageSource).toContain(\"const agentReadmeUrl = publicDiscoveryUrl\");"
+        ],
+        "case_witness": "const homePageSource = readFileSync(new URL(\"../app/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/page.tsx",
+        "source_binding": "homePageSource",
+        "test": "proves / preserves the agent handoff and current dynamic landing",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/account": {
+      "owner": "account-lifecycle",
+      "witness": {
+        "assertion_anchors": [
+          "expect(accountPageSource).toContain('title: \"Account privacy\"');",
+          "expect(accountPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const accountPageSource = readFileSync(new URL(\"../app/account/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/account/page.tsx",
+        "source_binding": "accountPageSource",
+        "test": "proves /account is feature-gated and private",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/agent-directory": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "expect(agentDirectoryPageSource).toContain('alternates: { canonical: \"/agent-directory\" }');",
+          "expect(agentDirectoryPageSource).toContain('export const dynamic = \"force-dynamic\";');"
+        ],
+        "case_witness": "const agentDirectoryPageSource = readFileSync(new URL(\"../app/agent-directory/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/agent-directory/page.tsx",
+        "source_binding": "agentDirectoryPageSource",
+        "test": "proves /agent-directory owns filtered success and error rendering",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/agents": {
+      "owner": "agent-authority",
+      "witness": {
+        "assertion_anchors": [
+          "expect(agentsPageSource).toContain(\"robots: { index: false, follow: false }\");",
+          "expect(agentsPageSource).toContain('import { AgentDelegationManager } from \"@/components/agent-delegation-manager\";');"
+        ],
+        "case_witness": "const agentsPageSource = readFileSync(new URL(\"../app/agents/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/agents/page.tsx",
+        "source_binding": "agentsPageSource",
+        "test": "proves /agents composes the three bounded agent management surfaces",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/agents/{handle}": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "expect(publicAgentIdentityPageSource).toContain(\"fetchPublicAgentIdentity\");",
+          "expect(publicAgentIdentityPageSource).toContain(\"const getAgentIdentity = cache(fetchPublicAgentIdentity);\");"
+        ],
+        "case_witness": "const publicAgentIdentityPageSource = readFileSync(new URL(\"../app/agents/[handle]/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/agents/[handle]/page.tsx",
+        "source_binding": "publicAgentIdentityPageSource",
+        "test": "proves /agents/{handle} binds cached identity, canonical contact, and notFound rendering",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/appeal-review": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "expect(appealReviewPageSource).toContain('title: \"Private appeal review\"');",
+          "expect(appealReviewPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const appealReviewPageSource = readFileSync(new URL(\"../app/appeal-review/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/appeal-review/page.tsx",
+        "source_binding": "appealReviewPageSource",
+        "test": "proves /appeal-review is private and renders independent appeal review",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/applications": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "expect(applicationsPageSource).toContain('title: \"My applications\"');",
+          "expect(applicationsPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const applicationsPageSource = readFileSync(new URL(\"../app/applications/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/applications/page.tsx",
+        "source_binding": "applicationsPageSource",
+        "test": "proves /applications is private and renders candidate-owned applications",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/discover": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "expect(discoverPageSource).toContain('alternates: { canonical: \"/discover\" }');",
+          "expect(discoverPageSource).toContain('export const dynamic = \"force-dynamic\";');"
+        ],
+        "case_witness": "const discoverPageSource = readFileSync(new URL(\"../app/discover/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/discover/page.tsx",
+        "source_binding": "discoverPageSource",
+        "test": "proves /discover gates recruiting sources and renders discovery",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/employer": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "expect(employerPageSource).toContain('title: \"Employer workspace\"');",
+          "expect(employerPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const employerPageSource = readFileSync(new URL(\"../app/employer/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/employer/page.tsx",
+        "source_binding": "employerPageSource",
+        "test": "proves /employer is private and renders the employer workspace",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/feed": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "expect(feedPageSource).toContain('title: \"Private feed\"');",
+          "expect(feedPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const feedPageSource = readFileSync(new URL(\"../app/feed/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/feed/page.tsx",
+        "source_binding": "feedPageSource",
+        "test": "proves /feed is private and renders the professional feed",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/human": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "expect(humanModePageSource).toContain('export const metadata = { title: \"Human Mode\" };');",
+          "expect(humanModePageSource).toContain('import { HumanBuilder } from \"@/components/human-builder\";');"
+        ],
+        "case_witness": "const humanModePageSource = readFileSync(new URL(\"../app/human/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/human/page.tsx",
+        "source_binding": "humanModePageSource",
+        "test": "proves /human preserves Human Mode metadata and builder composition",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/inbox": {
+      "owner": "agent-representation-outreach",
+      "witness": {
+        "assertion_anchors": [
+          "expect(inboxPageSource).toContain('robots: { index: false, follow: false }');",
+          "expect(inboxPageSource).toContain(\"parseInboxContactProfileIntent\");"
+        ],
+        "case_witness": "const inboxPageSource = readFileSync(new URL(\"../app/inbox/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/inbox/page.tsx",
+        "source_binding": "inboxPageSource",
+        "test": "proves /inbox keeps private metadata, intent parsing, and outreach composition",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/jobs": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "expect(jobsPageSource).toContain('export const dynamic = \"force-dynamic\";');",
+          "expect(jobsPageSource).toContain(\"if (!recruitingReleaseEnabled()) notFound();\");"
+        ],
+        "case_witness": "const jobsPageSource = readFileSync(new URL(\"../app/jobs/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/jobs/page.tsx",
+        "source_binding": "jobsPageSource",
+        "test": "proves /jobs is release-gated with bounded directory error handling",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/jobs/{organizationSlug}/{jobSlug}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "expect(publicJobPageSource).toContain('export const dynamic = \"force-dynamic\";');",
+          "expect(publicJobPageSource).toContain(\"fetchPublicJob(values.organizationSlug, values.jobSlug)\");"
+        ],
+        "case_witness": "const publicJobPageSource = readFileSync(new URL(\"../app/jobs/[organizationSlug]/[jobSlug]/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/jobs/[organizationSlug]/[jobSlug]/page.tsx",
+        "source_binding": "publicJobPageSource",
+        "test": "proves /jobs/{organizationSlug}/{jobSlug} gates public job and application rendering",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/md": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "expect(markdownModePageSource).toContain('import { MarkdownEditor } from \"@/components/markdown-editor\";');",
+          "expect(markdownModePageSource).toContain('export const metadata = { title: \"MD Mode\" };');"
+        ],
+        "case_witness": "const markdownModePageSource = readFileSync(new URL(\"../app/md/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/md/page.tsx",
+        "source_binding": "markdownModePageSource",
+        "test": "proves /md renders Markdown Mode with its current metadata",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/messages/{conversationId}": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "expect(messagesPageSource).toContain('title: \"Private conversation\"');",
+          "expect(messagesPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const messagesPageSource = readFileSync(new URL(\"../app/messages/[conversationId]/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/messages/[conversationId]/page.tsx",
+        "source_binding": "messagesPageSource",
+        "test": "proves /messages/{conversationId} is private and binds the conversation",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/moderation": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "expect(moderationPageSource).toContain('title: \"Private post case status\"');",
+          "expect(moderationPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const moderationPageSource = readFileSync(new URL(\"../app/moderation/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/moderation/page.tsx",
+        "source_binding": "moderationPageSource",
+        "test": "proves /moderation is private and renders case status",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/moderation-review": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "expect(moderationReviewPageSource).toContain('title: \"Private moderation review\"');",
+          "expect(moderationReviewPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const moderationReviewPageSource = readFileSync(new URL(\"../app/moderation-review/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/moderation-review/page.tsx",
+        "source_binding": "moderationReviewPageSource",
+        "test": "proves /moderation-review is private and renders moderation review",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/network": {
+      "owner": "private-social-graph",
+      "witness": {
+        "assertion_anchors": [
+          "expect(networkPageSource).toContain('title: \"Private network\"');",
+          "expect(networkPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const networkPageSource = readFileSync(new URL(\"../app/network/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/network/page.tsx",
+        "source_binding": "networkPageSource",
+        "test": "proves /network is private and renders the bounded network hub",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/organizations": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "expect(organizationsPageSource).toContain('export const dynamic = \"force-dynamic\";');",
+          "expect(organizationsPageSource).toContain(\"if (!recruitingReleaseEnabled()) notFound();\");"
+        ],
+        "case_witness": "const organizationsPageSource = readFileSync(new URL(\"../app/organizations/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/organizations/page.tsx",
+        "source_binding": "organizationsPageSource",
+        "test": "proves /organizations is release-gated with bounded directory states",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/organizations/{slug}": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "expect(publicOrganizationPageSource).toContain('export const dynamic = \"force-dynamic\";');",
+          "expect(publicOrganizationPageSource).toContain(\"fetchPublicOrganization(slug)\");"
+        ],
+        "case_witness": "const publicOrganizationPageSource = readFileSync(new URL(\"../app/organizations/[slug]/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/organizations/[slug]/page.tsx",
+        "source_binding": "publicOrganizationPageSource",
+        "test": "proves /organizations/{slug} gates verified organization and jobs",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/p/{handle}": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "expect(publicProfilePageSource).toContain(\"fetchPublicProfile\");",
+          "expect(publicProfilePageSource).toContain(\"const getProfile = cache(fetchPublicProfile);\");"
+        ],
+        "case_witness": "const publicProfilePageSource = readFileSync(new URL(\"../app/p/[handle]/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/p/[handle]/page.tsx",
+        "source_binding": "publicProfilePageSource",
+        "test": "proves /p/{handle} fetches a cached profile and preserves notFound rendering",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/p/{handle}/posts": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "expect(profilePostsPageSource).toContain('export const dynamic = \"force-dynamic\";');",
+          "expect(profilePostsPageSource).toContain(\"notFound();\");"
+        ],
+        "case_witness": "const profilePostsPageSource = readFileSync(new URL(\"../app/p/[handle]/posts/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/p/[handle]/posts/page.tsx",
+        "source_binding": "profilePostsPageSource",
+        "test": "proves /p/{handle}/posts binds the public archive and notFound boundary",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/posts/{id}": {
+      "owner": "professional-posts-moderation",
+      "witness": {
+        "assertion_anchors": [
+          "expect(publicPostPageSource).toContain(\"fetchPublicPost\");",
+          "expect(publicPostPageSource).toContain(\"const getPost = cache(fetchPublicPost);\");"
+        ],
+        "case_witness": "const publicPostPageSource = readFileSync(new URL(\"../app/posts/[id]/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/posts/[id]/page.tsx",
+        "source_binding": "publicPostPageSource",
+        "test": "proves /posts/{id} binds cached post metadata, Markdown, notFound, and rendering",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/r/{slug}": {
+      "owner": "canonical-documents",
+      "witness": {
+        "assertion_anchors": [
+          "expect(publicResumePageSource).toContain(\"fetchPublicResume\");",
+          "expect(publicResumePageSource).toContain(\"const getResume = cache(fetchPublicResume);\");"
+        ],
+        "case_witness": "const publicResumePageSource = readFileSync(new URL(\"../app/r/[slug]/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/r/[slug]/page.tsx",
+        "source_binding": "publicResumePageSource",
+        "test": "proves /r/{slug} fetches a cached resume and preserves notFound rendering",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/representatives": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "expect(representativesPageSource).toContain('alternates: { canonical: \"/representatives\" }');",
+          "expect(representativesPageSource).toContain('export const dynamic = \"force-dynamic\";');"
+        ],
+        "case_witness": "const representativesPageSource = readFileSync(new URL(\"../app/representatives/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/representatives/page.tsx",
+        "source_binding": "representativesPageSource",
+        "test": "proves /representatives owns canonical dynamic success and error rendering",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/search": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "expect(searchPageSource).toContain('alternates: { canonical: \"/search\" }');",
+          "expect(searchPageSource).toContain('export const dynamic = \"force-dynamic\";');"
+        ],
+        "case_witness": "const searchPageSource = readFileSync(new URL(\"../app/search/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/search/page.tsx",
+        "source_binding": "searchPageSource",
+        "test": "proves /search maps filters to bounded success and error states",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/trust": {
+      "owner": "public-search",
+      "witness": {
+        "assertion_anchors": [
+          "expect(trustPageSource).toContain('title: \"Privacy and agent data\"');",
+          "expect(trustPageSource).toContain('alternates: { canonical: \"/trust\" }');"
+        ],
+        "case_witness": "const trustPageSource = readFileSync(new URL(\"../app/trust/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/trust/page.tsx",
+        "source_binding": "trustPageSource",
+        "test": "proves /trust exposes current privacy metadata and recruiting visibility",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/verification-review": {
+      "owner": "verified-recruitment",
+      "witness": {
+        "assertion_anchors": [
+          "expect(verificationReviewPageSource).toContain('title: \"Private verification review\"');",
+          "expect(verificationReviewPageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const verificationReviewPageSource = readFileSync(new URL(\"../app/verification-review/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/verification-review/page.tsx",
+        "source_binding": "verificationReviewPageSource",
+        "test": "proves /verification-review is private and renders verification review",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    },
+    "/workspace": {
+      "owner": "private-workspace-navigation",
+      "witness": {
+        "assertion_anchors": [
+          "expect(workspacePageSource).toContain('title: \"Your workspace\"');",
+          "expect(workspacePageSource).toContain('robots: { index: false, follow: false }');"
+        ],
+        "case_witness": "const workspacePageSource = readFileSync(new URL(\"../app/workspace/page.tsx\", import.meta.url), \"utf8\");",
+        "evidence_mode": "page_source",
+        "page_module": "apps/web/app/workspace/page.tsx",
+        "source_binding": "workspacePageSource",
+        "test": "proves /workspace is private and renders navigation without private records",
+        "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
+      }
+    }
+  }
+}

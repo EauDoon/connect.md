@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://connect.md/schemas/platform-feature-registry.schema.json",
+  "title": "connect.md platform feature registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "registry_id", "features"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "registry_id": {"const": "connect-md-platform-features"},
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/feature"}
+    }
+  },
+  "$defs": {
+    "pathList": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[^\\\\/]+(?:/[^\\\\/]+)*$"}
+    },
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "domain", "stage", "authority", "surfaces", "data", "lifecycle", "implementation", "workers", "operations", "tests", "exclusions", "evidence"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "domain": {"type": "string", "minLength": 1},
+        "stage": {"enum": ["design", "implemented", "feature_gated", "repository_verified", "deployment_verified", "releasable", "disabled"]},
+        "authority": {"$ref": "#/$defs/authority"},
+        "surfaces": {"$ref": "#/$defs/surfaces"},
+        "data": {"$ref": "#/$defs/data"},
+        "lifecycle": {"$ref": "#/$defs/lifecycle"},
+        "implementation": {"type": "object", "additionalProperties": false, "required": ["paths"], "properties": {"paths": {"$ref": "#/$defs/pathList"}}},
+        "workers": {"type": "object", "additionalProperties": false, "required": ["names", "paths"], "properties": {"names": {"type": "array", "items": {"type": "string"}}, "paths": {"$ref": "#/$defs/pathList"}}},
+        "operations": {"type": "object", "additionalProperties": false, "required": ["commands", "paths"], "properties": {"commands": {"type": "array", "items": {"type": "string"}}, "paths": {"$ref": "#/$defs/pathList"}}},
+        "tests": {"$ref": "#/$defs/pathList"},
+        "exclusions": {"type": "array", "items": {"type": "string"}},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      }
+    },
+    "authority": {
+      "type": "object", "additionalProperties": false, "required": ["actors", "write_actors", "constraints"],
+      "properties": {
+        "actors": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "write_actors": {"type": "array", "items": {"type": "string"}},
+        "constraints": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "surfaces": {
+      "type": "object", "additionalProperties": false, "required": ["api", "ui", "search", "discovery", "protocols"],
+      "properties": {
+        "api": {"type": "object", "additionalProperties": false, "required": ["routes"], "properties": {"routes": {"type": "array", "items": {"type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE) /"}}}},
+        "ui": {"type": "object", "additionalProperties": false, "required": ["routes"], "properties": {"routes": {"type": "array", "items": {"type": "string", "pattern": "^/"}}}},
+        "search": {"type": "object", "additionalProperties": false, "required": ["mode", "fields"], "properties": {"mode": {"enum": ["indexed", "excluded", "not_applicable"]}, "fields": {"type": "array", "items": {"type": "string"}}}},
+        "discovery": {"$ref": "#/$defs/discovery"},
+        "protocols": {"type": "array", "items": {"$ref": "#/$defs/protocol"}}
+      }
+    },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["openapi", "capabilities", "llms", "mcp", "a2a", "agent_card"],
+      "properties": {
+        "openapi": {"$ref": "#/$defs/discoveryState"},
+        "capabilities": {"$ref": "#/$defs/discoveryState"},
+        "llms": {"$ref": "#/$defs/discoveryState"},
+        "mcp": {"$ref": "#/$defs/discoveryState"},
+        "a2a": {"$ref": "#/$defs/discoveryState"},
+        "agent_card": {"$ref": "#/$defs/discoveryState"}
+      }
+    },
+    "discoveryState": {"enum": ["advertised", "denied", "hidden", "not_applicable"]},
+    "protocol": {
+      "type": "object", "additionalProperties": false, "required": ["id", "routes", "tests"],
+      "properties": {"id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"}, "routes": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE) /"}}, "tests": {"$ref": "#/$defs/pathList"}}
+    },
+    "data": {
+      "type": "object", "additionalProperties": false, "required": ["classification", "storage", "search_projection", "models"],
+      "properties": {"classification": {"enum": ["public", "private", "mixed", "none"]}, "storage": {"type": "array", "minItems": 1, "items": {"type": "string"}}, "search_projection": {"enum": ["public", "excluded", "not_applicable"]}, "models": {"type": "array", "items": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$"}}}
+    },
+    "lifecycle": {
+      "type": "object", "additionalProperties": false, "required": ["export", "conceal", "erase", "retention"],
+      "properties": {"export": {"$ref": "#/$defs/lifecycleState"}, "conceal": {"$ref": "#/$defs/lifecycleState"}, "erase": {"$ref": "#/$defs/lifecycleState"}, "retention": {"$ref": "#/$defs/lifecycleState"}}
+    },
+    "lifecycleState": {"enum": ["implemented", "feature_gated", "design", "disabled", "not_applicable"]},
+    "evidence": {
+      "type": "object", "additionalProperties": false, "required": ["repository_paths", "deployment_paths", "feature_gate", "gate_paths"],
+      "properties": {"repository_paths": {"$ref": "#/$defs/pathList"}, "deployment_paths": {"$ref": "#/$defs/pathList"}, "feature_gate": {"enum": ["not_applicable", "enabled", "disabled_by_default", "absence_enforced"]}, "gate_paths": {"$ref": "#/$defs/pathList"}}
+    }
+  }
+}

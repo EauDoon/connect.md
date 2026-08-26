@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://connect.md/schemas/profile.write/2.json",
+  "title": "connect.md Profile client-write frontmatter v2",
+  "description": "Frontmatter accepted when creating a v2 Profile. Server-owned fields are forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "handle",
+    "name",
+    "headline",
+    "occupations",
+    "industries",
+    "location",
+    "skills",
+    "languages",
+    "seniority",
+    "work_modes",
+    "availability",
+    "open_to",
+    "organizations",
+    "public_representation",
+    "contact",
+    "visibility"
+  ],
+  "properties": {
+    "schema": {"const": "connect.md/profile"},
+    "schema_version": {"const": 2},
+    "handle": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"},
+    "name": {"$ref": "#/$defs/name"},
+    "headline": {"$ref": "#/$defs/headline"},
+    "occupations": {"type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": {"$ref": "#/$defs/reference"}},
+    "industries": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"$ref": "#/$defs/reference"}},
+    "location": {"$ref": "#/$defs/location"},
+    "skills": {"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": {"$ref": "#/$defs/reference"}},
+    "languages": {"type": "array", "maxItems": 30, "uniqueItems": true, "items": {"$ref": "#/$defs/language"}},
+    "seniority": {"$ref": "#/$defs/reference"},
+    "work_modes": {"type": "array", "minItems": 0, "maxItems": 3, "uniqueItems": true, "items": {"enum": ["on_site", "hybrid", "remote"]}, "description": "An empty array means no work-mode preference is disclosed."},
+    "availability": {"$ref": "#/$defs/availability"},
+    "open_to": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"$ref": "#/$defs/reference"}},
+    "organizations": {"type": "array", "maxItems": 50, "uniqueItems": true, "items": {"$ref": "#/$defs/organization"}},
+    "public_representation": {"$ref": "#/$defs/publicRepresentation"},
+    "contact": {"$ref": "#/$defs/contact"},
+    "visibility": {"enum": ["public", "private"]}
+  },
+  "$defs": {
+    "name": {"type": "string", "minLength": 1, "maxLength": 160, "pattern": "^(?=\\S)(?!.*\\s$)(?!.*#$)[^\\r\\n]+$"},
+    "headline": {"type": "string", "minLength": 1, "maxLength": 280, "pattern": "^(?=\\S)(?!.*\\s$)[^\\r\\n]+$"},
+    "label": {"type": "string", "minLength": 1, "maxLength": 160, "pattern": "^(?=\\S)(?!.*\\s$)[^\\r\\n]+$"},
+    "scheme": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
+    "externalId": {"type": "string", "minLength": 1, "maxLength": 255, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._:/-]{0,253}[A-Za-z0-9])?$"},
+    "vocabularyVersion": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$"},
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "id", "label"],
+      "properties": {
+        "scheme": {"$ref": "#/$defs/scheme"},
+        "id": {"$ref": "#/$defs/externalId"},
+        "label": {"$ref": "#/$defs/label"},
+        "version": {"$ref": "#/$defs/vocabularyVersion"}
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "id", "label"],
+      "properties": {
+        "scheme": {"$ref": "#/$defs/scheme"},
+        "id": {"$ref": "#/$defs/externalId"},
+        "label": {"$ref": "#/$defs/label"},
+        "version": {"$ref": "#/$defs/vocabularyVersion"},
+        "country_code": {"type": "string", "pattern": "^[A-Z]{2}$"},
+        "region": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "^(?=\\S)(?!.*\\s$)[^\\r\\n]+$"},
+        "city": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "^(?=\\S)(?!.*\\s$)[^\\r\\n]+$"},
+        "timezone": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^(?:UTC|[A-Za-z_+-]+/[A-Za-z0-9_+.-]+(?:/[A-Za-z0-9_+.-]+)?)$"}
+      }
+    },
+    "language": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "id", "label", "proficiency"],
+      "properties": {
+        "scheme": {"$ref": "#/$defs/scheme"},
+        "id": {"$ref": "#/$defs/externalId"},
+        "label": {"$ref": "#/$defs/label"},
+        "version": {"$ref": "#/$defs/vocabularyVersion"},
+        "proficiency": {"enum": ["basic", "conversational", "professional", "native_or_bilingual"]}
+      }
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["available_now", "available_from", "not_available", "not_disclosed"]},
+        "available_from": {"type": "string", "format": "date"},
+        "notice_days": {"type": "integer", "minimum": 0, "maximum": 730},
+        "hours_per_week": {"type": "integer", "minimum": 1, "maximum": 168}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "available_from"}}, "required": ["status"]},
+          "then": {"required": ["available_from"]},
+          "else": {"not": {"required": ["available_from"]}}
+        }
+      ]
+    },
+    "organization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "id", "label", "relationship"],
+      "properties": {
+        "scheme": {"$ref": "#/$defs/scheme"},
+        "id": {"$ref": "#/$defs/externalId"},
+        "label": {"$ref": "#/$defs/label"},
+        "version": {"$ref": "#/$defs/vocabularyVersion"},
+        "relationship": {"enum": ["current_employer", "past_employer", "founder", "member", "education", "client", "other"]},
+        "url": {"type": "string", "format": "uri", "maxLength": 2048}
+      }
+    },
+    "publicRepresentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["self", "authorized_representative", "organization", "not_disclosed"]},
+        "representative": {"$ref": "#/$defs/reference"},
+        "public_label": {"$ref": "#/$defs/label"},
+        "public_url": {"type": "string", "format": "uri", "maxLength": 2048}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"enum": ["authorized_representative", "organization"]}}, "required": ["status"]},
+          "then": {"required": ["representative"]},
+          "else": {"not": {"required": ["representative"]}}
+        }
+      ]
+    },
+    "contactChannel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "value"],
+      "properties": {
+        "type": {"enum": ["email", "phone", "url", "platform"]},
+        "value": {"type": "string", "minLength": 1, "maxLength": 320, "pattern": "^(?=\\S)(?!.*\\s$)[^\\r\\n]+$"},
+        "label": {"$ref": "#/$defs/label"}
+      }
+    },
+    "contact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["disclosure"],
+      "properties": {
+        "disclosure": {"enum": ["none", "platform_only", "public"]},
+        "channels": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"$ref": "#/$defs/contactChannel"}}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"disclosure": {"const": "public"}}, "required": ["disclosure"]},
+          "then": {"required": ["channels"], "properties": {"channels": {"minItems": 1}}},
+          "else": {"properties": {"channels": {"maxItems": 0}}}
+        }
+      ]
+    }
+  },
+  "x-connectmd": {
+    "kind": "profile",
+    "schema_version": 2,
+    "operation": "create",
+    "identity_field": "handle",
+    "canonical_limits_ref": "canonical-markdown-limits.json",
+    "canonical_size_scope": "final_utf8_bytes_after_lf_canonicalization",
+    "forbidden_server_fields": ["id", "owner_id", "version", "updated_at"],
+    "required_headings": ["# {name}", "## About", "## Experience", "## Skills"],
+    "unique_reference_identity": {
+      "fields": ["occupations", "industries", "skills", "languages", "open_to", "organizations"],
+      "properties": ["scheme", "id"]
+    },
+    "untrusted_body": true
+  }
+}

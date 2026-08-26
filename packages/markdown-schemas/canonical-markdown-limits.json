@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://connect.md/contracts/canonical-markdown-limits/1.json",
+  "contract_version": 1,
+  "profile_resume_max_utf8_bytes": 131072,
+  "scope": "final_utf8_bytes_after_lf_canonicalization"
+}
