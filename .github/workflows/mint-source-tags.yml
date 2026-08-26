@@ -1,0 +1,69 @@
+name: Mint source tags
+
+# The Grok connector can commit files but cannot create git tags.
+# This job mints the missing annotated source tags and GitHub Releases.
+# GITHUB_TOKEN tag pushes do not retrigger release.yml, so releases are created here.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Mint annotated tags and releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          extract_notes() {
+            python3 - "$1" <<'PY'
+import re, sys
+from pathlib import Path
+tag = sys.argv[1]
+version = tag[1:]
+changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+heading = re.compile(rf"^## \[{re.escape(version)}\](?:\s+-.*)?\s*$", re.MULTILINE)
+match = heading.search(changelog)
+if match is None:
+    raise SystemExit(f"CHANGELOG.md has no section for {version}")
+rest = changelog[match.end():]
+nxt = re.search(r"^## ", rest, re.MULTILINE)
+section = changelog[match.start(): match.end() + (nxt.start() if nxt else len(rest))]
+Path("release-notes.md").write_text(section.strip() + "\n", encoding="utf-8")
+PY
+          }
+
+          mint() {
+            local tag="$1"
+            local sha="$2"
+            local title="$3"
+            if git ls-remote --tags origin "refs/tags/${tag}" | grep -q .; then
+              echo "${tag} already exists on origin"
+            else
+              git tag -a "$tag" "$sha" -m "$title"
+              git push origin "refs/tags/${tag}"
+              echo "created ${tag} at ${sha}"
+            fi
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "release ${tag} already exists"
+              return 0
+            fi
+            extract_notes "$tag"
+            gh release create "$tag" --target "$sha" --title "connect.md ${tag#v}" --notes-file release-notes.md
+          }
+
+          mint v0.1.0 55cfc6e6f0e80e7c657320cd9b455dfeadee65a1 "Release v0.1.0: pre-launch foundation"
+          mint v0.2.0 512e4cdae0fcf58678c0cedee609e1cfea91536e "Release v0.2.0: publish source versioning"
