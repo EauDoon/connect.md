@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- [`surfaces/tanstack-start/`](surfaces/tanstack-start/): experimental parallel TanStack Start live-preview surface (v2.20.1). Paper light UI, unique-prefix handles, honest `writesOffered: false`, CTA "Paste this into your agent". Demo Focus sections only — no invented employers/titles/metrics. **Does not replace** `apps/web` or `apps/api`.
+
 ## [0.2.4] - 2026-08-27
 
 ### Added
