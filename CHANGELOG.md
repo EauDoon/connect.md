@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-08-27
+
+### Added
+
+- Unique-prefix handles in the publication contract: a live surface may resolve `/p/maya` to `/p/maya-chen` when that is the only public `maya-*` handle. Ambiguous prefixes 404. Canonical JSON always returns the stored handle.
+
+### Changed
+
+- [`docs/publication.md`](docs/publication.md) and [`docs/live-surface.md`](docs/live-surface.md) record the unique-prefix rule.
+- [`docs/versioning.md`](docs/versioning.md) records source tag `v0.2.4`.
+
+### Notes
+
+This is a source-version upgrade. It does not replace `apps/web` or `apps/api`.
+It is not a production-deployment claim. Never rewrite `55cfc6e`.
+
 ## [0.2.3] - 2026-08-26
 
 ### Added
@@ -70,7 +86,8 @@ This is a source-version upgrade of the pre-launch foundation. It is not a produ
 
 First recorded pre-launch foundation (commit `55cfc6e`). Immutable document versions live at runtime under `storage/` (gitignored) and in PostgreSQL. This version records the published source; it is not a production-deployment claim.
 
-[unreleased]: https://github.com/EauDoon/connect.md/compare/v0.2.3...HEAD
+[unreleased]: https://github.com/EauDoon/connect.md/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/EauDoon/connect.md/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/EauDoon/connect.md/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/EauDoon/connect.md/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/EauDoon/connect.md/compare/v0.2.0...v0.2.1

@@ -14,6 +14,7 @@ Humans own publication. This file is the source contract. A separately hosted li
 - The owner chooses a handle before the first save.
 - Placeholder handles (`your-handle`, `handle`, `member`, `untitled`) cannot be published.
 - After the first save the handle is locked. The public URL is `/p/{handle}`.
+- A unique first-token prefix may resolve to that handle (`/p/maya` → `/p/maya-chen`) when exactly one public handle is `{token}-*`. Ambiguous prefixes 404. Canonical JSON always returns the stored handle.
 
 ## After publish
 

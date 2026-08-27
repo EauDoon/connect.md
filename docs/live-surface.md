@@ -6,6 +6,7 @@ A separately hosted live network (for example a Grok App Builder preview) is **n
 
 - Markdown is canonical. Humans own publication. See [publication.md](publication.md).
 - Drafts stay private. Publish is explicit. Handle is chosen before the first save.
+- A unique first-token prefix may resolve to the canonical handle. Ambiguous prefixes 404.
 - After publish, the owner is shown the public URL, canonical Markdown, and JSON.
 - Contact is a request.
 - Agents do not submit applications.
