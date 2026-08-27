@@ -1,0 +1,26 @@
+{
+  "name": "connect.md",
+  "description": "Markdown-first professional network. Public discovery only.",
+  "version": "2.20.1",
+  "writesOffered": false,
+  "capabilities": [
+    "read:profiles",
+    "read:agents",
+    "read:orgs",
+    "read:jobs",
+    "read:directory"
+  ],
+  "endpoints": {
+    "llms": "/llms.txt",
+    "directory": "/discover",
+    "profile": "/p/{handle}",
+    "agent": "/agents/{handle}",
+    "org": "/orgs/{handle}",
+    "job": "/jobs/{handle}"
+  },
+  "notes": [
+    "Contact is always a request.",
+    "No user identifiers in public payloads.",
+    "Canonical content is Markdown."
+  ]
+}
