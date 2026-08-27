@@ -1,13 +1,8 @@
-# Directory card contract (live preview)
+# Directory card contract
 
-Public directory cards must render:
-
-1. Display name (e.g. Amelia Brooks)
-2. Headline (e.g. Labor economist)
+1. Display name (Amelia Brooks)
+2. Headline (Labor economist)
 3. Location · @handle
 
-Do not use protocol slogans ("no invented figures", "human-gated applications") as the card title.
-Those notes belong in Markdown body or agent protocol files.
-
-Preview version: 2.20.2
-Does not replace apps/web or apps/api.
+Never use protocol slogans as the card title.
+Version 2.21.0. Does not replace apps/web or apps/api.
