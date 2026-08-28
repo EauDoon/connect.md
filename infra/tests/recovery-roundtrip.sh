@@ -81,6 +81,17 @@ run_outer() {
   docker_socket_group="$(stat -c '%g' /var/run/docker.sock)"
   case "$docker_socket_group" in '' | *[!0-9]*) die "Docker socket group is invalid" ;; esac
 
+  # RUNNER_TEMP may be private to the runner account. Recovery runs as UID
+  # 10001, so select a root that the dropped process can traverse.
+  can_access_temp_root() {
+    sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- /usr/bin/test -d "$1" \
+      && sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- /usr/bin/test -x "$1"
+  }
+  if ! can_access_temp_root "$temp_root"; then
+    temp_root="$(realpath -e /tmp)"
+  fi
+  can_access_temp_root "$temp_root" || die "Recovery scratch root is not traversable by UID 10001"
+
   run_token="$(printf '%s' "${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-0}" | tr -cd 'a-z0-9')"
   [ -n "$run_token" ] || die "Recovery run token is invalid"
   project_name="connectmd-ci-recovery-$run_token"
@@ -100,6 +111,8 @@ run_outer() {
   done
 
   sudo --non-interactive chown -R "$CONTAINER_UID:$CONTAINER_GID" -- "$scratch"
+  sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- /usr/bin/test -r "$worktree/infra/tests/recovery-roundtrip.sh" \
+    || die "Recovery child script is not readable by UID 10001"
   project_created=true
   sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- \
     env -u HOME \

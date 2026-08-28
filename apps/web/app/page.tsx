@@ -93,11 +93,11 @@ export default function HomePage() {
             <p className="mt-3 max-w-2xl text-sm leading-6 text-mist">Both paths produce the same canonical Markdown. Neither publishes without an explicit action.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/human" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-acid px-5 text-sm font-bold text-ink transition hover:bg-[#e5ff92] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid motion-reduce:transition-none">
-              <Sparkles className="size-4" aria-hidden /> Human Mode
+            <Link href="/human" className="inline-flex min-h-12 min-w-0 max-w-full items-center gap-2 rounded-full bg-acid px-5 text-sm font-bold text-ink transition hover:bg-[#e5ff92] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid motion-reduce:transition-none">
+              <Sparkles className="size-4 shrink-0" aria-hidden /> <span className="min-w-0 break-words">Human Mode</span>
             </Link>
-            <Link href="/md" className="inline-flex min-h-12 items-center gap-2 rounded-full border border-white/15 bg-white/[.04] px-5 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid motion-reduce:transition-none">
-              <Braces className="size-4" aria-hidden /> Markdown Mode
+            <Link href="/md" className="inline-flex min-h-12 min-w-0 max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/[.04] px-5 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid motion-reduce:transition-none">
+              <Braces className="size-4 shrink-0" aria-hidden /> <span className="min-w-0 break-words">Markdown Mode</span>
             </Link>
           </div>
         </div>
