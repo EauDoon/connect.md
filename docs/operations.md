@@ -67,8 +67,10 @@ locked `pip-audit` tool and the frontend job uses the Node/npm tool supplied by
 the pinned Node runtime; the frontend validation invokes the runner's
 stdlib-only `python3` checker without another action or install. Neither step
 adds a runtime dependency or changes a package manifest. The repository checker requires the expected lockfile
-format, exact name/version coverage, library component types, duplicate
-rejection, CycloneDX schema metadata, and the web application root identity.
+format, exact name/version coverage, library component types, CycloneDX
+schema metadata, and the web application root identity. API duplicate
+identities are rejected. Repeated web identities require distinct npm package
+paths that match the lockfile; unbound or repeated paths are rejected.
 A complete image SBOM with additional non-library/image components or a
 partial dependency list therefore cannot pass as one of these dependency
 receipts; the checker does not claim to authenticate an image boundary.

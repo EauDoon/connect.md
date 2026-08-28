@@ -140,7 +140,11 @@ for command_name in curl openssl; do
   chmod 700 "$fake_bin/$command_name"
 done
 for command_name in curl openssl; do
-  if ! fake_output="$(PATH="$fake_bin:$PATH" bash -c 'source "$1"; run_with_direct_system_trust "$2" --version' bash "$fixture/infra/scripts/lib.sh" "$command_name" 2>&1)"; then
+  case "$command_name" in
+    curl) version_argument=--version ;;
+    openssl) version_argument=version ;;
+  esac
+  if ! fake_output="$(PATH="$fake_bin:$PATH" bash -c 'source "$1"; run_with_direct_system_trust "$2" "$3"' bash "$fixture/infra/scripts/lib.sh" "$command_name" "$version_argument" 2>&1)"; then
     die "Sanitized direct-trust child could not execute system $command_name"
   fi
   case "$fake_output" in *"FAKE_${command_name}_RAN"*) die "Caller PATH substituted $command_name" ;; esac

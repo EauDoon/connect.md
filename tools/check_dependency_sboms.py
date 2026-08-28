@@ -116,7 +116,13 @@ def _npm_package_name(package_path: str) -> str:
     return tail.split("/", 1)[0]
 
 
-def _parse_npm_lock(path: Path) -> tuple[set[tuple[str, str]], tuple[str, str]]:
+def _parse_npm_lock(
+    path: Path,
+) -> tuple[
+    set[tuple[str, str]],
+    tuple[str, str],
+    dict[tuple[str, str], set[str]],
+]:
     payload = _load_json(path)
     if payload.get("lockfileVersion") != 3:
         raise SbomValidationError("web lockfile must be npm lockfileVersion 3")
@@ -128,6 +134,7 @@ def _parse_npm_lock(path: Path) -> tuple[set[tuple[str, str]], tuple[str, str]]:
         raise SbomValidationError("web lockfile root package is missing")
     root_identity = _component_identity(root.get("name"), root.get("version"))
     entries: set[tuple[str, str]] = set()
+    package_paths: dict[tuple[str, str], set[str]] = {}
     for package_path, package in packages.items():
         if package_path == "":
             continue
@@ -142,16 +149,21 @@ def _parse_npm_lock(path: Path) -> tuple[set[tuple[str, str]], tuple[str, str]]:
         name = _npm_package_name(package_path)
         identity = _component_identity(name, package.get("version"))
         entries.add(identity)
+        package_paths.setdefault(identity, set()).add(package_path)
     if not entries:
         raise SbomValidationError("web lockfile has no dependency components")
-    return entries, root_identity
+    return entries, root_identity, package_paths
 
 
 def _lock_entries(
     kind: str, path: Path
-) -> tuple[set[tuple[str, str]], tuple[str, str] | None]:
+) -> tuple[
+    set[tuple[str, str]],
+    tuple[str, str] | None,
+    dict[tuple[str, str], set[str]] | None,
+]:
     if kind == "api":
-        return _parse_python_lock(path), None
+        return _parse_python_lock(path), None, None
     if kind == "web":
         return _parse_npm_lock(path)
     raise SbomValidationError("kind must be api or web")
@@ -177,7 +189,38 @@ def _web_metadata_matches_root(
     )
 
 
-def _validate_bom(payload: dict[str, Any]) -> list[tuple[str, str]]:
+def _npm_component_path(component: dict[str, Any]) -> str | None:
+    properties = component.get("properties")
+    if not isinstance(properties, list):
+        return None
+    matches = [
+        item
+        for item in properties
+        if isinstance(item, dict) and item.get("name") == "cdx:npm:package:path"
+    ]
+    if not matches:
+        return None
+    if len(matches) != 1 or not isinstance(matches[0].get("value"), str):
+        raise SbomValidationError(
+            "web SBOM package path property is malformed or duplicated"
+        )
+    package_path = matches[0]["value"]
+    if (
+        not package_path.startswith("node_modules/")
+        or any(
+            not part or part in {".", ".."} or any(ord(char) < 0x20 for char in part)
+            for part in package_path.split("/")
+        )
+    ):
+        raise SbomValidationError("web SBOM package path is invalid")
+    return package_path
+
+
+def _validate_bom(
+    payload: dict[str, Any],
+    *,
+    npm_paths_by_identity: dict[tuple[str, str], set[str]] | None = None,
+) -> list[tuple[str, str]]:
     if payload.get("bomFormat") != "CycloneDX":
         raise SbomValidationError("SBOM bomFormat must be CycloneDX")
     spec_version = payload.get("specVersion")
@@ -192,17 +235,39 @@ def _validate_bom(payload: dict[str, Any]) -> list[tuple[str, str]]:
     if not isinstance(components, list) or not components:
         raise SbomValidationError("SBOM components must be a non-empty array")
     identities: list[tuple[str, str]] = []
-    seen: set[tuple[str, str]] = set()
+    components_by_identity: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for component in components:
         if not isinstance(component, dict):
             raise SbomValidationError("SBOM components must be objects")
         if component.get("type") != "library":
             raise SbomValidationError("SBOM components must be libraries")
         identity = _component_identity(component.get("name"), component.get("version"))
-        if identity in seen:
-            raise SbomValidationError("SBOM contains duplicate component identities")
-        seen.add(identity)
         identities.append(identity)
+        components_by_identity.setdefault(identity, []).append(component)
+    for identity, identity_components in components_by_identity.items():
+        if len(identity_components) == 1 and npm_paths_by_identity is None:
+            continue
+        if npm_paths_by_identity is None:
+            raise SbomValidationError("SBOM contains duplicate component identities")
+        seen_paths: set[str] = set()
+        for component in identity_components:
+            package_path = _npm_component_path(component)
+            if package_path is None:
+                if len(identity_components) > 1:
+                    raise SbomValidationError(
+                        "duplicate web SBOM components require package paths"
+                    )
+                continue
+            expected_paths = npm_paths_by_identity.get(identity, set())
+            if package_path not in expected_paths:
+                raise SbomValidationError(
+                    "web SBOM package path does not match the lockfile"
+                )
+            if package_path in seen_paths:
+                raise SbomValidationError(
+                    "web SBOM contains duplicate package paths"
+                )
+            seen_paths.add(package_path)
     metadata = payload.get("metadata")
     if metadata is not None and not isinstance(metadata, dict):
         raise SbomValidationError("SBOM metadata must be an object when present")
@@ -236,9 +301,11 @@ def _canonical_json(value: Any) -> bytes:
 
 
 def validate_sbom(kind: str, lock_path: Path, sbom_path: Path) -> dict[str, Any]:
-    expected, root_identity = _lock_entries(kind, lock_path)
+    expected, root_identity, npm_paths_by_identity = _lock_entries(kind, lock_path)
     payload = _load_json(sbom_path)
-    actual = set(_validate_bom(payload))
+    actual = set(
+        _validate_bom(payload, npm_paths_by_identity=npm_paths_by_identity)
+    )
     missing = sorted(expected - actual)
     extra = sorted(actual - expected)
     if missing or extra:
