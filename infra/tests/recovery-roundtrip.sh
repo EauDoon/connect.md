@@ -36,18 +36,21 @@ assert_child_path() {
 }
 
 run_outer() {
-  local script_dir repo_root temp_parent temp_root source_revision run_token docker_socket_group
-  local scratch worktree project_name host_uid host_gid project_created=false
+  local script_dir repo_root temp_parent source_revision run_token docker_socket_group
 
+  scratch=""
+  worktree=""
+  project_name=""
+  temp_root=""
+  host_uid=""
+  host_gid=""
+  project_created=false
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
   repo_root="$(cd "$script_dir/../.." && pwd -P)"
   host_uid="$(id -u)"
   host_gid="$(id -g)"
   temp_parent="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
   temp_root="$(realpath -e "$temp_parent")"
-  scratch=""
-  worktree=""
-  project_name=""
 
   cleanup() {
     local status=$?
@@ -104,7 +107,7 @@ run_outer() {
       CONNECTMD_RECOVERY_SCRATCH="$scratch" \
       CONNECTMD_RECOVERY_TOKEN="$run_token" \
       CONNECTMD_COMPOSE_PROJECT_NAME="$project_name" \
-      "$worktree/infra/tests/recovery-roundtrip.sh"
+      bash "$worktree/infra/tests/recovery-roundtrip.sh"
 }
 
 set_env_value() {

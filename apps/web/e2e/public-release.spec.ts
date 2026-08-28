@@ -133,6 +133,8 @@ const mobilePublicRoutes = [
   "/search",
 ] as const;
 const narrowReflowViewport = { width: 320, height: 800 } as const;
+const firstUseLayoutDiagnosticPaths = ["/", "/human", "/md"] as const;
+const narrowLayoutDiagnosticCategories = ["link", "button", "form-control", "tabbable"] as const;
 const taxonomyAliasA = `tx1_${"a".repeat(64)}`;
 const taxonomyAliasB = `tx1_${"b".repeat(64)}`;
 
@@ -280,7 +282,8 @@ async function assertNarrowFirstUseLayout(page: Page, path: string, requiredSele
     const viewportWidth = document.documentElement.clientWidth;
     const elements = Array.from(document.querySelectorAll<HTMLElement>("a,button,input,select,textarea,[tabindex]:not([tabindex='-1'])"));
     const offenders = elements
-      .filter((element) => {
+      .map((element, index) => ({ element, index }))
+      .filter(({ element }) => {
         const style = getComputedStyle(element);
         const zIndex = Number.parseInt(style.zIndex, 10);
         const isTransparentNegativeLayer = zIndex < 0 && style.color === "rgba(0, 0, 0, 0)" && style.backgroundColor === "rgba(0, 0, 0, 0)";
@@ -289,15 +292,16 @@ async function assertNarrowFirstUseLayout(page: Page, path: string, requiredSele
         if (rect.width <= 0 || rect.height <= 0) return false;
         return rect.width > 0 && (rect.left < -1 || rect.right > viewportWidth + 1);
       })
-      .map((element) => {
-        const descriptor = element.id
-          ? `#${element.id}`
-          : element.getAttribute("aria-label")
-            ? `[aria-label=\"${element.getAttribute("aria-label")}\"]`
-            : element.getAttribute("href")
-              ? `[href=\"${element.getAttribute("href")}\"]`
-              : "";
-        return `${element.tagName.toLowerCase()}${descriptor}`;
+      .map(({ element, index }) => {
+        const tagName = element.tagName.toLowerCase();
+        const category = tagName === "a"
+          ? "link"
+          : tagName === "button"
+            ? "button"
+            : ["input", "select", "textarea"].includes(tagName)
+              ? "form-control"
+              : "tabbable";
+        return { index, category };
       });
     const required = selectors.map((selector) => {
       const element = document.querySelector<HTMLElement>(selector);
@@ -319,6 +323,25 @@ async function assertNarrowFirstUseLayout(page: Page, path: string, requiredSele
   }, requiredSelectors);
   expect(layout.viewportWidth, `${path} viewport`).toBe(viewportWidth);
   expect(layout.scrollWidth, `${path} document overflow`).toBeLessThanOrEqual(layout.viewportWidth);
+  if (
+    layout.offenders.length > 0 &&
+    firstUseLayoutDiagnosticPaths.includes(path as (typeof firstUseLayoutDiagnosticPaths)[number]) &&
+    [160, 320].includes(viewportWidth) &&
+    layout.offenders.every(({ index, category }) =>
+      index >= 0 && index <= 127 &&
+      narrowLayoutDiagnosticCategories.includes(category as (typeof narrowLayoutDiagnosticCategories)[number]))
+  ) {
+    const diagnosticOffenders = layout.offenders.slice(0, 4);
+    test.info().annotations.push({
+      type: "connectmd-layout-overflow",
+      description: JSON.stringify({
+        route_index: firstUseLayoutDiagnosticPaths.indexOf(path as (typeof firstUseLayoutDiagnosticPaths)[number]),
+        viewport_width: viewportWidth,
+        element_indices: diagnosticOffenders.map(({ index }) => index),
+        element_categories: diagnosticOffenders.map(({ category }) => category),
+      }),
+    });
+  }
   expect(layout.offenders, `${path} interactive overflow`).toEqual([]);
   for (const required of layout.required) {
     expect(required.present, `${path} missing ${required.selector}`).toBe(true);

@@ -35,6 +35,10 @@ const EXPECTED_PLAYWRIGHT_TESTS = 9;
 const PUBLIC_RELEASE_SPEC_PATH = "e2e/public-release.spec.ts";
 const MAX_PUBLIC_RELEASE_SPEC_LINE = 2_000;
 const MAX_PUBLIC_RELEASE_SPEC_COLUMN = 500;
+const LAYOUT_DIAGNOSTIC_TYPE = "connectmd-layout-overflow";
+const LAYOUT_DIAGNOSTIC_VIEWPORTS = new Set([160, 320]);
+const LAYOUT_DIAGNOSTIC_CATEGORIES = new Set(["link", "button", "form-control", "tabbable"]);
+const MAX_LAYOUT_DIAGNOSTIC_DOM_INDEX = 127;
 
 function loopbackOrigin(address) {
   if (!address || typeof address !== "object" || typeof address.port !== "number") {
@@ -434,6 +438,81 @@ function firstPlaywrightErrorLocation(spec) {
   return null;
 }
 
+function boundedLayoutDiagnostic(annotation) {
+  if (!annotation || typeof annotation !== "object" || Array.isArray(annotation)) return null;
+  if (
+    annotation.type !== LAYOUT_DIAGNOSTIC_TYPE ||
+    typeof annotation.description !== "string" ||
+    annotation.description.length > 256
+  ) {
+    return null;
+  }
+  let diagnostic;
+  try {
+    diagnostic = JSON.parse(annotation.description);
+  } catch {
+    return null;
+  }
+  if (!diagnostic || typeof diagnostic !== "object" || Array.isArray(diagnostic)) return null;
+  if (
+    !Number.isInteger(diagnostic.route_index) ||
+    diagnostic.route_index < 0 ||
+    diagnostic.route_index > 2 ||
+    !Number.isInteger(diagnostic.viewport_width) ||
+    !LAYOUT_DIAGNOSTIC_VIEWPORTS.has(diagnostic.viewport_width) ||
+    !Array.isArray(diagnostic.element_categories) ||
+    diagnostic.element_categories.length < 1 ||
+    diagnostic.element_categories.length > 4 ||
+    !Array.isArray(diagnostic.element_indices) ||
+    diagnostic.element_indices.length !== diagnostic.element_categories.length
+  ) {
+    return null;
+  }
+  const categories = [];
+  const indices = [];
+  for (const [position, category] of diagnostic.element_categories.entries()) {
+    const index = diagnostic.element_indices[position];
+    if (
+      typeof category !== "string" ||
+      !LAYOUT_DIAGNOSTIC_CATEGORIES.has(category) ||
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index > MAX_LAYOUT_DIAGNOSTIC_DOM_INDEX
+    ) {
+      return null;
+    }
+    categories.push(category);
+    indices.push(index);
+  }
+  return {
+    route_index: diagnostic.route_index,
+    viewport_width: diagnostic.viewport_width,
+    element_indices: indices,
+    element_categories: categories,
+  };
+}
+
+function firstLayoutDiagnostic(spec) {
+  if (!spec || typeof spec !== "object" || Array.isArray(spec)) return null;
+  const annotations = [];
+  const projectTests = Array.isArray(spec.tests) ? spec.tests : [];
+  for (const projectTest of projectTests) {
+    if (!projectTest || typeof projectTest !== "object" || Array.isArray(projectTest)) continue;
+    if (Array.isArray(projectTest.annotations)) annotations.push(...projectTest.annotations);
+    const results = Array.isArray(projectTest.results) ? projectTest.results : [];
+    for (const result of results) {
+      if (result && typeof result === "object" && !Array.isArray(result) && Array.isArray(result.annotations)) {
+        annotations.push(...result.annotations);
+      }
+    }
+  }
+  for (const annotation of annotations) {
+    const diagnostic = boundedLayoutDiagnostic(annotation);
+    if (diagnostic) return diagnostic;
+  }
+  return null;
+}
+
 function collectFailedPlaywrightSpecIndices(suites, state) {
   if (!Array.isArray(suites)) return;
   for (const suite of suites) {
@@ -453,6 +532,10 @@ function collectFailedPlaywrightSpecIndices(suites, state) {
           const location = firstPlaywrightErrorLocation(spec);
           if (location && state.locations.length < EXPECTED_PLAYWRIGHT_TESTS) {
             state.locations.push({ spec: index, ...location });
+          }
+          const layout = firstLayoutDiagnostic(spec);
+          if (layout && state.layout.length < EXPECTED_PLAYWRIGHT_TESTS) {
+            state.layout.push({ spec: index, ...layout });
           }
         }
       }
@@ -495,11 +578,14 @@ export function summarizePlaywrightResult(result) {
   ) {
     return `browser release Playwright stage failed: exit=${exitCode} signal=${signal} receipt=invalid`;
   }
-  const failedTests = { indices: [], locations: [], specCount: 0 };
+  const failedTests = { indices: [], locations: [], layout: [], specCount: 0 };
   collectFailedPlaywrightSpecIndices(receipt.suites, failedTests);
   const failedSpecs = failedTests.indices.length > 0 ? ` failed_specs=${JSON.stringify(failedTests.indices)}` : "";
   const failedLocations = failedTests.locations.length > 0
     ? ` failed_locations=${JSON.stringify(failedTests.locations)}`
+    : "";
+  const layoutDiagnostics = failedTests.layout.length > 0
+    ? ` layout=${JSON.stringify(failedTests.layout)}`
     : "";
   return [
     `browser release Playwright stage failed: exit=${exitCode}`,
@@ -508,7 +594,7 @@ export function summarizePlaywrightResult(result) {
     `failed=${failedTests.indices.length}`,
     `skipped=${diagnosticStatus(receipt.stats, "skipped")}`,
     `unexpected=${diagnosticStatus(receipt.stats, "unexpected")}`,
-    `flaky=${diagnosticStatus(receipt.stats, "flaky")}${failedSpecs}${failedLocations}`,
+    `flaky=${diagnosticStatus(receipt.stats, "flaky")}${failedSpecs}${failedLocations}${layoutDiagnostics}`,
   ].join(" ");
 }
 

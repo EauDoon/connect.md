@@ -376,6 +376,19 @@ describe("production browser release gate", () => {
         },
       ],
     });
+    Object.assign(failed.suites[0].specs[2].tests[0], {
+      annotations: [
+        {
+          type: "connectmd-layout-overflow",
+          description: JSON.stringify({
+            route_index: 1,
+            viewport_width: 160,
+            element_indices: [12, 29],
+            element_categories: ["link", "form-control"],
+          }),
+        },
+      ],
+    });
     const diagnostic = summarizePlaywrightResult({
       code: 1,
       signal: null,
@@ -385,6 +398,9 @@ describe("production browser release gate", () => {
     expect(diagnostic).toContain("failed=1");
     expect(diagnostic).toContain("failed_specs=[2]");
     expect(diagnostic).toContain('failed_locations=[{"spec":2,"line":1025,"column":17}]');
+    expect(diagnostic).toContain(
+      'layout=[{"spec":2,"route_index":1,"viewport_width":160,"element_indices":[12,29],"element_categories":["link","form-control"]}]',
+    );
     expect(diagnostic).not.toContain("public-release.spec.ts");
     expect(diagnostic).not.toContain("secret");
     expect(diagnostic).not.toContain("token");
@@ -395,11 +411,29 @@ describe("production browser release gate", () => {
       errorLocation: { file: "e2e/private.spec.ts", line: 10, column: 2 },
       errors: [{ location: { file: "e2e/public-release.spec.ts", line: 0, column: 1 } }],
     });
+    Object.assign(untrustedLocation.suites[0].specs[2].tests[0], {
+      annotations: [
+        {
+          type: "connectmd-layout-overflow",
+          description: JSON.stringify({
+            route_index: 9,
+            viewport_width: 160,
+            element_indices: [12],
+            element_categories: ["secret"],
+          }),
+        },
+      ],
+    });
     expect(summarizePlaywrightResult({
       code: 1,
       signal: null,
       stdout: JSON.stringify(untrustedLocation),
     })).not.toContain("failed_locations");
+    expect(summarizePlaywrightResult({
+      code: 1,
+      signal: null,
+      stdout: JSON.stringify(untrustedLocation),
+    })).not.toContain("layout=");
     expect(summarizePlaywrightResult({ code: 1, signal: null, stdout: "not-json" })).toContain(
       "receipt=invalid",
     );
@@ -481,6 +515,9 @@ describe("production browser release gate", () => {
     expect(harness).toContain("validatePlaywrightJsonReceipt(result.stdout)");
     expect(harness).toContain("PUBLIC_RELEASE_SPEC_PATH");
     expect(harness).toContain("failed_locations");
+    expect(harness).toContain("LAYOUT_DIAGNOSTIC_TYPE");
+    expect(harness).toContain("MAX_LAYOUT_DIAGNOSTIC_DOM_INDEX");
+    expect(harness).toContain("layout=");
     expect(harness).toContain('child.once("close"');
     expect(harness).not.toContain("result.stderr");
     expect(harness).toContain("EXPECTED_PLAYWRIGHT_TESTS = 9");
