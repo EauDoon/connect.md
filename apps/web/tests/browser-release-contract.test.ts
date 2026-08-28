@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -11,8 +12,24 @@ const repoRoot = resolve(webRoot, "..", "..");
 const harnessValidation = (await import(new URL("../e2e/production-harness.mjs", import.meta.url).href)) as {
   validateFixturePayload: (fixture: unknown) => unknown;
   validatePlaywrightJsonReceipt: (raw: string) => unknown;
+  summarizePlaywrightResult: (result: {
+    code: number | null;
+    signal: string | null;
+    stdout: string;
+  }) => string;
+  waitForChildOutput: (child: unknown) => Promise<{
+    code: number | null;
+    signal: string | null;
+    stdout: string;
+    stderr: string;
+  }>;
 };
-const { validateFixturePayload, validatePlaywrightJsonReceipt } = harnessValidation;
+const {
+  summarizePlaywrightResult,
+  validateFixturePayload,
+  validatePlaywrightJsonReceipt,
+  waitForChildOutput,
+} = harnessValidation;
 const buildValidation = (await import(new URL("../scripts/build-production-e2e.mjs", import.meta.url).href)) as {
   BROWSER_RELEASE_BUILD_PROFILE: string;
   assertNoNextDotenvFiles: (root?: string) => void;
@@ -335,6 +352,71 @@ describe("production browser release gate", () => {
     expect(() => validatePlaywrightJsonReceipt(JSON.stringify(failedSpec))).toThrow();
   });
 
+  it("reports bounded Playwright status without exposing child output", () => {
+    const passing = summarizePlaywrightResult({
+      code: 0,
+      signal: null,
+      stdout: JSON.stringify(exactNinePassPlaywrightReceipt()),
+    });
+    expect(passing).toContain("expected=9");
+    expect(passing).toContain("failed=0");
+    expect(passing).toContain("skipped=0");
+
+    const failed = exactNinePassPlaywrightReceipt();
+    Object.assign(failed.suites[0].specs[2], {
+      ok: false,
+      title: "token=secret-should-not-appear",
+    });
+    const diagnostic = summarizePlaywrightResult({
+      code: 1,
+      signal: null,
+      stdout: JSON.stringify(failed),
+    });
+    expect(diagnostic).toContain("exit=1");
+    expect(diagnostic).toContain("failed=1");
+    expect(diagnostic).toContain("failed_specs=[2]");
+    expect(diagnostic).not.toContain("secret");
+    expect(diagnostic).not.toContain("token");
+    expect(summarizePlaywrightResult({ code: 1, signal: null, stdout: "not-json" })).toContain(
+      "receipt=invalid",
+    );
+    expect(
+      summarizePlaywrightResult({
+        code: 999,
+        signal: "secret",
+        stdout: JSON.stringify(exactNinePassPlaywrightReceipt()),
+      }),
+    ).toContain("exit=unknown signal=present");
+  });
+
+  it("collects child output through close after exit", async () => {
+    class OutputStream extends EventEmitter {
+      setEncoding(): void {}
+    }
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new OutputStream(),
+      stderr: new OutputStream(),
+    });
+    let settled = false;
+    const resultPromise = waitForChildOutput(child).then((result) => {
+      settled = true;
+      return result;
+    });
+
+    child.emit("exit", 0, null);
+    child.stdout.emit("data", "complete");
+    await new Promise((resolvePromise) => setImmediate(resolvePromise));
+    expect(settled).toBe(false);
+
+    child.emit("close", 0, null);
+    await expect(resultPromise).resolves.toEqual({
+      code: 0,
+      signal: null,
+      stdout: "complete",
+      stderr: "",
+    });
+  });
+
   it("keeps the harness loopback-only, read-only, and fail-closed", () => {
     const harness = harnessSources();
     const spec = source("apps/web/e2e/public-release.spec.ts");
@@ -372,7 +454,10 @@ describe("production browser release gate", () => {
     expect(harness).toContain("assertRunningChild(nextProcess, nextProcessId, \"readiness\")");
     expect(harness).toContain("assertRunningChild(nextProcess, nextProcessId, \"Playwright\")");
     expect(harness).toContain('"--reporter=json"');
+    expect(harness).toContain("summarizePlaywrightResult(result)");
     expect(harness).toContain("validatePlaywrightJsonReceipt(result.stdout)");
+    expect(harness).toContain('child.once("close"');
+    expect(harness).not.toContain("result.stderr");
     expect(harness).toContain("EXPECTED_PLAYWRIGHT_TESTS = 9");
     expect(harness).toContain("stats.skipped !== 0");
     expect(harness).toContain("stats.unexpected !== 0");

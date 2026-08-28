@@ -131,8 +131,14 @@ acquire_operation_lock() {
     [ ! -L "$lock_file" ] || die "Connect.md operation lock path must not be a symlink"
     descriptor_identity="$(stat -Lc '%F:%h:%d:%i' -- "/proc/$$/fd/9" 2>/dev/null)" \
       || die "Connect.md operation lock descriptor cannot be inspected"
-    case "$lock_identity" in regular\ file:1:*:*) ;; *) die "Connect.md operation lock must be a regular single-link file" ;; esac
-    case "$descriptor_identity" in regular\ file:1:*:*) ;; *) die "Connect.md operation lock descriptor must be a regular single-link file" ;; esac
+    case "$lock_identity" in
+      regular\ file:1:*:*|regular\ empty\ file:1:*:*) ;;
+      *) die "Connect.md operation lock must be a regular single-link file" ;;
+    esac
+    case "$descriptor_identity" in
+      regular\ file:1:*:*|regular\ empty\ file:1:*:*) ;;
+      *) die "Connect.md operation lock descriptor must be a regular single-link file" ;;
+    esac
     [ "$descriptor_identity" = "$lock_identity" ] \
       || die "Connect.md operation lock descriptor no longer matches the lock path"
   }
@@ -1168,7 +1174,7 @@ load_release_acceptance() {
   fi
   root="$(acceptance_receipt_root)"
   [ -d "$root" ] && [ ! -L "$root" ] || die "Release acceptance history is missing or unsafe"
-  for candidate in "$root"/acceptance-"$image_tag"-*.env; do
+  for candidate in "$root"/acceptance-"$image_tag"-????????????????????????????????????????????????????????????????.env; do
     [ -f "$candidate" ] && [ ! -L "$candidate" ] || continue
     digest="$(digest_of_file "$candidate")"
     if [ -n "$expected_digest" ] && [ "$digest" != "$expected_digest" ]; then

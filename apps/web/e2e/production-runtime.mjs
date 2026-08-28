@@ -392,6 +392,77 @@ function collectPlaywrightTests(suites, tests = []) {
   return tests;
 }
 
+function collectFailedPlaywrightSpecIndices(suites, state) {
+  if (!Array.isArray(suites)) return;
+  for (const suite of suites) {
+    if (!suite || typeof suite !== "object" || Array.isArray(suite)) continue;
+    if (Array.isArray(suite.specs)) {
+      for (const spec of suite.specs) {
+        const index = state.specCount;
+        state.specCount = Math.min(state.specCount + 1, EXPECTED_PLAYWRIGHT_TESTS);
+        if (
+          index < EXPECTED_PLAYWRIGHT_TESTS &&
+          spec &&
+          typeof spec === "object" &&
+          !Array.isArray(spec) &&
+          spec.ok === false
+        ) {
+          state.indices.push(index);
+        }
+      }
+    }
+    collectFailedPlaywrightSpecIndices(suite.suites, state);
+  }
+}
+
+function diagnosticStatus(stats, key) {
+  return stats &&
+    Number.isInteger(stats[key]) &&
+    stats[key] >= 0 &&
+    stats[key] <= EXPECTED_PLAYWRIGHT_TESTS
+    ? stats[key]
+    : "unknown";
+}
+
+export function summarizePlaywrightResult(result) {
+  const exitCode = Number.isInteger(result?.code) && result.code >= 0 && result.code <= 255
+    ? result.code
+    : "unknown";
+  const signal = result?.signal === null
+    ? "none"
+    : typeof result?.signal === "string"
+      ? "present"
+      : "unknown";
+  let receipt;
+  try {
+    receipt = JSON.parse(typeof result?.stdout === "string" ? result.stdout : "");
+  } catch {
+    return `browser release Playwright stage failed: exit=${exitCode} signal=${signal} receipt=invalid`;
+  }
+  if (
+    !receipt ||
+    typeof receipt !== "object" ||
+    Array.isArray(receipt) ||
+    !receipt.stats ||
+    typeof receipt.stats !== "object" ||
+    Array.isArray(receipt.stats)
+  ) {
+    return `browser release Playwright stage failed: exit=${exitCode} signal=${signal} receipt=invalid`;
+  }
+  const failedTests = { indices: [], specCount: 0 };
+  collectFailedPlaywrightSpecIndices(receipt.suites, failedTests);
+  const failedSpecs = failedTests.indices.length > 0 ? ` failed_specs=${JSON.stringify(failedTests.indices)}` : "";
+  return [
+    `browser release Playwright stage failed: exit=${exitCode}`,
+    `signal=${signal}`,
+    `expected=${diagnosticStatus(receipt.stats, "expected")}`,
+    `failed=${failedTests.indices.length}`,
+    `skipped=${diagnosticStatus(receipt.stats, "skipped")}`,
+    `unexpected=${diagnosticStatus(receipt.stats, "unexpected")}`,
+    `flaky=${diagnosticStatus(receipt.stats, "flaky")}${failedSpecs}`,
+  ].join(" ");
+}
+
 export function validatePlaywrightJsonReceipt(raw) {
   const receipt = JSON.parse(raw);
   if (
@@ -585,7 +656,7 @@ function waitForChild(child) {
   });
 }
 
-function waitForChildOutput(child) {
+export function waitForChildOutput(child) {
   let stdout = "";
   let stderr = "";
   child.stdout?.setEncoding("utf8");
@@ -596,7 +667,10 @@ function waitForChildOutput(child) {
   child.stderr?.on("data", (chunk) => {
     stderr += chunk;
   });
-  return waitForChild(child).then((result) => ({ ...result, stdout, stderr }));
+  return new Promise((resolvePromise, rejectPromise) => {
+    child.once("error", rejectPromise);
+    child.once("close", (code, signal) => resolvePromise({ code, signal, stdout, stderr }));
+  });
 }
 
 export function classifyMonacoAssets(directoryExists, loaderExists) {
@@ -796,8 +870,14 @@ export async function main() {
       { cwd: WEB_ROOT, env: environment, stdio: ["ignore", "pipe", "pipe"] },
     );
     const result = await waitForChildOutput(playwrightProcess);
+    if (result.code !== 0) process.stderr.write(`${summarizePlaywrightResult(result)}\n`);
     if (result.code !== 0) throw new Error("browser release gate failed");
-    validatePlaywrightJsonReceipt(result.stdout);
+    try {
+      validatePlaywrightJsonReceipt(result.stdout);
+    } catch (error) {
+      process.stderr.write(`${summarizePlaywrightResult(result)}\n`);
+      throw error;
+    }
     assertRunningChild(nextProcess, nextProcessId, "Playwright");
     validateNextEgressAudit(nextEgressAuditPath, apiOrigin);
   } finally {

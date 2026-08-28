@@ -688,7 +688,18 @@ if bash_binary is not None:
             )
             try:
                 assert lock_holder.stdout is not None
-                assert lock_holder.stdout.readline() == "locked\n"
+                holder_stdout = lock_holder.stdout.readline()
+                if holder_stdout != "locked\n":
+                    holder_stderr = (
+                        lock_holder.stderr.read()
+                        if lock_holder.poll() is not None
+                        and lock_holder.stderr is not None
+                        else ""
+                    )
+                    raise AssertionError(
+                        "operation lock holder did not announce its lock: "
+                        f"stdout={holder_stdout!r}, stderr={holder_stderr!r}"
+                    )
                 contender_environment = dict(os.environ)
                 contender_environment.pop("CONNECTMD_OPERATION_LOCK_HELD", None)
                 lock_contender = subprocess.run(
