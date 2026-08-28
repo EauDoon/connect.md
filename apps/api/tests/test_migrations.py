@@ -5,6 +5,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,118 @@ def _alembic_downgrade(api_root: Path, database: Path, revision: str) -> None:
         capture_output=True,
         text=True,
     )
+
+
+@pytest.mark.parametrize("failure_stage", [None, "attestation", "migration"])
+def test_online_migration_attestation_and_ddl_share_alembic_transaction(
+    monkeypatch: pytest.MonkeyPatch, failure_stage: str | None
+) -> None:
+    """Keep role checks and PostgreSQL DDL in Alembic's owned transaction."""
+    import app.config as app_config
+    from alembic import context as alembic_context
+
+    class _Config:
+        config_file_name = None
+
+        def __init__(self) -> None:
+            self.values: dict[str, str] = {}
+
+        def set_main_option(self, key: str, value: str) -> None:
+            self.values[key] = value
+
+        def get_main_option(self, key: str) -> str:
+            return self.values[key]
+
+    class _Settings:
+        database_url = "sqlite+aiosqlite:///migration-test.db"
+
+        @staticmethod
+        def require_database_role_configuration(_expected_role: str) -> None:
+            return None
+
+    monkeypatch.setattr(app_config, "get_settings", lambda: _Settings())
+    monkeypatch.setattr(alembic_context, "config", _Config(), raising=False)
+    monkeypatch.setattr(alembic_context, "is_offline_mode", lambda: True)
+    monkeypatch.setattr(alembic_context, "configure", lambda **_kwargs: None)
+    monkeypatch.setattr(alembic_context, "begin_transaction", nullcontext)
+    monkeypatch.setattr(alembic_context, "run_migrations", lambda: None)
+
+    api_root = Path(__file__).resolve().parents[1]
+    env_path = api_root / "alembic" / "env.py"
+    spec = importlib.util.spec_from_file_location("alembic_env_under_test", env_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    events: list[str] = []
+
+    class _Dialect:
+        name = "postgresql"
+
+    class _Connection:
+        dialect = _Dialect()
+
+        def execute(self, statement: object) -> None:
+            events.append(f"execute:{statement}")
+
+    connection = _Connection()
+
+    def configure(**kwargs: object) -> None:
+        assert kwargs["connection"] is connection
+        events.append("configure")
+
+    @contextmanager
+    def migration_transaction():
+        events.append("enter")
+        try:
+            yield
+        except BaseException:
+            events.append("rollback")
+            raise
+        else:
+            events.append("commit")
+
+    def attest(
+        connection_arg: object,
+        expected_role: str,
+        *,
+        require_schema_owner: bool,
+    ) -> None:
+        assert connection_arg is connection
+        assert expected_role == module.MIGRATOR_DATABASE_ROLE
+        assert require_schema_owner is True
+        events.append("attest")
+        if failure_stage == "attestation":
+            raise RuntimeError("synthetic attestation failure")
+
+    def run_migrations() -> None:
+        events.append("migrate")
+        if failure_stage == "migration":
+            raise RuntimeError("synthetic migration failure")
+
+    monkeypatch.setattr(alembic_context, "configure", configure)
+    monkeypatch.setattr(alembic_context, "begin_transaction", migration_transaction)
+    monkeypatch.setattr(alembic_context, "run_migrations", run_migrations)
+    monkeypatch.setattr(module, "require_database_role_sync", attest)
+
+    if failure_stage is None:
+        module.do_run_migrations(connection)
+        assert events == [
+            "configure",
+            "enter",
+            "attest",
+            "execute:SET LOCAL search_path TO public",
+            "migrate",
+            "commit",
+        ]
+    else:
+        with pytest.raises(RuntimeError, match=f"synthetic {failure_stage} failure"):
+            module.do_run_migrations(connection)
+        expected = ["configure", "enter", "attest"]
+        if failure_stage == "migration":
+            expected.extend(["execute:SET LOCAL search_path TO public", "migrate"])
+        expected.append("rollback")
+        assert events == expected
 
 
 def test_alembic_rejects_production_sqlite_before_engine_creation(tmp_path: Path) -> None:

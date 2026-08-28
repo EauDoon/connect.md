@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -39,9 +39,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    require_database_role_sync(connection, MIGRATOR_DATABASE_ROLE, require_schema_owner=True)
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
+        require_database_role_sync(connection, MIGRATOR_DATABASE_ROLE, require_schema_owner=True)
+        if connection.dialect.name == "postgresql":
+            connection.execute(text("SET LOCAL search_path TO public"))
         context.run_migrations()
 
 

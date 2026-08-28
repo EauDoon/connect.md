@@ -301,11 +301,13 @@ run_inner() {
   set_env_value CONNECTMD_CLERK_JWKS_URL https://clerk.recovery.test/.well-known/jwks.json
   set_env_value CONNECTMD_CLERK_ISSUER https://clerk.recovery.test
   set_env_value CONNECTMD_CLERK_AUTHORIZED_PARTIES "[\"$public_base\"]"
+  set_env_value CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING '[{"kid":"v1","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]'
   set_env_value CONNECTMD_API_KEY_PEPPER ci-recovery-api-key-pepper-0123456789
   set_env_value CONNECTMD_VERIFICATION_REVIEWER_ID ci-recovery-verification-authority
   set_env_value CONNECTMD_POST_MODERATOR_ID ci-recovery-moderation-authority
   set_env_value CONNECTMD_APPEAL_REVIEWER_ID ci-recovery-appeal-authority
   set_env_value NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY pk_test_Zm9vLWJhci0xLmNsZXJrLmFjY291bnRzLmRldiQ=
+  set_env_value CLERK_SECRET_KEY "sk_test_$(printf '%s' ci-recovery-clerk-secret-0123456789)"
   set_env_value CONNECTMD_DOMAIN "$domain"
   set_env_value CONNECTMD_PUBLIC_BASE_URL "$public_base"
   set_env_value NEXT_PUBLIC_SITE_URL "$public_base"
