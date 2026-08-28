@@ -671,7 +671,7 @@ if bash_binary is not None:
             )
 
             holder_environment = dict(os.environ)
-            holder_environment["CONNECTMD_OPERATION_LOCK_HELD"] = "1"
+            holder_environment.pop("CONNECTMD_OPERATION_LOCK_HELD", None)
             lock_holder = subprocess.Popen(
                 [
                     bash_binary,

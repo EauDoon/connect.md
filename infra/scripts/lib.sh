@@ -1152,7 +1152,7 @@ validate_acceptance_receipt() {
 
 load_release_acceptance() {
   local image_tag="$1" expected_digest="${2:-}" expected_stage_digest="${3:-}"
-  local root candidate receipt selected selected_at accepted_at digest matches=0
+  local root candidate receipt selected="" selected_at="" accepted_at digest matches=0
   load_release_receipt "$image_tag" >/dev/null
   if [ -n "$expected_digest" ]; then
     printf '%s' "$expected_digest" | grep -Eq '^[0-9a-f]{64}$' || die "Expected acceptance digest is invalid"
