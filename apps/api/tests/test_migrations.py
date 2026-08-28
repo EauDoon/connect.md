@@ -6,6 +6,7 @@ import sqlite3
 import subprocess
 import sys
 from contextlib import contextmanager, nullcontext
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -40,9 +41,21 @@ def _alembic_downgrade(api_root: Path, database: Path, revision: str) -> None:
     )
 
 
-@pytest.mark.parametrize("failure_stage", [None, "attestation", "migration"])
+@pytest.mark.parametrize(
+    ("failure_stage", "dialect_name", "dont_mutate"),
+    [
+        (None, "postgresql", False),
+        ("attestation", "postgresql", False),
+        ("migration", "postgresql", False),
+        (None, "postgresql", True),
+        (None, "sqlite", False),
+    ],
+)
 def test_online_migration_attestation_and_ddl_share_alembic_transaction(
-    monkeypatch: pytest.MonkeyPatch, failure_stage: str | None
+    monkeypatch: pytest.MonkeyPatch,
+    failure_stage: str | None,
+    dialect_name: str,
+    dont_mutate: bool,
 ) -> None:
     """Keep role checks and PostgreSQL DDL in Alembic's owned transaction."""
     import app.config as app_config
@@ -74,6 +87,11 @@ def test_online_migration_attestation_and_ddl_share_alembic_transaction(
     monkeypatch.setattr(alembic_context, "begin_transaction", nullcontext)
     monkeypatch.setattr(alembic_context, "run_migrations", lambda: None)
 
+    class _MigrationContext:
+        opts = {"dont_mutate": dont_mutate}
+
+    monkeypatch.setattr(alembic_context, "get_context", lambda: _MigrationContext())
+
     api_root = Path(__file__).resolve().parents[1]
     env_path = api_root / "alembic" / "env.py"
     spec = importlib.util.spec_from_file_location("alembic_env_under_test", env_path)
@@ -84,13 +102,14 @@ def test_online_migration_attestation_and_ddl_share_alembic_transaction(
     events: list[str] = []
 
     class _Dialect:
-        name = "postgresql"
+        name = dialect_name
 
     class _Connection:
         dialect = _Dialect()
 
         def execute(self, statement: object) -> None:
-            events.append(f"execute:{statement}")
+            statement_text = getattr(statement, "text", str(statement))
+            events.append(f"execute:{' '.join(statement_text.split())}")
 
     connection = _Connection()
 
@@ -134,22 +153,118 @@ def test_online_migration_attestation_and_ddl_share_alembic_transaction(
 
     if failure_stage is None:
         module.do_run_migrations(connection)
-        assert events == [
-            "configure",
-            "enter",
-            "attest",
-            "execute:SET LOCAL search_path TO public",
-            "migrate",
-            "commit",
-        ]
+        expected = ["configure", "enter", "attest"]
+        if dialect_name == "postgresql":
+            expected.append("execute:SET LOCAL search_path TO public")
+            if not dont_mutate:
+                expected.extend(
+                    [
+                        "execute:CREATE TABLE IF NOT EXISTS public.alembic_version ( version_num VARCHAR(255) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num) )",
+                        "execute:ALTER TABLE IF EXISTS public.alembic_version ALTER COLUMN version_num TYPE VARCHAR(255)",
+                    ]
+                )
+        expected.extend(["migrate", "commit"])
+        assert events == expected
     else:
         with pytest.raises(RuntimeError, match=f"synthetic {failure_stage} failure"):
             module.do_run_migrations(connection)
         expected = ["configure", "enter", "attest"]
         if failure_stage == "migration":
-            expected.extend(["execute:SET LOCAL search_path TO public", "migrate"])
+            if dialect_name == "postgresql":
+                expected.append("execute:SET LOCAL search_path TO public")
+                if not dont_mutate:
+                    expected.extend(
+                        [
+                            "execute:CREATE TABLE IF NOT EXISTS public.alembic_version ( version_num VARCHAR(255) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num) )",
+                            "execute:ALTER TABLE IF EXISTS public.alembic_version ALTER COLUMN version_num TYPE VARCHAR(255)",
+                        ]
+                    )
+            expected.append("migrate")
         expected.append("rollback")
         assert events == expected
+
+
+def _load_migration_0024():
+    api_root = Path(__file__).resolve().parents[1]
+    migration_path = (
+        api_root / "alembic" / "versions" / "0024_lifecycle_confirmation_idempotency.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0024_under_test", migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    return migration
+
+
+def _render_postgresql_migration(operation, *, bind=None, output: StringIO | None = None) -> str:
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    from alembic import op
+
+    if output is None:
+        output = StringIO()
+    migration_context = MigrationContext.configure(
+        dialect_name="postgresql",
+        opts={"as_sql": True, "literal_binds": True, "output_buffer": output},
+    )
+    with Operations.context(migration_context):
+        if bind is None:
+            operation()
+        else:
+            original_get_bind = op.get_bind
+            op.get_bind = lambda: bind
+            try:
+                operation()
+            finally:
+                op.get_bind = original_get_bind
+    return output.getvalue()
+
+
+def test_0024_postgresql_offline_upgrade_uses_native_alter() -> None:
+    migration = _load_migration_0024()
+
+    sql = _render_postgresql_migration(migration.upgrade)
+
+    assert (
+        "ALTER TABLE account_lifecycles ALTER COLUMN request_idempotency_hmac DROP NOT NULL;" in sql
+    )
+    assert (
+        "ALTER TABLE account_lifecycles ADD COLUMN confirmation_idempotency_hmac VARCHAR(64);"
+        in sql
+    )
+    assert "CREATE UNIQUE INDEX ix_account_lifecycles_confirmation_idempotency_hmac" in sql
+    assert "DROP TABLE" not in sql
+
+
+@pytest.mark.parametrize("unsafe_rows", [0, 1])
+def test_0024_postgresql_offline_downgrade_preserves_safety_preflight(unsafe_rows: int) -> None:
+    migration = _load_migration_0024()
+
+    class _Result:
+        def scalar_one(self) -> int:
+            return unsafe_rows
+
+    class _Bind:
+        def execute(self, statement: object) -> _Result:
+            assert "SELECT COUNT(*)" in str(statement)
+            return _Result()
+
+    output = StringIO()
+    if unsafe_rows:
+        with pytest.raises(RuntimeError, match="without destroying receipt state"):
+            _render_postgresql_migration(migration.downgrade, bind=_Bind(), output=output)
+        assert output.getvalue() == ""
+        return
+
+    sql = _render_postgresql_migration(migration.downgrade, bind=_Bind(), output=output)
+
+    assert "DROP INDEX ix_account_lifecycles_confirmation_idempotency_hmac;" in sql
+    assert "ALTER TABLE account_lifecycles DROP COLUMN confirmation_idempotency_hmac;" in sql
+    assert (
+        "ALTER TABLE account_lifecycles ALTER COLUMN request_idempotency_hmac SET NOT NULL;" in sql
+    )
+    assert "DROP TABLE" not in sql
 
 
 def test_alembic_rejects_production_sqlite_before_engine_creation(tmp_path: Path) -> None:

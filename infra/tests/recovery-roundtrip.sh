@@ -279,6 +279,7 @@ run_inner() {
   mkdir -p "$backup_dir/.connectmd-lifecycle/deletion-journal" "$witness_dir"
   assert_child_path "$scratch" "$backup_dir"
   assert_child_path "$scratch" "$witness_dir"
+  chmod 700 "$backup_dir"
   [ ! -e "$ENV_FILE" ] && [ ! -L "$ENV_FILE" ] || die "Recovery environment file already exists"
   for state_file in .connectmd-release.env .connectmd-restore-state.env .connectmd-operations.lock; do
     [ ! -e "$REPO_ROOT/$state_file" ] && [ ! -L "$REPO_ROOT/$state_file" ] || die "Recovery runtime state already exists: $state_file"

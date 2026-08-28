@@ -21,10 +21,10 @@ _CONFIRMATION_INDEX = "ix_account_lifecycles_confirmation_idempotency_hmac"
 
 
 def upgrade() -> None:
-    # Batch recreation keeps the nullable transition valid on SQLite while
-    # remaining deterministic on PostgreSQL.  Existing request markers are
-    # preserved; only a successful confirmation clears its own marker.
-    with op.batch_alter_table("account_lifecycles", recreate="always") as batch:
+    # Alembic uses backend-aware batch mode: PostgreSQL receives native ALTER
+    # statements, while SQLite uses table recreation where required. Existing request
+    # markers are preserved; only a successful confirmation clears its own marker.
+    with op.batch_alter_table("account_lifecycles") as batch:
         batch.alter_column(
             "request_idempotency_hmac",
             existing_type=sa.String(length=64),
@@ -52,7 +52,7 @@ def downgrade() -> None:
         raise RuntimeError(
             "cannot downgrade lifecycle confirmation idempotency without destroying receipt state"
         )
-    with op.batch_alter_table("account_lifecycles", recreate="always") as batch:
+    with op.batch_alter_table("account_lifecycles") as batch:
         batch.drop_index(_CONFIRMATION_INDEX)
         batch.drop_column("confirmation_idempotency_hmac")
         batch.alter_column(
