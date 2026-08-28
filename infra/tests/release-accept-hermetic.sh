@@ -115,9 +115,23 @@ assert_direct_system_trust_environment() { :; }
 require_hostname() { printf '%s' 'connectmd.example.test'; }
 read_env_optional_value() {
   case "$1" in
-    CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED|NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED) printf '%s' false ;;
+    CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED|NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED|CONNECTMD_RECRUITING_ENABLED) printf '%s' false ;;
     *) return 1 ;;
   esac
+}
+normalize_recruiting_enabled() {
+  local value
+  value="$(read_env_optional_value CONNECTMD_RECRUITING_ENABLED)" \
+    || die "CONNECTMD_RECRUITING_ENABLED must appear at most once in .env"
+  value="${value:-false}"
+  case "$value" in
+    true | false) ;;
+    *) die "CONNECTMD_RECRUITING_ENABLED must be true or false" ;;
+  esac
+  if [[ -v CONNECTMD_RECRUITING_ENABLED && "$CONNECTMD_RECRUITING_ENABLED" != "$value" ]]; then
+    die "CONNECTMD_RECRUITING_ENABLED environment override must match .env"
+  fi
+  printf '%s' "$value"
 }
 current_source_revision() { printf '%s' '0123456789abcdef0123456789abcdef01234567'; }
 digest_of_file() { sha256sum -- "$1" | awk '{print $1}'; }
@@ -226,6 +240,7 @@ load_staged_release() {
   STAGED_API_IMAGE_ID=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   STAGED_WEB_IMAGE_ID=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   STAGED_NGINX_IMAGE_ID=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  STAGED_RECRUITING_ENABLED=false
   STAGED_RELEASE_RECEIPT_DIGEST=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   STAGED_PRIOR_ACCEPTED_MARKER_DIGEST=none
   STAGED_RELEASE_DIGEST=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
@@ -273,7 +288,7 @@ exec "$REPO_ROOT/apps/api/.venv/Scripts/python.exe" "\$@"
 EOF
     chmod +x "$root/bin/python3"
   fi
-  printf 'fixture\n' > "$root/.env"
+  printf 'CONNECTMD_RECRUITING_ENABLED=false\n' > "$root/.env"
   printf 'fixture-stage\n' > "$root/.connectmd-staged-release.env"
   chmod 600 "$root/.env" "$root/.connectmd-staged-release.env"
   cmp -s "$RELEASE_ACCEPT_SOURCE" "$root/infra/scripts/release-accept.sh" \

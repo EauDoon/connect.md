@@ -98,3 +98,12 @@ def test_audit_tool_is_part_of_the_authenticated_test_lock() -> None:
 
     test_lock = (API_ROOT / "requirements-test.lock").read_text(encoding="utf-8")
     assert re.search(r"^pip-audit==2\.9\.0 \\$", test_lock, re.MULTILINE)
+
+
+def test_editable_build_dependency_is_part_of_authenticated_test_lock() -> None:
+    pyproject = tomllib.loads((API_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    test_dependencies = pyproject["project"]["optional-dependencies"]["test"]
+    assert "editables>=0.3,<1" in test_dependencies
+
+    test_lock = (API_ROOT / "requirements-test.lock").read_text(encoding="utf-8")
+    assert re.search(r"^editables==0\.6 \\$", test_lock, re.MULTILINE)

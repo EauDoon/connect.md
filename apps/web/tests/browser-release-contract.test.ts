@@ -367,6 +367,15 @@ describe("production browser release gate", () => {
       ok: false,
       title: "token=secret-should-not-appear",
     });
+    Object.assign(failed.suites[0].specs[2].tests[0].results[0], {
+      errorLocation: { file: "e2e/public-release.spec.ts", line: 1025, column: 17 },
+      errors: [
+        {
+          location: { file: "C:/private/token-output.spec.ts", line: 11, column: 4 },
+          message: "secret=child-output-must-not-appear",
+        },
+      ],
+    });
     const diagnostic = summarizePlaywrightResult({
       code: 1,
       signal: null,
@@ -375,8 +384,22 @@ describe("production browser release gate", () => {
     expect(diagnostic).toContain("exit=1");
     expect(diagnostic).toContain("failed=1");
     expect(diagnostic).toContain("failed_specs=[2]");
+    expect(diagnostic).toContain('failed_locations=[{"spec":2,"line":1025,"column":17}]');
+    expect(diagnostic).not.toContain("public-release.spec.ts");
     expect(diagnostic).not.toContain("secret");
     expect(diagnostic).not.toContain("token");
+
+    const untrustedLocation = exactNinePassPlaywrightReceipt();
+    Object.assign(untrustedLocation.suites[0].specs[2], { ok: false });
+    Object.assign(untrustedLocation.suites[0].specs[2].tests[0].results[0], {
+      errorLocation: { file: "e2e/private.spec.ts", line: 10, column: 2 },
+      errors: [{ location: { file: "e2e/public-release.spec.ts", line: 0, column: 1 } }],
+    });
+    expect(summarizePlaywrightResult({
+      code: 1,
+      signal: null,
+      stdout: JSON.stringify(untrustedLocation),
+    })).not.toContain("failed_locations");
     expect(summarizePlaywrightResult({ code: 1, signal: null, stdout: "not-json" })).toContain(
       "receipt=invalid",
     );
@@ -456,6 +479,8 @@ describe("production browser release gate", () => {
     expect(harness).toContain('"--reporter=json"');
     expect(harness).toContain("summarizePlaywrightResult(result)");
     expect(harness).toContain("validatePlaywrightJsonReceipt(result.stdout)");
+    expect(harness).toContain("PUBLIC_RELEASE_SPEC_PATH");
+    expect(harness).toContain("failed_locations");
     expect(harness).toContain('child.once("close"');
     expect(harness).not.toContain("result.stderr");
     expect(harness).toContain("EXPECTED_PLAYWRIGHT_TESTS = 9");

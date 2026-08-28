@@ -32,6 +32,9 @@ const NEXT_EGRESS_GUARD = resolve(E2E_DIRECTORY, "next-server-egress-guard.cjs")
 const NEXT_EGRESS_AUDIT_PREFIX = "connectmd-next-egress-";
 const NEXT_EGRESS_AUDIT_FILE = "next-server-egress-audit.json";
 const EXPECTED_PLAYWRIGHT_TESTS = 9;
+const PUBLIC_RELEASE_SPEC_PATH = "e2e/public-release.spec.ts";
+const MAX_PUBLIC_RELEASE_SPEC_LINE = 2_000;
+const MAX_PUBLIC_RELEASE_SPEC_COLUMN = 500;
 
 function loopbackOrigin(address) {
   if (!address || typeof address !== "object" || typeof address.port !== "number") {
@@ -392,6 +395,45 @@ function collectPlaywrightTests(suites, tests = []) {
   return tests;
 }
 
+function boundedPublicReleaseLocation(location) {
+  if (!location || typeof location !== "object" || Array.isArray(location)) return null;
+  if (typeof location.file !== "string") return null;
+  const file = location.file.replaceAll("\\", "/");
+  if (file !== PUBLIC_RELEASE_SPEC_PATH && !file.endsWith(`/${PUBLIC_RELEASE_SPEC_PATH}`)) return null;
+  if (
+    !Number.isInteger(location.line) ||
+    location.line < 1 ||
+    location.line > MAX_PUBLIC_RELEASE_SPEC_LINE ||
+    !Number.isInteger(location.column) ||
+    location.column < 1 ||
+    location.column > MAX_PUBLIC_RELEASE_SPEC_COLUMN
+  ) {
+    return null;
+  }
+  return { line: location.line, column: location.column };
+}
+
+function firstPlaywrightErrorLocation(spec) {
+  if (!spec || typeof spec !== "object" || Array.isArray(spec)) return null;
+  const projectTests = Array.isArray(spec.tests) ? spec.tests : [];
+  for (const projectTest of projectTests) {
+    if (!projectTest || typeof projectTest !== "object" || Array.isArray(projectTest)) continue;
+    const results = Array.isArray(projectTest.results) ? projectTest.results : [];
+    for (const result of results) {
+      if (!result || typeof result !== "object" || Array.isArray(result)) continue;
+      const resultLocation = boundedPublicReleaseLocation(result.errorLocation);
+      if (resultLocation) return resultLocation;
+      if (Array.isArray(result.errors)) {
+        for (const error of result.errors) {
+          const errorLocation = boundedPublicReleaseLocation(error?.location);
+          if (errorLocation) return errorLocation;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function collectFailedPlaywrightSpecIndices(suites, state) {
   if (!Array.isArray(suites)) return;
   for (const suite of suites) {
@@ -408,6 +450,10 @@ function collectFailedPlaywrightSpecIndices(suites, state) {
           spec.ok === false
         ) {
           state.indices.push(index);
+          const location = firstPlaywrightErrorLocation(spec);
+          if (location && state.locations.length < EXPECTED_PLAYWRIGHT_TESTS) {
+            state.locations.push({ spec: index, ...location });
+          }
         }
       }
     }
@@ -449,9 +495,12 @@ export function summarizePlaywrightResult(result) {
   ) {
     return `browser release Playwright stage failed: exit=${exitCode} signal=${signal} receipt=invalid`;
   }
-  const failedTests = { indices: [], specCount: 0 };
+  const failedTests = { indices: [], locations: [], specCount: 0 };
   collectFailedPlaywrightSpecIndices(receipt.suites, failedTests);
   const failedSpecs = failedTests.indices.length > 0 ? ` failed_specs=${JSON.stringify(failedTests.indices)}` : "";
+  const failedLocations = failedTests.locations.length > 0
+    ? ` failed_locations=${JSON.stringify(failedTests.locations)}`
+    : "";
   return [
     `browser release Playwright stage failed: exit=${exitCode}`,
     `signal=${signal}`,
@@ -459,7 +508,7 @@ export function summarizePlaywrightResult(result) {
     `failed=${failedTests.indices.length}`,
     `skipped=${diagnosticStatus(receipt.stats, "skipped")}`,
     `unexpected=${diagnosticStatus(receipt.stats, "unexpected")}`,
-    `flaky=${diagnosticStatus(receipt.stats, "flaky")}${failedSpecs}`,
+    `flaky=${diagnosticStatus(receipt.stats, "flaky")}${failedSpecs}${failedLocations}`,
   ].join(" ");
 }
 

@@ -676,6 +676,10 @@ defusedxml==0.7.1 \
     # via
     #   markitdown
     #   py-serializable
+editables==0.6 \
+    --hash=sha256:1163834902381c4613787951c5914800fdf155ae08848a373b8ea5006780977c \
+    --hash=sha256:d70e4698078a1d033e7786d9c64e5be070d058a67c21417024d38a58ac20aa43
+    # via connectmd-api (pyproject.toml)
 emoji==2.15.0 \
     --hash=sha256:205296793d66a89d88af4688fa57fd6496732eb48917a87175a023c8138995eb \
     --hash=sha256:eae4ab7d86456a70a00a985125a03263a5eac54cd55e51d7e184b1ed3b6757e4
