@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { frontmatterParseIssue, humanFieldsFromMarkdown, patchHumanFields, profileStarter, resumeStarter, splitFrontmatter, switchDocumentKind } from "../lib/markdown";
+import { frontmatterParseIssue, humanFieldsFromMarkdown, patchHumanFields, PROFILE_RESUME_MAX_UTF8_BYTES, profileStarter, resumeStarter, splitFrontmatter, switchDocumentKind } from "../lib/markdown";
 import { hasValidationErrors, validateDraft } from "../lib/validation";
 import { apiRequest, createApiKey, fetchPublicResumeMarkdown, ingestMetadataFromResponse, listApiKeys, loadDocument, type DocumentResponse, markdownFromIngestResponse, presentApiKeyError, presentSaveError, revokeApiKey, saveDocument, searchIndexingStateFromHeader } from "../lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject, shouldMaskOwnedDraft, SIGNED_OUT_DRAFT_SUBJECT } from "../lib/draft-security";
@@ -150,6 +150,59 @@ Legacy experience.
     const malformed = profileStarter.replace("name: Your Name", "name: [unterminated");
     expect(frontmatterParseIssue(malformed)).toContain("invalid");
     expect(() => patchHumanFields(malformed, "profile", { name: "Ada" })).toThrow("cannot edit this draft");
+  });
+
+  it("fails closed on YAML aliases, duplicate keys, unknown fields, and oversize drafts", () => {
+    const aliased = profileStarter.replace("name: Your Name", "name: &person Your Name\nalias_name: *person");
+    expect(frontmatterParseIssue(aliased)).toBe("YAML aliases are not allowed in frontmatter.");
+    expect(splitFrontmatter(aliased).attributes.name).toBeUndefined();
+    expect(() => patchHumanFields(aliased, "profile", { name: "Ada" })).toThrow("cannot edit this draft");
+    expect(validateDraft(aliased, "profile").map((issue) => issue.message)).toEqual(["YAML aliases are not allowed in frontmatter."]);
+
+    const duplicate = profileStarter.replace("name: Your Name", "name: Ada Lovelace\nname: Grace Hopper");
+    expect(frontmatterParseIssue(duplicate)).toBe("Frontmatter contains a duplicate YAML key.");
+    expect(validateDraft(duplicate, "profile").map((issue) => issue.message)).toEqual(["Frontmatter contains a duplicate YAML key."]);
+
+    const unknown = v1Profile.replace("visibility: private", "surprise: no\nvisibility: private");
+    expect(validateDraft(unknown, "profile").map((issue) => issue.message).join(" ")).toContain("unknown frontmatter fields: surprise");
+    expect(validateDraft(v1Profile.replace("visibility: private", "occupations: []\nvisibility: private"), "profile").map((issue) => issue.message).join(" ")).toContain("unknown frontmatter fields: occupations");
+
+    const oversized = profileStarter + "x".repeat(PROFILE_RESUME_MAX_UTF8_BYTES);
+    expect(frontmatterParseIssue(oversized)).toBe(`canonical Profile/Resume Markdown exceeds ${PROFILE_RESUME_MAX_UTF8_BYTES} UTF-8 bytes`);
+    expect(hasValidationErrors(validateDraft(oversized, "profile"))).toBe(true);
+    expect(() => patchHumanFields(oversized, "profile", { name: "Ada" })).toThrow("cannot edit this draft");
+  });
+
+  it("rejects package invalid fixtures and still accepts canonical examples plus server-owned fields", () => {
+    const limits = JSON.parse(readFileSync(new URL("../../../packages/markdown-schemas/canonical-markdown-limits.json", import.meta.url), "utf8")) as { profile_resume_max_utf8_bytes: number };
+    expect(PROFILE_RESUME_MAX_UTF8_BYTES).toBe(limits.profile_resume_max_utf8_bytes);
+
+    const fixtures: Array<["profile" | "resume", string]> = [
+      ["profile", "profile-unknown-field.md"],
+      ["profile", "profile-fenced-heading.md"],
+      ["profile", "profile-duplicate-h1.md"],
+      ["profile", "profile-setext-h1.md"],
+      ["profile", "profile-closing-heading.md"],
+      ["profile", "profile-invalid-yaml.md"],
+      ["profile", "profile-duplicate-key.md"],
+      ["profile", "profile-wrong-schema.md"],
+      ["profile", "profile-invalid-visibility.md"],
+      ["profile", "profile-malformed-timestamp.md"],
+      ["resume", "resume-missing-heading.md"]
+    ];
+    for (const [kind, fixture] of fixtures) {
+      const markdown = readFileSync(new URL(`../../../packages/markdown-schemas/fixtures/invalid/${fixture}`, import.meta.url), "utf8");
+      expect(hasValidationErrors(validateDraft(markdown, kind)), fixture).toBe(true);
+    }
+
+    expect(hasValidationErrors(validateDraft(readFileSync(new URL("../../../packages/markdown-schemas/examples/profile.md", import.meta.url), "utf8"), "profile"))).toBe(false);
+    expect(hasValidationErrors(validateDraft(readFileSync(new URL("../../../packages/markdown-schemas/examples/resume.md", import.meta.url), "utf8"), "resume"))).toBe(false);
+
+    const withServerFields = v1Profile.replace(
+      "schema_version: 1\n",
+      "schema_version: 1\nid: 3e811ba3-8d22-4aaf-a49e-b5b3a03eef0f\nowner_id: user_example\nversion: 1\nupdated_at: '2026-08-03T00:00:00Z'\n"
+    );
+    expect(hasValidationErrors(validateDraft(withServerFields, "profile"))).toBe(false);
   });
 
   it("reports client-side schema issues before publish", () => {
@@ -348,6 +401,7 @@ Legacy experience.
     const updated = patchHumanFields(custom, "profile", { headline: "Updated signal" });
     expect(splitFrontmatter(updated).attributes).toMatchObject({ headline: "Updated signal", import_context: { source: "user-upload", confidence: "low" } });
     expect(updated).toContain("## Projects\n\nAn independent section.");
+    expect(validateDraft(updated, "profile").map((issue) => issue.message).join(" ")).toContain("unknown frontmatter fields: import_context");
   });
 
   it("keeps v2 structured fields through a mode-kind round trip and reports v2 list bounds", () => {
