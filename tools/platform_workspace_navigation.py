@@ -15,7 +15,7 @@ def workspace_navigation_errors(root: Path) -> list[str]:
     required = {
         "apps/web/app/layout.tsx": {
             "static root header": "<SiteHeader />",
-            "browser draft provider": "<Providers>",
+            "browser draft provider": "<DraftProvider>",
         },
         "apps/web/components/site-header.tsx": {
             "standalone primary navigation": "PUBLIC_PRIMARY_NAVIGATION",

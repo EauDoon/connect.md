@@ -35,6 +35,7 @@ describe("standalone global header", () => {
   it("requires no server auth decision in the root layout", () => {
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
     expect(layout).toContain("<SiteHeader />");
-    expect(layout).not.toMatch(/force-dynamic|privateWorkspaceConfiguredFromEnvironment|CLERK_SECRET_KEY/u);
+    expect(layout).toContain("<DraftProvider>");
+    expect(layout).not.toMatch(/force-dynamic|privateWorkspaceConfiguredFromEnvironment|Clerk|auth-provider|CLERK_SECRET_KEY/u);
   });
 });

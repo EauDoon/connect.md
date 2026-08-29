@@ -82,6 +82,8 @@ def main() -> None:
         "CONNECTMD_API_BASE_URL",
         "privateWorkspaceConfiguredFromEnvironment",
         "recruitingReleaseEnabled",
+        "auth-provider",
+        "Clerk",
     )
     for path, source in active_sources.items():
         for marker in banned:

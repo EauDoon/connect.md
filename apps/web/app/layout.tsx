@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { type ReactNode } from "react";
 
 import "@/app/globals.css";
-import { Providers } from "@/components/providers";
+import { DraftProvider } from "@/components/draft-provider";
 import { SiteHeader } from "@/components/site-header";
 import { publicSiteOrigin } from "@/lib/public-document";
 
@@ -17,11 +17,11 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="en">
       <body>
-        <Providers>
+        <DraftProvider>
           <a href="#main-content" className="skip-link">Skip to main content</a>
           <SiteHeader />
           <div id="main-content" tabIndex={-1}>{children}</div>
-        </Providers>
+        </DraftProvider>
       </body>
     </html>
   );
