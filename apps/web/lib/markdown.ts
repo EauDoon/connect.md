@@ -117,6 +117,10 @@ export function starterFor(kind: DocumentKind): string {
   return kind === "profile" ? profileStarter : resumeStarter;
 }
 
+export const EMPTY_DRAFT_ISSUE = "Draft is empty. Restore the starter template or paste a complete Markdown file that starts with YAML frontmatter delimited by --- lines.";
+
+export const MISSING_FRONTMATTER_ISSUE = "Frontmatter delimiters are missing.";
+
 /** Package-owned Profile/Resume limit from canonical-markdown-limits.json. */
 export const PROFILE_RESUME_MAX_UTF8_BYTES = 131072;
 
@@ -159,8 +163,11 @@ function inspectFrontmatter(markdown: string): FrontmatterInspection {
   if (utf8ByteLength(source) > PROFILE_RESUME_MAX_UTF8_BYTES) {
     return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: canonicalSizeMessage() };
   }
+  if (isEmptyDraftSource(source)) {
+    return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: EMPTY_DRAFT_ISSUE };
+  }
   const match = source.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: "Frontmatter delimiters are missing." };
+  if (!match) return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: MISSING_FRONTMATTER_ISSUE };
   try {
     const parsed = YAML.parse(match[1], FRONTMATTER_YAML_OPTIONS);
     if (!isRecord(parsed)) {
@@ -174,6 +181,14 @@ function inspectFrontmatter(markdown: string): FrontmatterInspection {
 
 export function normaliseMarkdown(markdown: string) {
   return markdown.replace(/\r\n?/g, "\n").replace(/\s+$/u, "") + "\n";
+}
+
+function isEmptyDraftSource(source: string) {
+  return source.trim() === "";
+}
+
+export function isEmptyDraft(markdown: string) {
+  return isEmptyDraftSource(normaliseMarkdown(markdown));
 }
 
 export function splitFrontmatter(markdown: string) {

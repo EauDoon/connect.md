@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { frontmatterParseIssue, humanFieldsFromMarkdown, patchHumanFields, PROFILE_RESUME_MAX_UTF8_BYTES, profileStarter, resumeStarter, splitFrontmatter, switchDocumentKind } from "../lib/markdown";
+import { EMPTY_DRAFT_ISSUE, frontmatterParseIssue, humanFieldsFromMarkdown, isEmptyDraft, MISSING_FRONTMATTER_ISSUE, patchHumanFields, PROFILE_RESUME_MAX_UTF8_BYTES, profileStarter, resumeStarter, splitFrontmatter, switchDocumentKind } from "../lib/markdown";
 import { hasValidationErrors, validateDraft } from "../lib/validation";
 import { apiRequest, createApiKey, fetchPublicResumeMarkdown, ingestMetadataFromResponse, listApiKeys, loadDocument, type DocumentResponse, markdownFromIngestResponse, presentApiKeyError, presentSaveError, revokeApiKey, saveDocument, searchIndexingStateFromHeader } from "../lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject, shouldMaskOwnedDraft, SIGNED_OUT_DRAFT_SUBJECT } from "../lib/draft-security";
@@ -144,6 +144,28 @@ Legacy experience.
 
     expect(parsed.attributes).toMatchObject({ name: "Ada Lovelace", headline: "Computing pioneer", skills: [{ label: "Mathematics" }, { label: "Logic" }] });
     expect(parsed.body).toContain("# Ada Lovelace\n");
+  });
+
+  it("rejects empty drafts with a recovery path and still names missing frontmatter", () => {
+    expect(isEmptyDraft("")).toBe(true);
+    expect(isEmptyDraft(" \n\t\r\n ")).toBe(true);
+    expect(isEmptyDraft(profileStarter)).toBe(false);
+    expect(frontmatterParseIssue("")).toBe(EMPTY_DRAFT_ISSUE);
+    expect(frontmatterParseIssue("   ")).toBe(EMPTY_DRAFT_ISSUE);
+    expect(validateDraft("", "profile").map((issue) => issue.message)).toEqual([EMPTY_DRAFT_ISSUE]);
+    expect(validateDraft("\n", "resume").map((issue) => issue.message)).toEqual([EMPTY_DRAFT_ISSUE]);
+    expect(hasValidationErrors(validateDraft("", "profile"))).toBe(true);
+    expect(() => patchHumanFields("", "profile", { name: "Ada" })).toThrow("cannot edit this draft");
+
+    expect(frontmatterParseIssue("# Ada\n")).toBe(MISSING_FRONTMATTER_ISSUE);
+    expect(validateDraft("# Ada\n", "profile").map((issue) => issue.message)).toEqual([
+      "Start with YAML frontmatter delimited by --- lines, or restore the starter template."
+    ]);
+
+    const editor = readFileSync(new URL("../components/markdown-editor.tsx", import.meta.url), "utf8");
+    expect(editor).toContain("isEmptyDraft(markdown)");
+    expect(editor).toContain("This buffer is empty, so download is blocked.");
+    expect(editor).toContain("Paste a complete Markdown file that starts with YAML frontmatter, or use Reset starter.");
   });
 
   it("fails closed when Human Mode receives malformed YAML", () => {

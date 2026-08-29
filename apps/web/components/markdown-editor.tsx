@@ -14,7 +14,7 @@ import { PublishPanel } from "@/components/publish-panel";
 import { ValidationPanel } from "@/components/validation-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { starterFor } from "@/lib/markdown";
+import { isEmptyDraft, starterFor } from "@/lib/markdown";
 import { validateDraft } from "@/lib/validation";
 
 loader.config({ paths: { vs: "/monaco/vs" } });
@@ -27,6 +27,7 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 export function MarkdownEditor() {
   const { kind, markdown, replaceMarkdown, setMarkdown } = useDraft();
   const issues = useMemo(() => validateDraft(markdown, kind), [kind, markdown]);
+  const emptyDraft = isEmptyDraft(markdown);
 
   function resetToStarter() {
     const confirmed = window.confirm("Replace the current local draft with the starter template? This cannot be undone in this browser session.");
@@ -72,7 +73,7 @@ export function MarkdownEditor() {
                 }}
               />
             </div>
-            <div className="mt-4 flex gap-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-mist"><FileWarning className="mt-0.5 size-4 shrink-0 text-acid" aria-hidden /> The draft lives only in this browser session until you download it. A full reload or closed tab can discard it.</div>
+            <div className="mt-4 flex gap-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-mist"><FileWarning className="mt-0.5 size-4 shrink-0 text-acid" aria-hidden /> {emptyDraft ? "This buffer is empty, so download is blocked. Paste a complete Markdown file that starts with YAML frontmatter, or use Reset starter." : "The draft lives only in this browser session until you download it. A full reload or closed tab can discard it."}</div>
           </section>
 
           <aside className="space-y-5 min-w-0" aria-label="Markdown status and preview">

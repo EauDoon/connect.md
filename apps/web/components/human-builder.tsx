@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, CheckCircle2, Compass, Eye, FileText, MapPin, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Compass, Eye, FileText, MapPin, RotateCcw, ShieldAlert, Sparkles } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BufferedCommitRegistry, BufferedInput, BufferedTextarea, FieldLabel, type BufferedFlush, type BufferedFlushRegistry } from "@/components/human-buffered-fields";
@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/field";
 import { shouldConfirmDraftReplacement } from "@/lib/draft-replacement";
 import { HUMAN_JOURNEY, humanJourneyPosition, type HumanJourneyStage } from "@/lib/human-journey";
-import { frontmatterParseIssue, humanFieldsFromMarkdown, patchHumanFields, type DocumentKind, type HumanFields } from "@/lib/markdown";
+import { frontmatterParseIssue, humanFieldsFromMarkdown, isEmptyDraft, patchHumanFields, starterFor, type DocumentKind, type HumanFields } from "@/lib/markdown";
 import { SCHEMA_LIMITS, hasValidationErrors, validateDraft } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
@@ -62,11 +62,12 @@ function ChapterNavigation({ stage, onNavigate }: { stage: HumanJourneyStage; on
 }
 
 export function HumanBuilder() {
-  const { kind, markdown, savedDocument, humanStage: activeStage, setHumanStage, setKind, setMarkdown } = useDraft();
+  const { kind, markdown, savedDocument, humanStage: activeStage, setHumanStage, setKind, setMarkdown, replaceMarkdown } = useDraft();
   const fields = useMemo(() => humanFieldsFromMarkdown(markdown, kind), [kind, markdown]);
   const issues = useMemo(() => validateDraft(markdown, kind), [kind, markdown]);
   const guidedEditIssue = useMemo(() => frontmatterParseIssue(markdown), [markdown]);
   const guidedEditsBlocked = guidedEditIssue !== null;
+  const emptyDraft = isEmptyDraft(markdown);
   const identifierImmutable = savedDocument?.kind === kind;
   const reducedMotion = useReducedMotion();
   const [previewVersion, setPreviewVersion] = useState(0);
@@ -121,6 +122,11 @@ export function HumanBuilder() {
     heading?.focus({ preventScroll: true });
     pendingStageFocusRef.current = null;
   }, [activeStage, reducedMotion]);
+
+  function resetToStarter() {
+    const confirmed = window.confirm("Replace the current local draft with the starter template? This cannot be undone in this browser session.");
+    if (confirmed) replaceMarkdown(starterFor(kind));
+  }
 
   function selectDocumentKind(nextKind: DocumentKind) {
     if (nextKind === kind) {
@@ -198,7 +204,7 @@ export function HumanBuilder() {
                   </JourneyChapter>}
 
                   {activeStage === "shape" && <JourneyChapter stage="shape" title="Give the document its essential shape" description="Every input patches the one Markdown buffer. Unknown frontmatter and unedited sections stay intact.">
-                    {guidedEditsBlocked && <p role="alert" className="flex gap-2 rounded-xl border border-red-400/25 bg-red-400/[.08] p-3 text-sm text-red-100"><ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />Human Mode is locked because the frontmatter cannot be safely parsed. Open MD Mode and repair it before using guided fields. {guidedEditIssue}</p>}
+                    {guidedEditsBlocked && <div role="alert" className="rounded-xl border border-red-400/25 bg-red-400/[.08] p-3 text-sm text-red-100"><p className="flex gap-2"><ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />{emptyDraft ? "Human Mode is locked because the draft is empty. Restore the starter template or paste a complete Markdown file in Markdown Mode." : <>Human Mode is locked because the frontmatter cannot be safely parsed. Open Markdown Mode and repair it before using guided fields. {guidedEditIssue}</>}</p><Button variant="secondary" className="mt-3" onClick={resetToStarter}><RotateCcw className="size-4" aria-hidden /> Reset starter</Button></div>}
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <FieldLabel htmlFor="name">Name</FieldLabel>

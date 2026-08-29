@@ -1,4 +1,4 @@
-import { type DocumentKind, frontmatterParseIssue, scanMarkdownHeadings, scanMarkdownHeadingSyntaxIssues, splitFrontmatter } from "@/lib/markdown";
+import { MISSING_FRONTMATTER_ISSUE, type DocumentKind, frontmatterParseIssue, scanMarkdownHeadings, scanMarkdownHeadingSyntaxIssues, splitFrontmatter } from "@/lib/markdown";
 
 export type ValidationIssue = {
   level: "error" | "warning";
@@ -141,7 +141,9 @@ export function validateDraft(markdown: string, kind: DocumentKind): ValidationI
   if (parseIssue) {
     issues.push({
       level: "error",
-      message: parseIssue === "Frontmatter delimiters are missing." ? "Start with YAML frontmatter delimited by --- lines." : parseIssue
+      message: parseIssue === MISSING_FRONTMATTER_ISSUE
+        ? "Start with YAML frontmatter delimited by --- lines, or restore the starter template."
+        : parseIssue
     });
     return issues;
   }
