@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+const buttonSource = readFileSync(new URL("../components/ui/button.tsx", import.meta.url), "utf8");
 const minimumMutedTextOpacity = 0.8;
 
 function srgbChannel(value: number): number {
@@ -33,7 +34,7 @@ function sourceFiles(directory: string): string[] {
   });
 }
 
-describe("muted text contrast contract", () => {
+describe("contrast contracts", () => {
   it("raises every deliberately dim muted-text utility to the shared AA floor", () => {
     for (const opacity of [55, 60, 70, 75]) {
       expect(globals).toContain(`.text-mist\\/${opacity}`);
@@ -50,6 +51,12 @@ describe("muted text contrast contract", () => {
     const lightestDarkSurface = [0x29, 0x2d, 0x35] as const;
     const renderedMist = composite(mist, lightestDarkSurface, minimumMutedTextOpacity);
     expect(contrastRatio(renderedMist, lightestDarkSurface)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("keeps disabled primary button text above WCAG AA on a panel", () => {
+    const opacity = Number(buttonSource.match(/disabled:opacity-(\d+)/u)?.[1]) / 100;
+    const panel = [0x10, 0x12, 0x16] as const;
+    expect(contrastRatio(composite([0xd7, 0xff, 0x5f], panel, opacity), composite([0x07, 0x08, 0x0a], panel, opacity))).toBeGreaterThanOrEqual(4.5);
   });
 
   it("rejects new unremediated mist text or placeholder opacity utilities below the AA floor", () => {

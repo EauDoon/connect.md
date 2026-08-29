@@ -18,7 +18,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       aria-busy={resolvedAriaBusy}
       className={cn(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid disabled:cursor-not-allowed disabled:opacity-45",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid disabled:cursor-not-allowed disabled:opacity-50",
         variant === "primary" && "bg-acid text-ink hover:bg-[#e5ff92]",
         variant === "secondary" && "border border-white/15 bg-white/[.055] text-white hover:border-white/30 hover:bg-white/[.1]",
         variant === "ghost" && "text-mist hover:bg-white/[.06] hover:text-white",
