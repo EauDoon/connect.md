@@ -235,10 +235,10 @@ export function validateDraft(markdown: string, kind: DocumentKind): ValidationI
   if (/<(?:script|iframe|object|embed)\b/i.test(body)) {
     issues.push({ level: "warning", message: "Unsafe HTML is removed in the preview and public renderer." });
   }
-  if (!issues.length) issues.push({ level: "warning", message: "Client preflight passed. The API remains the authoritative validator." });
+  if (!issues.length) issues.push({ level: "warning", message: "Client validation passed. Download locally; this site does not upload or publish." });
   return issues;
 }
 
-export function hasValidationErrors(issues: ValidationIssue[]) {
+export function hasValidationErrors(issues: ValidationIssue[]): boolean {
   return issues.some((issue) => issue.level === "error");
 }

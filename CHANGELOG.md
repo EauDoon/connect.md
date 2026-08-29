@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Standalone Human/Markdown Mode now fails closed on YAML aliases, duplicate keys, unknown frontmatter fields, malformed server timestamps, and drafts over the package 128 KiB UTF-8 limit, and CI covers the canonical invalid fixtures.
+- `/agent-readme.md` now documents a complete private v2 starter that the browser validator accepts, plus fail-closed alias, unknown-field, and 128 KiB rules. Validation copy no longer claims an API is the authority on the standalone Vercel site.
 
 ### Added
 

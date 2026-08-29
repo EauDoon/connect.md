@@ -113,7 +113,7 @@ Add your most relevant education or credentials.
 - Unspecified skill
 `;
 
-export function starterFor(kind: DocumentKind) {
+export function starterFor(kind: DocumentKind): string {
   return kind === "profile" ? profileStarter : resumeStarter;
 }
 
