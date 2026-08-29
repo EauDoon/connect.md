@@ -602,6 +602,14 @@ wait_for_service() {
   container="$(compose ps -q "$service")"
   [ -n "$container" ] || die "No container found for $service"
 
+  diagnose_search_projection_worker() {
+    [ "$service" = search-projection-worker ] || return 0
+    printf 'SEARCH_PROJECTION_WORKER_LOGS_BEGIN\n' >&2
+    docker logs --tail 40 "$container" >&2 || true
+    docker inspect --format 'SEARCH_PROJECTION_WORKER_HEALTH={{json .State.Health}}' "$container" >&2 || true
+    printf 'SEARCH_PROJECTION_WORKER_LOGS_END\n' >&2
+  }
+
   while [ "$attempts" -gt 0 ]; do
     status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || true)"
     case "$status" in
@@ -609,18 +617,14 @@ wait_for_service() {
         return 0
         ;;
       unhealthy | exited | dead)
-        if [ "$service" = search-projection-worker ]; then
-          printf 'SEARCH_PROJECTION_WORKER_LOGS_BEGIN\n' >&2
-          docker logs --tail 40 "$container" >&2 || true
-          docker inspect --format 'SEARCH_PROJECTION_WORKER_HEALTH={{json .State.Health}}' "$container" >&2 || true
-          printf 'SEARCH_PROJECTION_WORKER_LOGS_END\n' >&2
-        fi
+        diagnose_search_projection_worker
         die "$service entered state: $status"
         ;;
     esac
     sleep 2
     attempts=$((attempts - 1))
   done
+  diagnose_search_projection_worker
   die "Timed out waiting for $service to become healthy"
 }
 

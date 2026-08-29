@@ -1259,6 +1259,7 @@ assert "API_READINESS_PROBE=PASS" in health
 assert library.index('while [ "$attempts" -gt 0 ]; do', library.index("wait_for_service()")) < library.index(
     "sleep 2", library.index("wait_for_service()")
 )
+assert '  diagnose_search_projection_worker\n  die "Timed out waiting for $service to become healthy"' in library
 assert 'if [ "${lifecycle_enabled:-false}" = "true" ]; then' in health
 assert health.index("lifecycle_enabled=") < health.index(
     "wait_for_profiled_service account-lifecycle account-erasure-worker"
