@@ -3,7 +3,7 @@
 import React, { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useConnectmdAuth } from "@/components/auth-provider";
-import { documentIdentifier, profileStarter, type DocumentKind, normaliseMarkdown, switchDocumentKind } from "@/lib/markdown";
+import { documentIdentifier, profileStarter, type DocumentKind, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
 import { type DocumentResponse } from "@/lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject } from "@/lib/draft-security";
 import { type HumanJourneyStage } from "@/lib/human-journey";
@@ -50,6 +50,17 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const maskDraft = draftOwner !== null && authBoundary !== draftOwner;
   const maskDraftRef = useRef(maskDraft);
   maskDraftRef.current = maskDraft;
+  const unsavedDraft = !maskDraft && markdown !== (savedDocument?.markdown ?? starterFor(kind));
+
+  useEffect(() => {
+    if (!unsavedDraft) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsavedDraft]);
 
   useEffect(() => {
     if (!resolvedSubject) return;

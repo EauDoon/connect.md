@@ -20,8 +20,9 @@ workflow.
 - A concise machine-readable site map at /llms.txt.
 
 Draft state lives only in React memory. Switching between /human and /md
-preserves it during the current page session; reloading or closing the tab can
-erase it. Download before leaving.
+preserves it during the current page session. After an edit, the browser warns
+before a full reload or tab close; download before leaving because accepting
+that warning erases the draft.
 
 ## Run locally
 

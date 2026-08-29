@@ -44,7 +44,7 @@ test("agent presets expose bounded drafting instructions", async ({ page }) => {
   await expect(instruction).toContainText("Do not publish, upload, contact anyone");
 });
 
-test("guided edits survive navigation to Markdown mode", async ({ page }) => {
+test("guided edits survive mode navigation and warn before a full reload", async ({ page }) => {
   await page.goto("/human");
   await page.getByRole("button", { name: "Next: shape" }).click();
   await page.locator("#name").fill("Ari Example");
@@ -52,6 +52,13 @@ test("guided edits survive navigation to Markdown mode", async ({ page }) => {
   await page.getByRole("navigation", { name: /Editing mode/iu }).getByRole("link", { name: "Markdown" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Edit the source. Keep the same document." })).toBeVisible();
   await expect(page.locator('aside[aria-label="Markdown status and preview"]')).toContainText("Ari Example");
+
+  const warning = page.waitForEvent("dialog");
+  const reload = page.reload();
+  const dialog = await warning;
+  expect(dialog.type()).toBe("beforeunload");
+  await dialog.accept();
+  await reload;
 });
 
 test("a valid draft downloads as a local Markdown file", async ({ page }) => {
