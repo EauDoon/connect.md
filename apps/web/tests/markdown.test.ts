@@ -170,20 +170,21 @@ Legacy experience.
 
   it("fails closed when Human Mode receives malformed YAML", () => {
     const malformed = profileStarter.replace("name: Your Name", "name: [unterminated");
-    expect(frontmatterParseIssue(malformed)).toContain("invalid");
+    expect(frontmatterParseIssue(malformed)).toMatch(/Frontmatter YAML is invalid at line 6, column \d+:/);
+    expect(frontmatterParseIssue(malformed)).not.toContain("[unterminated");
     expect(() => patchHumanFields(malformed, "profile", { name: "Ada" })).toThrow("cannot edit this draft");
   });
 
   it("fails closed on YAML aliases, duplicate keys, unknown fields, and oversize drafts", () => {
     const aliased = profileStarter.replace("name: Your Name", "name: &person Your Name\nalias_name: *person");
-    expect(frontmatterParseIssue(aliased)).toBe("YAML aliases are not allowed in frontmatter.");
+    expect(frontmatterParseIssue(aliased)).toMatch(/^YAML aliases are not allowed in frontmatter at line 6, column \d+\.$/);
     expect(splitFrontmatter(aliased).attributes.name).toBeUndefined();
     expect(() => patchHumanFields(aliased, "profile", { name: "Ada" })).toThrow("cannot edit this draft");
-    expect(validateDraft(aliased, "profile").map((issue) => issue.message)).toEqual(["YAML aliases are not allowed in frontmatter."]);
+    expect(validateDraft(aliased, "profile").map((issue) => issue.message)).toEqual([frontmatterParseIssue(aliased)]);
 
     const duplicate = profileStarter.replace("name: Your Name", "name: Ada Lovelace\nname: Grace Hopper");
-    expect(frontmatterParseIssue(duplicate)).toBe("Frontmatter contains a duplicate YAML key.");
-    expect(validateDraft(duplicate, "profile").map((issue) => issue.message)).toEqual(["Frontmatter contains a duplicate YAML key."]);
+    expect(frontmatterParseIssue(duplicate)).toMatch(/^Frontmatter contains a duplicate YAML key(?: 'name')? at line 6, column 1\.$/);
+    expect(validateDraft(duplicate, "profile").map((issue) => issue.message)).toEqual([frontmatterParseIssue(duplicate)]);
 
     const unknown = v1Profile.replace("visibility: private", "surprise: no\nvisibility: private");
     expect(validateDraft(unknown, "profile").map((issue) => issue.message).join(" ")).toContain("unknown frontmatter fields: surprise");
@@ -216,6 +217,10 @@ Legacy experience.
       const markdown = readFileSync(new URL(`../../../packages/markdown-schemas/fixtures/invalid/${fixture}`, import.meta.url), "utf8");
       expect(hasValidationErrors(validateDraft(markdown, kind)), fixture).toBe(true);
     }
+
+    const invalidYaml = readFileSync(new URL("../../../packages/markdown-schemas/fixtures/invalid/profile-invalid-yaml.md", import.meta.url), "utf8");
+    expect(frontmatterParseIssue(invalidYaml)).toMatch(/Frontmatter YAML is invalid at line 3, column \d+:/);
+    expect(frontmatterParseIssue(invalidYaml)).not.toContain("schema_version: [1");
 
     expect(hasValidationErrors(validateDraft(readFileSync(new URL("../../../packages/markdown-schemas/examples/profile.md", import.meta.url), "utf8"), "profile"))).toBe(false);
     expect(hasValidationErrors(validateDraft(readFileSync(new URL("../../../packages/markdown-schemas/examples/resume.md", import.meta.url), "utf8"), "resume"))).toBe(false);

@@ -140,11 +140,55 @@ function canonicalSizeMessage() {
   return `canonical Profile/Resume Markdown exceeds ${PROFILE_RESUME_MAX_UTF8_BYTES} UTF-8 bytes`;
 }
 
-function describeFrontmatterYamlError(error: unknown) {
-  const message = error instanceof Error ? error.message.split("\n")[0] : "unknown parser error";
-  if (/alias/iu.test(message)) return "YAML aliases are not allowed in frontmatter.";
-  if (/Map keys must be unique/u.test(message)) return "Frontmatter contains a duplicate YAML key.";
-  return `Frontmatter YAML is invalid: ${message}`;
+function yamlLinePos(error: unknown): { line: number; column: number } | null {
+  if (!error || typeof error !== "object") return null;
+  const linePos = "linePos" in error ? (error as { linePos?: unknown }).linePos : undefined;
+  const start = Array.isArray(linePos) ? linePos[0] : linePos && typeof linePos === "object" && "start" in linePos ? (linePos as { start?: unknown }).start : linePos;
+  if (!start || typeof start !== "object") return null;
+  const line = "line" in start ? (start as { line?: unknown }).line : undefined;
+  const column = "col" in start ? (start as { col?: unknown }).col : "column" in start ? (start as { column?: unknown }).column : undefined;
+  if (typeof line !== "number" || !Number.isInteger(line) || line < 1) return null;
+  if (typeof column !== "number" || !Number.isInteger(column) || column < 1) return null;
+  return { line, column };
+}
+
+function documentLocationFromYamlLine(line: number, column: number) {
+  return ` at line ${line + 1}, column ${column}`;
+}
+
+function frontmatterYamlLocation(error: unknown) {
+  const position = yamlLinePos(error);
+  if (position) return documentLocationFromYamlLine(position.line, position.column);
+  const message = error instanceof Error ? error.message : "";
+  const match = message.match(/at line (\d+), column (\d+)/u);
+  if (!match) return "";
+  const line = Number(match[1]);
+  const column = Number(match[2]);
+  if (!Number.isInteger(line) || line < 1 || !Number.isInteger(column) || column < 1) return "";
+  return documentLocationFromYamlLine(line, column);
+}
+
+function firstYamlAliasLocation(frontmatter: string) {
+  const match = /(?:^|[\s[{,])\*([A-Za-z0-9_-]+)/u.exec(frontmatter);
+  if (!match || match.index === undefined) return "";
+  const star = match.index + (match[0].startsWith("*") ? 0 : 1);
+  const prefix = frontmatter.slice(0, star);
+  return documentLocationFromYamlLine(prefix.split("\n").length, star - prefix.lastIndexOf("\n"));
+}
+
+function describeFrontmatterYamlError(error: unknown, frontmatter: string) {
+  const message = (error instanceof Error ? error.message.split("\n")[0] : "unknown parser error")
+    .replace(/\s+at line \d+, column \d+:?$/u, "")
+    .replace(/:$/u, "");
+  const isAlias = /alias/iu.test(message);
+  const location = frontmatterYamlLocation(error) || (isAlias ? firstYamlAliasLocation(frontmatter) : "");
+  if (isAlias) return `YAML aliases are not allowed in frontmatter${location}.`;
+  const duplicate = message.match(/Map keys must be unique(?:; ["']([^"']+)["'] is repeated)?/u);
+  if (duplicate) {
+    const key = duplicate[1] ? ` '${duplicate[1]}'` : "";
+    return `Frontmatter contains a duplicate YAML key${key}${location}.`;
+  }
+  return `Frontmatter YAML is invalid${location}: ${message || "unknown parser error"}`;
 }
 
 type FrontmatterInspection = {
@@ -175,7 +219,7 @@ function inspectFrontmatter(markdown: string): FrontmatterInspection {
     }
     return { attributes: parsed, body: match[2], hasFrontmatter: true, issue: null };
   } catch (error) {
-    return { attributes: emptyAttributes, body: match[2], hasFrontmatter: true, issue: describeFrontmatterYamlError(error) };
+    return { attributes: emptyAttributes, body: match[2], hasFrontmatter: true, issue: describeFrontmatterYamlError(error, match[1]) };
   }
 }
 
