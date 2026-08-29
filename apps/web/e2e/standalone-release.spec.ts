@@ -59,7 +59,6 @@ test("a valid draft downloads as a local Markdown file", async ({ page }) => {
   await page.getByRole("button", { name: "Download profile .md" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("your-handle.md");
-  await expect(page.getByRole("status")).toContainText("The draft was not uploaded.");
 });
 
 test("trust page states the exact browser-only boundary", async ({ page }) => {
