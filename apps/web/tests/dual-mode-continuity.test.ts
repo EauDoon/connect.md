@@ -65,7 +65,7 @@ function fakeReactContainer() {
     textContent: ""
   };
   documentNode.documentElement = container;
-  const windowNode = { document: documentNode, HTMLIFrameElement: class HTMLIFrameElement {} };
+  const windowNode = { document: documentNode, HTMLIFrameElement: class HTMLIFrameElement {}, addEventListener: noop, removeEventListener: noop };
   documentNode.defaultView = windowNode;
   return { container, documentNode, windowNode };
 }
