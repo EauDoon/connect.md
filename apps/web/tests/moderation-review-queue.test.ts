@@ -167,7 +167,7 @@ describe("private moderation review workspaces", () => {
     const robots = source("../app/robots.ts"); const navigation = source("../lib/navigation.ts"); const header = source("../components/site-header.tsx");
     expect(casePage).toContain("robots: { index: false, follow: false }");
     expect(appealPage).toContain("robots: { index: false, follow: false }");
-    expect(robots).toContain('"/moderation-review"'); expect(robots).toContain('"/appeal-review"');
+    expect(robots).toContain('"/moderation"'); expect(robots).toContain('"/appeal-review"');
     expect(navigation).not.toContain("/moderation-review"); expect(navigation).not.toContain("/appeal-review");
     expect(header).not.toContain("/moderation-review"); expect(header).not.toContain("/appeal-review");
   });

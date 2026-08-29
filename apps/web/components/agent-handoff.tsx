@@ -3,8 +3,6 @@
 import { useRef, useState } from "react";
 import { ArrowUpRight, Check, Copy, FileText, RefreshCw, UserRound } from "lucide-react";
 
-import { publicDiscoveryUrl, publicProtocolUrl } from "@/lib/api";
-
 export function agentHandoffPresets(agentReadmeUrl: string) {
   return [
   {
@@ -12,21 +10,21 @@ export function agentHandoffPresets(agentReadmeUrl: string) {
     label: "Onboard my profile",
     shortLabel: "Profile",
     prompt:
-      `Open ${agentReadmeUrl} and follow it to onboard my professional profile. If you cannot browse /agent-readme.md, ask me to paste /agent-readme.md and stop; do not infer the contract. Start by asking which CV, portfolio, work history, or existing profile I want you to use. Draft the profile and resume in canonical Markdown, flag unsupported or uncertain claims, and show me the exact content and visibility before any write. Do not publish, contact anyone, or create ongoing agent access unless I explicitly approve that separate action.`
+      `Open ${agentReadmeUrl} and follow it to prepare my professional profile. If you cannot read the runbook, ask me to paste it and stop; do not infer the format. Start by asking which CV, portfolio, work history, or existing profile I want you to use. Draft one complete connect.md profile file, flag unsupported or uncertain claims, and show me the exact Markdown. Do not publish, upload, contact anyone, or claim that you saved the file. I will review and download it locally.`
   },
   {
     id: "resume",
     label: "Import my resume",
     shortLabel: "Resume",
     prompt:
-      `Open ${agentReadmeUrl} and follow it to import my resume into connect.md. If you cannot browse /agent-readme.md, ask me to paste /agent-readme.md and stop; do not infer the contract. Ask me for the source PDF, DOCX, text, or Markdown, preserve factual meaning, and identify anything uncertain instead of inventing details. Prepare a reviewable canonical Markdown resume and profile draft. Do not publish either document or contact anyone until I explicitly approve the exact content and visibility.`
+      `Open ${agentReadmeUrl} and follow it to prepare my resume as connect.md Markdown. If you cannot read the runbook, ask me to paste it and stop; do not infer the format. Ask me for the source PDF, DOCX, text, or Markdown, preserve factual meaning, and identify anything uncertain instead of inventing details. Return one complete reviewable resume file. Do not publish, upload, contact anyone, or claim that you saved it; I will download it locally.`
   },
   {
     id: "maintain",
     label: "Keep it current",
     shortLabel: "Maintain",
     prompt:
-      `Open ${agentReadmeUrl} and follow the maintenance workflow for my existing connect.md profile and resume. If you cannot browse /agent-readme.md, ask me to paste /agent-readme.md and stop; do not infer the contract. Read the current canonical Markdown first, ask what has changed, and propose the smallest factual update with a clear diff. Do not overwrite a newer version, broaden visibility, publish, contact anyone, or request ongoing access without my explicit approval.`
+      `Open ${agentReadmeUrl} and follow the maintenance workflow for my existing connect.md file. If you cannot read the runbook, ask me to paste it and stop; do not infer the format. Read my current Markdown first, ask what changed, and propose the smallest factual update with a clear diff. Return the complete updated file only after review. Do not publish, upload, contact anyone, or request ongoing access.`
   }
 ] as const;
 }
@@ -88,7 +86,7 @@ export function AgentHandoff({ agentReadmeUrl }: { agentReadmeUrl: string }) {
           <p className="mt-1.5 text-xs leading-5 text-mist">Works with ChatGPT, Claude, OpenClaw, and other web-capable agents.</p>
         </div>
         <a
-          href={publicDiscoveryUrl("/agent-readme.md")}
+          href={agentReadmeUrl}
           type="text/markdown"
           className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/15 bg-white/[.05] px-4 text-xs font-semibold text-white transition hover:border-acid/40 hover:text-acid focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid motion-reduce:transition-none"
         >
@@ -146,8 +144,8 @@ export function AgentHandoff({ agentReadmeUrl }: { agentReadmeUrl: string }) {
       </div>
 
       <p className="relative mt-4 border-t border-white/10 pt-4 text-xs leading-5 text-mist">
-        Your agent drafts first. Publishing, outreach, and ongoing access remain separate actions that require your explicit approval. Discovery starts at{" "}
-        <a href={publicProtocolUrl("/llms.txt") ?? "/llms.txt"} type="text/plain" className="-mx-2 inline-flex min-h-11 items-center rounded-md px-2 align-middle font-mono text-white underline decoration-white/30 underline-offset-4 hover:decoration-acid focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid">
+        Your agent drafts first. This site does not publish or upload the result; you review and download the file locally. A concise site map lives at{" "}
+        <a href="/llms.txt" type="text/plain" className="-mx-2 inline-flex min-h-11 items-center rounded-md px-2 align-middle font-mono text-white underline decoration-white/30 underline-offset-4 hover:decoration-acid focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid">
           /llms.txt
         </a>
         .

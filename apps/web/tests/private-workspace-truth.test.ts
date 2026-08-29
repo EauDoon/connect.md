@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { mergeProposalFirstPage } from "../components/agent-delegation-manager";
 import { NetworkConversationCard } from "../components/network-hub";
-import { searchIndexingNotice } from "../components/publish-panel";
 import type { AgentProposal } from "../lib/agent-api";
 
 function source(relative: string) {
@@ -114,25 +113,6 @@ describe("private workspace load-state truthfulness", () => {
     expect(markup).not.toMatch(/<a\b[^>]*>(?:(?!<\/a>)[\s\S])*<a\b/u);
   });
 
-  it("reports a successful canonical save while queued search indexing remains pending", () => {
-    expect(searchIndexingNotice("ready")).toBeNull();
-    expect(searchIndexingNotice("queued")).toBe("Canonical save succeeded; search indexing is pending.");
-    expect(searchIndexingNotice("degraded")).toContain("temporarily degraded");
-    expect(searchIndexingNotice("unknown")).toContain("status was not reported");
-  });
-
-  it("keeps the public canonical-save confirmation as a full-size native link", () => {
-    const panel = source("../components/publish-panel.tsx");
-    const confirmationLink = panel.match(/<Link href=\{publicDocument\.href\} className="([^"]+)"><CheckCircle2 className="size-4" \/> View canonical public \{publicDocument\.label\}<\/Link>/u);
-
-    expect(panel).toContain('savedDocument?.visibility === "public"');
-    expect(panel).toContain('savedDocument.kind === "profile" ? `/p/${savedDocument.identifier}` : `/r/${savedDocument.identifier}`');
-    expect(confirmationLink?.[1]?.split(/\s+/u)).toEqual(expect.arrayContaining([
-      "inline-flex",
-      "min-h-11",
-      "items-center",
-    ]));
-  });
 });
 
 function proposal(id: string, status: AgentProposal["status"]): AgentProposal {

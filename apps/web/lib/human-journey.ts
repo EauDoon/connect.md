@@ -1,8 +1,8 @@
 export const HUMAN_JOURNEY = [
-  { id: "foundation", number: "01", label: "Foundation", detail: "Choose, open, or import" },
+  { id: "foundation", number: "01", label: "Foundation", detail: "Choose the document" },
   { id: "shape", number: "02", label: "Shape", detail: "Write the essential signals" },
   { id: "review", number: "03", label: "Review", detail: "Read the rendered document" },
-  { id: "release", number: "04", label: "Release", detail: "Validate and save explicitly" }
+  { id: "release", number: "04", label: "Download", detail: "Validate and keep the file" }
 ] as const;
 
 export type HumanJourneyStage = (typeof HUMAN_JOURNEY)[number]["id"];

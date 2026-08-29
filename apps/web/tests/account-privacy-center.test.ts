@@ -26,14 +26,11 @@ describe("account privacy center", () => {
 
   it("uses Clerk reverification for export and both protected deletion actions without browser persistence", () => {
     const center = readFileSync(new URL("../components/account-privacy-center.tsx", import.meta.url), "utf8");
-    const header = readFileSync(new URL("../components/site-header.tsx", import.meta.url), "utf8");
     expect(center.match(/useReverification\(/gu)).toHaveLength(4);
     expect(center).toContain("requestWithReverification");
     expect(center).toContain("confirmWithReverification");
     expect(center).toContain("recoverWithReverification");
     expect(center).not.toMatch(/localStorage|sessionStorage|URLSearchParams|console\./u);
-    expect(header).toContain("accountLifecycleFeatureEnabled");
-    expect(header).toContain('href="/account"');
   });
 
   it("remounts all receipt and deletion state at every exact auth boundary", () => {

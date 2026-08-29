@@ -9,7 +9,6 @@ import { useMemo } from "react";
 import { AsyncBoundaryMessage } from "@/components/async-boundary-message";
 import { useDraft } from "@/components/draft-provider";
 import { MarkdownPreview } from "@/components/markdown-preview";
-import { LoadExistingPanel } from "@/components/load-existing-panel";
 import { ModeSwitch } from "@/components/mode-switch";
 import { PublishPanel } from "@/components/publish-panel";
 import { ValidationPanel } from "@/components/validation-panel";
@@ -41,7 +40,7 @@ export function MarkdownEditor() {
       <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-semibold tracking-[-.045em] text-white sm:text-5xl">Edit the source. Keep the same document.</h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-mist">This is the exact canonical buffer used in Guided Mode. Edit every byte here; the preview is sanitized and the API remains the final validator.</p>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-mist">This is the exact canonical buffer used in Guided Mode. Edit every byte here, review the sanitized preview, then download the file locally.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3"><Link href="/human" className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-mist transition hover:bg-white/[.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid"><Sparkles className="size-4 text-acid" aria-hidden /> Continue in Guided</Link><Button variant="secondary" onClick={resetToStarter}><RotateCcw className="size-4" aria-hidden /> Reset starter</Button></div>
       </div>
@@ -73,12 +72,11 @@ export function MarkdownEditor() {
                 }}
               />
             </div>
-            <div className="mt-4 flex gap-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-mist"><FileWarning className="mt-0.5 size-4 shrink-0 text-acid" aria-hidden /> Server-owned identity, version, and timestamps are assigned by the API. Do not add them to a create draft.</div>
+            <div className="mt-4 flex gap-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-mist"><FileWarning className="mt-0.5 size-4 shrink-0 text-acid" aria-hidden /> The draft lives only in this browser session until you download it. A full reload or closed tab can discard it.</div>
           </section>
 
           <aside className="space-y-5 min-w-0" aria-label="Markdown status and preview">
             <ValidationPanel issues={issues} />
-            <LoadExistingPanel key={kind} />
             <PublishPanel issues={issues} />
             <section aria-labelledby="preview-title">
               <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3"><h2 id="preview-title" className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white"><Eye className="size-4 shrink-0 text-acid" aria-hidden /> Live preview</h2><span className="min-w-0 break-words text-xs text-mist">Sanitized</span></div>

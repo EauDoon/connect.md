@@ -1,0 +1,10 @@
+# connect.md
+
+> A browser-only Vercel site for building portable professional profiles and resumes as Markdown.
+
+- Guided builder: /human
+- Direct Markdown editor: /md
+- Agent drafting runbook: /agent-readme.md
+- Privacy and data boundary: /trust
+
+Drafts remain in the current browser session and are downloaded locally. The site has no publishing API, account, database, messaging system, or agent credential.

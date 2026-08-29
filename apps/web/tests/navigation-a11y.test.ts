@@ -91,24 +91,24 @@ describe("navigation accessibility", () => {
     const globalsSource = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
     expect(headerSource).toContain("PUBLIC_UTILITY_NAVIGATION");
-    expect(headerSource).toContain("privateNavigationEnabled ? PRIMARY_NAVIGATION : PUBLIC_PRIMARY_NAVIGATION");
-    expect(headerSource).toContain("privateWorkspacesEnabled && configured");
-    expect(headerSource.match(/primaryNavigation\.map/gu)).toHaveLength(2);
+    expect(headerSource).toContain("PUBLIC_PRIMARY_NAVIGATION");
+    expect(headerSource.match(/PUBLIC_PRIMARY_NAVIGATION\.map/gu)).toHaveLength(2);
     expect(headerSource.match(/role="group" aria-label="Trust and data navigation"/gu)).toHaveLength(2);
+    expect(headerSource).not.toMatch(/privateNavigationEnabled|privateWorkspacesEnabled|useConnectmdAuth/u);
     expect(globalsSource).toMatch(/#main-content:focus\s*\{[^}]*outline:\s*2px/gu);
     expect(globalsSource).not.toContain("#main-content:focus { outline: none; }");
   });
 
-  it("balances standard mobile header gutters while preserving narrow authenticated reflow", () => {
+  it("balances standard mobile header gutters without account controls", () => {
     const headerSource = readFileSync(new URL("../components/site-header.tsx", import.meta.url), "utf8");
 
     expect(headerSource).toContain("px-0 min-[300px]:px-3 sm:px-5 lg:px-8");
     expect(headerSource).toContain("min-h-11 min-w-11 items-center justify-center");
     expect(headerSource).toContain("min-[240px]:justify-start");
     expect(headerSource).toContain('<span className="max-[239px]:sr-only">connect.md</span>');
-    expect(headerSource.match(/className="hidden min-h-11[^"]*sm:inline-flex"/gu)).toHaveLength(2);
-    expect(headerSource).toContain('isSignedIn && <NavigationLink href="/workspace" label="Workspace" mobile');
-    expect(headerSource).toContain('isSignedIn && lifecycleEnabled && <NavigationLink href="/account" label="Account privacy" mobile');
+    expect(headerSource).toContain('aria-label={mobileOpen ? "Close navigation" : "Open navigation"}');
+    expect(headerSource).toContain('className="inline-flex size-11');
+    expect(headerSource).not.toMatch(/SignInButton|UserButton|href="\/workspace"|href="\/account"/u);
   });
 
   it("provides a global visible keyboard-focus fallback without overriding component-specific rings", () => {

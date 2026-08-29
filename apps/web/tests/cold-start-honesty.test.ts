@@ -205,9 +205,10 @@ describe("cold-start honesty", () => {
 
   it("sets honest landing expectations and explains the .md format without weakening publication boundaries", () => {
     const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-    expect(source).toContain("Explore the early public network");
-    expect(source).toContain("as the public inventory grows");
-    expect(source).toContain("portable plain-text Markdown, readable by people and agents");
-    expect(source).toContain("You remain the authority for facts, visibility, publication, and access.");
+    expect(source).toContain("Your work story.");
+    expect(source).toContain("A <code");
+    expect(source).toContain("file is portable plain text");
+    expect(source).toContain("Nothing is uploaded");
+    expect(source).toContain("Your final artifact is the file—not an account.");
   });
 });

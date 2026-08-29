@@ -9,8 +9,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { BufferedCommitRegistry, BufferedInput, BufferedTextarea, FieldLabel, type BufferedFlush, type BufferedFlushRegistry } from "@/components/human-buffered-fields";
 import { GuidedEntriesEditor, StructuredV2Fields } from "@/components/human-guided-fields";
 import { useDraft } from "@/components/draft-provider";
-import { IngestDropzone } from "@/components/ingest-dropzone";
-import { LoadExistingPanel } from "@/components/load-existing-panel";
 import { ModeSwitch } from "@/components/mode-switch";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,7 +19,6 @@ import { frontmatterParseIssue, humanFieldsFromMarkdown, patchHumanFields, type 
 import { SCHEMA_LIMITS, hasValidationErrors, validateDraft } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
-const ApiKeyPanel = dynamic(() => import("@/components/api-key-panel").then((module) => module.ApiKeyPanel));
 const MarkdownPreview = dynamic(() => import("@/components/markdown-preview").then((module) => module.MarkdownPreview));
 const PublishPanel = dynamic(() => import("@/components/publish-panel").then((module) => module.PublishPanel));
 const ValidationPanel = dynamic(() => import("@/components/validation-panel").then((module) => module.ValidationPanel));
@@ -54,7 +51,7 @@ function ChapterNavigation({ stage, onNavigate }: { stage: HumanJourneyStage; on
   const nextLabel: Record<HumanJourneyStage, string> = {
     foundation: "Next: shape",
     shape: "Review document",
-    review: "Release document",
+    review: "Download document",
     release: ""
   };
 
@@ -78,8 +75,7 @@ export function HumanBuilder() {
   const bufferedFlushersRef = useRef(new Set<BufferedFlush>());
   const pendingStageFocusRef = useRef<HumanJourneyStage | null>(null);
   const journeyPosition = humanJourneyPosition(activeStage);
-  const readyForRelease = !guidedEditsBlocked && !hasValidationErrors(issues);
-  const savedCurrentDraft = Boolean(savedDocument && savedDocument.markdown === markdown);
+  const readyForDownload = !guidedEditsBlocked && !hasValidationErrors(issues);
   canonicalMarkdownRef.current = markdown;
 
   const registerBufferedFlush = useCallback<BufferedFlushRegistry>((flush) => {
@@ -146,7 +142,7 @@ export function HumanBuilder() {
           <div className="mt-3 flex flex-wrap items-end justify-between gap-5">
             <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
               <h1 className="max-w-3xl font-display text-4xl font-semibold leading-[.94] tracking-[-.055em] text-white sm:text-6xl">Make your work read like a signal.</h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-mist">Move through the essentials, then watch the same canonical Markdown respond as a finished document. Nothing publishes until you explicitly save it.</p>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-mist">Move through the essentials, then watch the same canonical Markdown respond as a finished document. Download it when ready; nothing is uploaded.</p>
             </motion.div>
             <motion.div variants={{ hidden: { opacity: 0, scale: 0.96 }, visible: { opacity: 1, scale: 1 } }} className="rounded-2xl border border-acid/20 bg-acid/[.07] px-4 py-3 text-right">
               <p className="text-[11px] font-bold uppercase tracking-[.14em] text-acid">Journey position</p>
@@ -176,12 +172,12 @@ export function HumanBuilder() {
           <ModeSwitch mode="human" onBeforeNavigate={flushBufferedFields} />
           <div className="sticky top-16 z-20 flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-panel/95 px-4 py-3 backdrop-blur md:hidden" aria-label="Compact stage controls">
             <p className="min-w-0 text-xs font-semibold uppercase tracking-[.12em] text-mist">Step {journeyPosition.current} of {journeyPosition.total}</p>
-            <Button className="px-4" onClick={() => activateStage(activeStage === "foundation" ? "shape" : activeStage === "shape" ? "review" : activeStage === "review" ? "release" : "review")}>{activeStage === "shape" ? "Preview" : activeStage === "review" ? "Release" : activeStage === "release" ? "Review" : "Next"} <ArrowRight className="size-4" aria-hidden /></Button>
+            <Button className="px-4" onClick={() => activateStage(activeStage === "foundation" ? "shape" : activeStage === "shape" ? "review" : activeStage === "review" ? "release" : "review")}>{activeStage === "shape" ? "Preview" : activeStage === "review" ? "Download" : activeStage === "release" ? "Review" : "Next"} <ArrowRight className="size-4" aria-hidden /></Button>
           </div>
           <BufferedCommitRegistry.Provider value={registerBufferedFlush}>
             <div className="min-w-0 p-3 sm:p-6 lg:p-8">
               <motion.div key={activeStage} initial={reducedMotion ? false : { opacity: 0, y: 12 }} animate={reducedMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.22, ease: "easeOut" }}>
-                  {activeStage === "foundation" && <JourneyChapter stage="foundation" title="Start with the right source" description="Choose the document you are shaping, reopen an owned canonical draft, or send a file for ingestion. Imports create a local draft only.">
+                  {activeStage === "foundation" && <JourneyChapter stage="foundation" title="Start with the right document" description="Choose a profile or resume. To continue an existing file, paste its complete Markdown in direct mode.">
                     <div className="grid min-w-0 gap-3 sm:grid-cols-2" aria-label="Document type">
                       {documentOptions.map((option) => {
                         const Icon = option.icon;
@@ -194,12 +190,8 @@ export function HumanBuilder() {
                         </motion.label>;
                       })}
                     </div>
-                    <div className="mt-4 grid min-w-0 gap-3">
-                      <LoadExistingPanel key={kind} />
-                      <IngestDropzone />
-                    </div>
                     <aside aria-label="Agent draft paste guidance" className="mt-4 min-w-0 rounded-xl border border-acid/20 bg-acid/[.045] p-4">
-                      <p className="text-sm leading-6 text-mist">Have an agent-produced canonical Markdown draft? Paste the complete draft in Markdown Mode, then return to Human Mode for recognized-field editing. It stays local and private until a separate explicit save or publish action.</p>
+                      <p className="text-sm leading-6 text-mist">Have an existing or agent-produced draft? Paste the complete file in Markdown Mode, then return here for recognized-field editing. It stays in this browser session until you download it.</p>
                       <Link href="/md" className="mt-3 inline-flex min-h-11 min-w-0 max-w-full items-center justify-center break-words whitespace-normal rounded-full border border-acid/30 px-4 text-center text-sm font-semibold text-acid transition hover:bg-acid/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid">Open Markdown Mode to paste the draft</Link>
                     </aside>
                     <ChapterNavigation stage="foundation" onNavigate={activateStage} />
@@ -231,10 +223,11 @@ export function HumanBuilder() {
                       </div>
                       <div>
                         <FieldLabel htmlFor="visibility">Visibility</FieldLabel>
-                        <select id="visibility" disabled={guidedEditsBlocked} value={fields.visibility} onChange={(event) => patch({ visibility: event.target.value as HumanFields["visibility"] })} className="w-full rounded-xl border border-white/12 bg-black/25 px-3.5 py-3 text-sm text-white outline-none transition focus:border-acid/70 focus:ring-2 focus:ring-acid/15 disabled:cursor-not-allowed disabled:opacity-60">
+                        <select id="visibility" aria-describedby="visibility-help" disabled={guidedEditsBlocked} value={fields.visibility} onChange={(event) => patch({ visibility: event.target.value as HumanFields["visibility"] })} className="w-full rounded-xl border border-white/12 bg-black/25 px-3.5 py-3 text-sm text-white outline-none transition focus:border-acid/70 focus:ring-2 focus:ring-acid/15 disabled:cursor-not-allowed disabled:opacity-60">
                           <option value="private">Private draft</option>
-                          <option value="public">Public on publish</option>
+                          <option value="public">Public-ready metadata</option>
                         </select>
+                        <p id="visibility-help" className="mt-1 text-xs text-mist/75">Metadata only. This site never publishes the file.</p>
                       </div>
                       <div className="sm:col-span-2">
                         <FieldLabel htmlFor="skills">Skills</FieldLabel>
@@ -268,15 +261,14 @@ export function HumanBuilder() {
                     <ChapterNavigation stage="review" onNavigate={activateStage} />
                   </JourneyChapter>}
 
-                  {activeStage === "release" && <JourneyChapter stage="release" title="Finish with an explicit decision" description="Client preflight explains what needs attention. The API remains the final authority, and saving is always an intentional action.">
-                    <div className={cn("mb-4 flex gap-3 rounded-xl border p-3", readyForRelease ? "border-acid/20 bg-acid/[.06]" : "border-amber-300/20 bg-amber-300/[.06]")}>
-                      {readyForRelease ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-acid" aria-hidden /> : <Compass className="mt-0.5 size-5 shrink-0 text-amber-100" aria-hidden />}
-                      <div><p className="text-sm font-semibold text-white">{savedCurrentDraft ? "Canonical draft saved" : readyForRelease ? "Ready for the save gate" : "A few signals need attention"}</p><p className="mt-1 text-xs leading-5 text-mist">{savedCurrentDraft ? "The current Markdown matches the last saved canonical version." : readyForRelease ? "Preflight is clear. Saving or publishing has not happened yet." : "Use the validation list below before asking the API to save."}</p></div>
+                  {activeStage === "release" && <JourneyChapter stage="release" title="Download the file you reviewed" description="Client-side validation explains what needs attention. Downloading is the only release action in this standalone site.">
+                    <div className={cn("mb-4 flex gap-3 rounded-xl border p-3", readyForDownload ? "border-acid/20 bg-acid/[.06]" : "border-amber-300/20 bg-amber-300/[.06]")}>
+                      {readyForDownload ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-acid" aria-hidden /> : <Compass className="mt-0.5 size-5 shrink-0 text-amber-100" aria-hidden />}
+                      <div><p className="text-sm font-semibold text-white">{readyForDownload ? "Ready to download" : "A few signals need attention"}</p><p className="mt-1 text-xs leading-5 text-mist">{readyForDownload ? "Preflight is clear. The file still exists only in this browser session." : "Resolve the validation list before downloading the file."}</p></div>
                     </div>
                     <div className="space-y-4">
                       <ValidationPanel issues={issues} />
                       <PublishPanel issues={issues} />
-                      <ApiKeyPanel />
                     </div>
                     <ChapterNavigation stage="release" onNavigate={activateStage} />
                   </JourneyChapter>}
