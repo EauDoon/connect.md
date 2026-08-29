@@ -55,6 +55,7 @@ def _cleanup_pending_result_artifacts(root: Path, job_id: str | None = None) -> 
 
 def _convert_job(input_path: str, suffix: str, output_path: str, maximum: int) -> None:
     try:
+        os.environ["ORT_DISABLE_TELEMETRY"] = "1"
         if os.name == "posix":
             # Converter helpers (Tesseract/poppler) inherit this dedicated group
             # so the hard deadline can terminate the complete process tree.

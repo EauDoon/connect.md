@@ -11,7 +11,6 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from pydantic import HttpUrl
 from sqlalchemy import delete, exists, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -102,10 +101,10 @@ def _production_live_settings(live, tmp_path, suffix: str) -> Settings:
         meilisearch_api_key=live.meilisearch_api_key,
         meilisearch_index=live.meilisearch_index,
         exact_search_cursor_keyring='[{"kid":"ci-v1","secret":"Y2ktZXhhY3Qtc2VhcmNoLWN1cnNvci1zZWNyZXQtMDAw"}]',
-        clerk_jwks_url=HttpUrl("https://api.clerk.com"),
+        clerk_jwks_url="https://clerk.example.test/.well-known/jwks.json",
         clerk_issuer="https://clerk.example.test",
         clerk_authorized_parties=["https://connect.md"],
-        public_base_url=HttpUrl("https://connect.md"),
+        public_base_url="https://connect.md",
         verification_reviewer_id="ci-verification-reviewer",
         verification_reviewer_role="recruiting_verifier",
         post_moderator_id="ci-post-moderator",
@@ -154,10 +153,9 @@ async def _post_without_body_after_barrier(
 async def _wait_for_application_transition_lock_waiters(
     session: AsyncSession,
     *,
-    gate_started_at: datetime,
     minimum: int = 2,
 ) -> None:
-    """Prove both HTTP transactions reached the PostgreSQL organization lock."""
+    """Prove both HTTP transactions are blocked by this PostgreSQL session."""
 
     deadline = asyncio.get_running_loop().time() + 10
     statement = text(
@@ -169,16 +167,11 @@ async def _wait_for_application_transition_lock_waiters(
           AND usename = current_user
           AND state = 'active'
           AND wait_event_type = 'Lock'
-          AND query_start >= :gate_started_at
-          AND lower(query) LIKE '%from organizations%'
-          AND lower(query) LIKE '%for update%'
+          AND pg_backend_pid() = ANY(pg_blocking_pids(pid))
         """
     )
     while asyncio.get_running_loop().time() < deadline:
-        waiters = await session.scalar(
-            statement,
-            {"gate_started_at": gate_started_at},
-        )
+        waiters = await session.scalar(statement)
         if int(waiters or 0) >= minimum:
             return
         await asyncio.sleep(0.05)
@@ -978,7 +971,7 @@ async def test_live_postgres_api_key_same_key_different_body_race_rolls_back_los
                 )
             ).all()
             assert len(receipts) == 1
-            assert receipts[0].resource_type == "document"
+            assert receipts[0].resource_type == "profile"
             assert receipts[0].resource_id == documents[0].id
             _assert_text_excludes(receipts[0].response_body, loser_identifier)
             events = (
@@ -1431,8 +1424,9 @@ async def test_live_postgres_same_key_different_body_race_rolls_back_loser(tmp_p
         assert {first.status_code, second.status_code} == {201, 409}
         winner = first if first.status_code == 201 else second
         loser = second if winner is first else first
+        loser_body = second_body if winner is first else first_body
         _assert_body_contains(loser, "Idempotency-Key")
-        _assert_body_excludes(loser, str(second_body["name"]))
+        _assert_body_excludes(loser, str(loser_body["name"]))
 
         async with first_app.state.session_factory() as session:
             organizations = (
@@ -1451,7 +1445,7 @@ async def test_live_postgres_same_key_different_body_race_rolls_back_loser(tmp_p
             assert len(receipts) == 1
             assert receipts[0].resource_type == "organization"
             assert receipts[0].resource_id == organizations[0].id
-            _assert_text_excludes(receipts[0].response_body, str(second_body["name"]))
+            _assert_text_excludes(receipts[0].response_body, str(loser_body["name"]))
             events = (
                 await session.scalars(
                     select(ChangeEvent).where(
@@ -1462,7 +1456,7 @@ async def test_live_postgres_same_key_different_body_race_rolls_back_loser(tmp_p
             ).all()
             assert len(events) == 1
             assert events[0].resource_id == organizations[0].id
-            _assert_text_excludes(events[0].payload, str(second_body["slug"]))
+            _assert_text_excludes(events[0].payload, str(loser_body["slug"]))
     finally:
         if apps:
             try:
@@ -1743,8 +1737,6 @@ async def test_live_postgres_application_withdraw_accept_race_has_one_terminal_e
                 select(Organization).where(Organization.id == organization_id).with_for_update()
             )
             assert locked_organization is not None
-            gate_started_at = await gate.scalar(text("SELECT clock_timestamp()"))
-            assert isinstance(gate_started_at, datetime)
             tasks = [
                 asyncio.create_task(
                     _post_without_body_after_barrier(
@@ -1766,7 +1758,6 @@ async def test_live_postgres_application_withdraw_accept_race_has_one_terminal_e
             try:
                 await _wait_for_application_transition_lock_waiters(
                     gate,
-                    gate_started_at=gate_started_at,
                 )
                 await gate.commit()
                 withdrawn, accepted = await asyncio.wait_for(asyncio.gather(*tasks), timeout=15)

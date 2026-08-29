@@ -97,19 +97,30 @@ describe("Vercel deployment headers", () => {
     }
   });
 
-  it("fails closed when the Vercel Clerk publishable key is missing or malformed", async () => {
+  it("keeps a public-only Vercel deployment free of unused Clerk origins", async () => {
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://app.example.com");
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.com");
+    vi.stubEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "");
+
+    const contentSecurityPolicy = headerValue(await configuredHeaders(), "Content-Security-Policy");
+    expect(contentSecurityPolicy).not.toContain("clerk");
+    expect(contentSecurityPolicy).not.toContain("challenges.cloudflare.com");
+  });
+
+  it("fails closed when a configured Vercel Clerk publishable key is malformed", async () => {
     vi.stubEnv("VERCEL", "1");
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://app.example.com");
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.com");
 
-    for (const value of ["", "pk_test_bm90LWhvc3Qk"]) {
-      vi.stubEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", value);
-      await expect(configuredHeaders()).rejects.toThrow(
-        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY must be a well-formed Clerk publishable key for Vercel",
-      );
-    }
+    vi.stubEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "pk_test_bm90LWhvc3Qk");
+    await expect(configuredHeaders()).rejects.toThrow(
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY must be a well-formed Clerk publishable key for Vercel",
+    );
   });
 
   it("supports an explicit Clerk satellite domain without guessing from the site origin", async () => {

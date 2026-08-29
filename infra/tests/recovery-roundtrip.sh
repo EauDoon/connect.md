@@ -36,7 +36,7 @@ assert_child_path() {
 }
 
 run_outer() {
-  local script_dir repo_root temp_parent source_revision run_token docker_socket_group
+  local script_dir repo_root temp_parent source_revision run_token docker_socket_group runtime_home
 
   scratch=""
   worktree=""
@@ -100,6 +100,7 @@ run_outer() {
   scratch="$(realpath -e "$scratch")"
   case "$scratch" in "$temp_root"/connectmd-ci-recovery.*) ;; *) die "Recovery scratch path is unsafe" ;; esac
   worktree="$scratch/app"
+  runtime_home="$scratch/home"
   source_revision="$(git -C "$repo_root" rev-parse HEAD)"
 
   git clone --quiet --no-hardlinks "$repo_root" "$worktree"
@@ -109,13 +110,15 @@ run_outer() {
   for state_file in .env .connectmd-release.env .connectmd-restore-state.env .connectmd-operations.lock; do
     [ ! -e "$worktree/$state_file" ] && [ ! -L "$worktree/$state_file" ] || die "Recovery clone unexpectedly contains runtime state: $state_file"
   done
+  mkdir -p "$runtime_home/.config"
+  chmod 700 "$runtime_home" "$runtime_home/.config"
 
   sudo --non-interactive chown -R "$CONTAINER_UID:$CONTAINER_GID" -- "$scratch"
   sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- /usr/bin/test -r "$worktree/infra/tests/recovery-roundtrip.sh" \
     || die "Recovery child script is not readable by UID 10001"
   project_created=true
   sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- \
-    env -u HOME \
+    env HOME="$runtime_home" XDG_CONFIG_HOME="$runtime_home/.config" \
       CONNECTMD_RECOVERY_INNER=1 \
       CONNECTMD_RECOVERY_SCRATCH="$scratch" \
       CONNECTMD_RECOVERY_TOKEN="$run_token" \

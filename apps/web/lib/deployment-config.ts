@@ -25,30 +25,32 @@ export function vercelSecurityHeaders(environment: DeploymentEnvironment = proce
   const siteOrigin = configuredOrigin(environment.NEXT_PUBLIC_SITE_URL, "NEXT_PUBLIC_SITE_URL", vercelProduction);
   const apiOrigin = configuredOrigin(environment.NEXT_PUBLIC_API_BASE_URL, "NEXT_PUBLIC_API_BASE_URL", vercelProduction);
 
-  const clerkSources = [
-    CLERK_ACCOUNTS_ORIGIN,
-    ...clerkSecurityOrigins(environment, vercelProduction, siteOrigin),
-  ];
+  const configuredClerkOrigins = clerkSecurityOrigins(environment, vercelProduction, siteOrigin);
+  const clerkEnabled = configuredClerkOrigins.length > 0;
+  const clerkSources = clerkEnabled ? [CLERK_ACCOUNTS_ORIGIN, ...configuredClerkOrigins] : [];
   const scriptSources = [
     "'self'",
     ...clerkSources,
-    CLERK_PROTECT_SCRIPT_ORIGIN,
-    CLOUDFLARE_CHALLENGE_ORIGIN,
+    ...(clerkEnabled ? [CLERK_PROTECT_SCRIPT_ORIGIN, CLOUDFLARE_CHALLENGE_ORIGIN] : []),
   ];
   const scriptElementSources = [
     "'self'",
     "'unsafe-inline'",
     ...clerkSources,
-    CLERK_PROTECT_SCRIPT_ORIGIN,
-    CLOUDFLARE_CHALLENGE_ORIGIN,
+    ...(clerkEnabled ? [CLERK_PROTECT_SCRIPT_ORIGIN, CLOUDFLARE_CHALLENGE_ORIGIN] : []),
   ];
   const connectSources = [
     "'self'",
     apiOrigin,
     ...clerkSources,
-    CLERK_PROTECT_CONNECT_ORIGIN,
-    CLERK_IMAGE_ORIGIN,
+    ...(clerkEnabled ? [CLERK_PROTECT_CONNECT_ORIGIN, CLERK_IMAGE_ORIGIN] : []),
   ].filter((origin): origin is string => Boolean(origin));
+  const imageSources = ["'self'", "data:", "blob:", ...(clerkEnabled ? [CLERK_IMAGE_ORIGIN] : [])];
+  const frameSources = [
+    "'self'",
+    "blob:",
+    ...(clerkEnabled ? [CLOUDFLARE_CHALLENGE_ORIGIN, CLERK_PROTECT_FRAME_ORIGIN] : []),
+  ];
   const contentSecurityPolicy = [
     "default-src 'self'",
     "base-uri 'self'",
@@ -59,11 +61,11 @@ export function vercelSecurityHeaders(environment: DeploymentEnvironment = proce
     `script-src-elem ${scriptElementSources.join(" ")}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://img.clerk.com",
+    `img-src ${imageSources.join(" ")}`,
     "font-src 'self' data:",
     `connect-src ${connectSources.join(" ")}`,
     "worker-src 'self' blob:",
-    `frame-src 'self' blob: ${CLOUDFLARE_CHALLENGE_ORIGIN} ${CLERK_PROTECT_FRAME_ORIGIN}`,
+    `frame-src ${frameSources.join(" ")}`,
     "manifest-src 'self'",
     "media-src 'none'"
   ].join("; ");
@@ -82,7 +84,7 @@ export function vercelSecurityHeaders(environment: DeploymentEnvironment = proce
 
 function clerkSecurityOrigins(environment: DeploymentEnvironment, requireHttps: boolean, siteOrigin: string | null): string[] {
   const publishableKey = environment.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
-  if (!publishableKey) throw new Error(CLERK_PUBLISHABLE_KEY_ERROR);
+  if (!publishableKey) return [];
 
   const parsedKey = parsePublishableKey(publishableKey);
   if (!parsedKey) throw new Error(CLERK_PUBLISHABLE_KEY_ERROR);

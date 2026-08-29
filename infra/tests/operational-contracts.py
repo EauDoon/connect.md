@@ -3290,6 +3290,8 @@ assert (
 )
 assert 'git clone --quiet --no-hardlinks "$repo_root" "$worktree"' in recovery_roundtrip
 assert 'setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID"' in recovery_roundtrip
+assert 'env HOME="$runtime_home" XDG_CONFIG_HOME="$runtime_home/.config"' in recovery_roundtrip
+assert "env -u HOME" not in recovery_roundtrip
 assert "docker version --format" in recovery_roundtrip
 assert 'CONNECTMD_COMPOSE_PROJECT_NAME="$project_name"' in recovery_roundtrip
 assert "down --volumes --remove-orphans" in recovery_roundtrip
