@@ -36,18 +36,21 @@ assert_child_path() {
 }
 
 run_outer() {
-  local script_dir repo_root temp_parent temp_root source_revision run_token docker_socket_group
-  local scratch worktree project_name host_uid host_gid project_created=false
+  local script_dir repo_root temp_parent source_revision run_token docker_socket_group runtime_home
 
+  scratch=""
+  worktree=""
+  project_name=""
+  temp_root=""
+  host_uid=""
+  host_gid=""
+  project_created=false
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
   repo_root="$(cd "$script_dir/../.." && pwd -P)"
   host_uid="$(id -u)"
   host_gid="$(id -g)"
   temp_parent="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
   temp_root="$(realpath -e "$temp_parent")"
-  scratch=""
-  worktree=""
-  project_name=""
 
   cleanup() {
     local status=$?
@@ -78,6 +81,17 @@ run_outer() {
   docker_socket_group="$(stat -c '%g' /var/run/docker.sock)"
   case "$docker_socket_group" in '' | *[!0-9]*) die "Docker socket group is invalid" ;; esac
 
+  # RUNNER_TEMP may be private to the runner account. Recovery runs as UID
+  # 10001, so select a root that the dropped process can traverse.
+  can_access_temp_root() {
+    sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- /usr/bin/test -d "$1" \
+      && sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- /usr/bin/test -x "$1"
+  }
+  if ! can_access_temp_root "$temp_root"; then
+    temp_root="$(realpath -e /tmp)"
+  fi
+  can_access_temp_root "$temp_root" || die "Recovery scratch root is not traversable by UID 10001"
+
   run_token="$(printf '%s' "${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-0}" | tr -cd 'a-z0-9')"
   [ -n "$run_token" ] || die "Recovery run token is invalid"
   project_name="connectmd-ci-recovery-$run_token"
@@ -86,6 +100,7 @@ run_outer() {
   scratch="$(realpath -e "$scratch")"
   case "$scratch" in "$temp_root"/connectmd-ci-recovery.*) ;; *) die "Recovery scratch path is unsafe" ;; esac
   worktree="$scratch/app"
+  runtime_home="$scratch/home"
   source_revision="$(git -C "$repo_root" rev-parse HEAD)"
 
   git clone --quiet --no-hardlinks "$repo_root" "$worktree"
@@ -95,16 +110,20 @@ run_outer() {
   for state_file in .env .connectmd-release.env .connectmd-restore-state.env .connectmd-operations.lock; do
     [ ! -e "$worktree/$state_file" ] && [ ! -L "$worktree/$state_file" ] || die "Recovery clone unexpectedly contains runtime state: $state_file"
   done
+  mkdir -p "$runtime_home/.config"
+  chmod 700 "$runtime_home" "$runtime_home/.config"
 
   sudo --non-interactive chown -R "$CONTAINER_UID:$CONTAINER_GID" -- "$scratch"
+  sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- /usr/bin/test -r "$worktree/infra/tests/recovery-roundtrip.sh" \
+    || die "Recovery child script is not readable by UID 10001"
   project_created=true
   sudo --non-interactive setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID" --groups "$docker_socket_group" -- \
-    env -u HOME \
+    env HOME="$runtime_home" XDG_CONFIG_HOME="$runtime_home/.config" \
       CONNECTMD_RECOVERY_INNER=1 \
       CONNECTMD_RECOVERY_SCRATCH="$scratch" \
       CONNECTMD_RECOVERY_TOKEN="$run_token" \
       CONNECTMD_COMPOSE_PROJECT_NAME="$project_name" \
-      "$worktree/infra/tests/recovery-roundtrip.sh"
+      bash "$worktree/infra/tests/recovery-roundtrip.sh"
 }
 
 set_env_value() {
@@ -263,6 +282,7 @@ run_inner() {
   mkdir -p "$backup_dir/.connectmd-lifecycle/deletion-journal" "$witness_dir"
   assert_child_path "$scratch" "$backup_dir"
   assert_child_path "$scratch" "$witness_dir"
+  chmod 700 "$backup_dir"
   [ ! -e "$ENV_FILE" ] && [ ! -L "$ENV_FILE" ] || die "Recovery environment file already exists"
   for state_file in .connectmd-release.env .connectmd-restore-state.env .connectmd-operations.lock; do
     [ ! -e "$REPO_ROOT/$state_file" ] && [ ! -L "$REPO_ROOT/$state_file" ] || die "Recovery runtime state already exists: $state_file"
@@ -270,6 +290,8 @@ run_inner() {
 
   domain="recovery-$token.test"
   public_base="https://$domain"
+  export CONNECTMD_HTTP_BINDING=80
+  export CONNECTMD_HTTPS_BINDING=443
   cp "$REPO_ROOT/.env.example" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   set_env_value POSTGRES_PASSWORD 1111111111111111111111111111111111111111111111111111111111111111
@@ -285,16 +307,16 @@ run_inner() {
   set_env_value CONNECTMD_CLERK_JWKS_URL https://clerk.recovery.test/.well-known/jwks.json
   set_env_value CONNECTMD_CLERK_ISSUER https://clerk.recovery.test
   set_env_value CONNECTMD_CLERK_AUTHORIZED_PARTIES "[\"$public_base\"]"
+  set_env_value CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING '[{"kid":"v1","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]'
   set_env_value CONNECTMD_API_KEY_PEPPER ci-recovery-api-key-pepper-0123456789
   set_env_value CONNECTMD_VERIFICATION_REVIEWER_ID ci-recovery-verification-authority
   set_env_value CONNECTMD_POST_MODERATOR_ID ci-recovery-moderation-authority
   set_env_value CONNECTMD_APPEAL_REVIEWER_ID ci-recovery-appeal-authority
   set_env_value NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY pk_test_Zm9vLWJhci0xLmNsZXJrLmFjY291bnRzLmRldiQ=
+  set_env_value CLERK_SECRET_KEY "sk_test_$(printf '%s' ci-recovery-clerk-secret-0123456789)"
   set_env_value CONNECTMD_DOMAIN "$domain"
   set_env_value CONNECTMD_PUBLIC_BASE_URL "$public_base"
   set_env_value NEXT_PUBLIC_SITE_URL "$public_base"
-  set_env_value CONNECTMD_HTTP_PORT 18081
-  set_env_value CONNECTMD_HTTPS_PORT 18444
   set_env_value ACME_EMAIL ci-recovery@invalid.test
   set_env_value CONNECTMD_BACKUP_DIR "$backup_dir"
   set_env_value CONNECTMD_BACKUP_MIN_FREE_BYTES 1

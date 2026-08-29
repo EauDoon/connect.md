@@ -114,6 +114,33 @@ class _UnauthorizedClient(_Client):
         return _UnauthorizedResponse()
 
 
+class _MissingIndexResetClient(_Client):
+    async def delete(self, url: str, **kwargs):
+        self.calls.append(("DELETE", url, {}))
+        return _Response({"taskUid": 1})
+
+    async def post(self, url: str, **kwargs):
+        self.calls.append(("POST", url, kwargs["json"]))
+        return _Response({"taskUid": 2})
+
+    async def patch(self, url: str, **kwargs):
+        self.calls.append(("PATCH", url, kwargs["json"]))
+        return _Response({"taskUid": 3})
+
+    async def get(self, url: str, **kwargs):
+        self.calls.append(("GET", url, {}))
+        if url.endswith("/tasks/1"):
+            return _Response({"status": "failed", "error": {"code": "index_not_found"}})
+        if url.endswith("/tasks/2"):
+            return _Response({"status": "succeeded"})
+        if url.endswith("/tasks/3"):
+            return _Response({"status": "succeeded"})
+        response = _Response()
+        response.status_code = 404
+        response.is_success = False
+        return response
+
+
 @pytest.mark.asyncio
 async def test_admin_index_setup_declares_public_privacy_attributes(monkeypatch) -> None:
     from app.services import search as search_module
@@ -274,6 +301,32 @@ async def test_task_submission_without_task_id_fails_closed() -> None:
     )
     with pytest.raises(SearchUnavailable, match="did not confirm"):
         await projection._wait_for_task(_Client(), _Response({}), "index configuration")
+
+
+@pytest.mark.asyncio
+async def test_reset_recreates_an_index_missing_at_task_execution(monkeypatch) -> None:
+    from app.services import search as search_module
+
+    client = _MissingIndexResetClient()
+    monkeypatch.setattr(search_module.httpx, "AsyncClient", lambda **_: client)
+    projection = MeiliSearchProjection(
+        Settings(
+            meilisearch_url="http://meilisearch:7700",
+            meilisearch_api_key="master-key-at-least-16",
+        )
+    )
+
+    await projection.reset_index()
+
+    assert [method for method, _, _ in client.calls] == [
+        "DELETE",
+        "GET",
+        "GET",
+        "POST",
+        "GET",
+        "PATCH",
+        "GET",
+    ]
 
 
 @pytest.mark.asyncio

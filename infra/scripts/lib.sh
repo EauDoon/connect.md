@@ -131,8 +131,14 @@ acquire_operation_lock() {
     [ ! -L "$lock_file" ] || die "Connect.md operation lock path must not be a symlink"
     descriptor_identity="$(stat -Lc '%F:%h:%d:%i' -- "/proc/$$/fd/9" 2>/dev/null)" \
       || die "Connect.md operation lock descriptor cannot be inspected"
-    case "$lock_identity" in regular\ file:1:*:*) ;; *) die "Connect.md operation lock must be a regular single-link file" ;; esac
-    case "$descriptor_identity" in regular\ file:1:*:*) ;; *) die "Connect.md operation lock descriptor must be a regular single-link file" ;; esac
+    case "$lock_identity" in
+      regular\ file:1:*:*|regular\ empty\ file:1:*:*) ;;
+      *) die "Connect.md operation lock must be a regular single-link file" ;;
+    esac
+    case "$descriptor_identity" in
+      regular\ file:1:*:*|regular\ empty\ file:1:*:*) ;;
+      *) die "Connect.md operation lock descriptor must be a regular single-link file" ;;
+    esac
     [ "$descriptor_identity" = "$lock_identity" ] \
       || die "Connect.md operation lock descriptor no longer matches the lock path"
   }
@@ -302,6 +308,34 @@ validate_public_api_base() {
   esac
 }
 
+validate_canonical_https_origin() {
+  local value="$1" variable_name="$2" hostname
+  case "$value" in
+    https://*) hostname="${value#https://}" ;;
+    *) die "$variable_name must be a canonical HTTPS origin" ;;
+  esac
+  is_lowercase_dns_hostname "$hostname" \
+    || die "$variable_name must be a canonical HTTPS origin"
+}
+
+validate_tls_termination() {
+  local mode="$1" traefik_enabled="$2" http_binding="$3" https_binding="$4"
+  case "$mode" in auto | external) ;; *) die "CONNECTMD_TLS_MODE must be auto or external" ;; esac
+  case "$traefik_enabled" in true | false) ;; *) die "CONNECTMD_TRAEFIK_ENABLED must be true or false" ;; esac
+  if [ "$mode" = external ]; then
+    case "$http_binding" in
+      127.0.0.1:*:80) ;;
+      *) die "External TLS termination requires a loopback-only CONNECTMD_HTTP_BINDING" ;;
+    esac
+    case "$https_binding" in
+      127.0.0.1:*:443) ;;
+      *) die "External TLS termination requires a loopback-only CONNECTMD_HTTPS_BINDING" ;;
+    esac
+  elif [ "$traefik_enabled" = true ]; then
+    die "Traefik routing requires CONNECTMD_TLS_MODE=external"
+  fi
+}
+
 validate_public_api_base_environment_override() {
   local configured_base="$1"
   if [[ -v NEXT_PUBLIC_API_BASE_URL && "$NEXT_PUBLIC_API_BASE_URL" != "$configured_base" ]]; then
@@ -419,7 +453,7 @@ except (AssertionError, UnicodeEncodeError, ValueError, TypeError, json.JSONDeco
 }
 
 validate_production_env() {
-  local postgres_user postgres_password migrator_db_password api_db_password projection_db_password projection_admin_db_password erasure_db_password backup_db_password meili_key meili_search_key projection_meili_key erasure_meili_key clerk_jwks clerk_issuer clerk_audience clerk_parties api_key_pepper clerk_publishable_key clerk_secret_key domain public_base site_url api_base verification_reviewer_id verification_reviewer_role post_moderator_id post_moderator_role appeal_reviewer_id appeal_reviewer_role api_readiness_path recruiting_enabled lifecycle_enabled lifecycle_frontend lifecycle_hmac lifecycle_aead witness_hmac witness_dir witness_path backup_path clerk_backend_secret clerk_backend_base_url database_secret other_database_secret
+  local postgres_user postgres_password migrator_db_password api_db_password projection_db_password projection_admin_db_password erasure_db_password backup_db_password meili_key meili_search_key projection_meili_key erasure_meili_key clerk_jwks clerk_issuer clerk_audience clerk_parties clerk_api_configured api_key_pepper clerk_publishable_key clerk_secret_key clerk_frontend_configured domain public_base site_url api_base tls_mode traefik_enabled http_binding https_binding verification_reviewer_id verification_reviewer_role post_moderator_id post_moderator_role appeal_reviewer_id appeal_reviewer_role api_readiness_path recruiting_enabled lifecycle_enabled lifecycle_frontend lifecycle_hmac lifecycle_aead witness_hmac witness_dir witness_path backup_path clerk_backend_secret clerk_backend_base_url database_secret other_database_secret
   assert_env_file_matches_process_environment
   postgres_user="$(read_env_value POSTGRES_USER)" || die "POSTGRES_USER must be set exactly once in .env"
   [ "$postgres_user" = postgres ] || die "POSTGRES_USER must remain the operator-only postgres bootstrap identity"
@@ -433,16 +467,21 @@ validate_production_env() {
   projection_admin_db_password="$(require_secret_value CONNECTMD_PROJECTION_ADMIN_DB_PASSWORD)"
   erasure_db_password="$(require_secret_value CONNECTMD_ACCOUNT_ERASURE_DB_PASSWORD)"
   backup_db_password="$(require_secret_value CONNECTMD_BACKUP_DB_PASSWORD)"
-  clerk_jwks="$(require_secret_value CONNECTMD_CLERK_JWKS_URL)"
-  clerk_issuer="$(require_secret_value CONNECTMD_CLERK_ISSUER)"
+  clerk_jwks="$(read_env_optional_value CONNECTMD_CLERK_JWKS_URL)" || die "CONNECTMD_CLERK_JWKS_URL must appear at most once in .env"
+  clerk_issuer="$(read_env_optional_value CONNECTMD_CLERK_ISSUER)" || die "CONNECTMD_CLERK_ISSUER must appear at most once in .env"
   clerk_audience="$(read_env_optional_value CONNECTMD_CLERK_AUDIENCE)" || die "CONNECTMD_CLERK_AUDIENCE must appear at most once in .env"
-  clerk_parties="$(require_secret_value CONNECTMD_CLERK_AUTHORIZED_PARTIES)"
+  clerk_parties="$(read_env_optional_value CONNECTMD_CLERK_AUTHORIZED_PARTIES)" || die "CONNECTMD_CLERK_AUTHORIZED_PARTIES must appear at most once in .env"
   api_key_pepper="$(require_secret_value CONNECTMD_API_KEY_PEPPER)"
-  clerk_publishable_key="$(require_secret_value NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)"
-  clerk_secret_key="$(require_secret_value CLERK_SECRET_KEY)"
+  clerk_publishable_key="$(read_env_optional_value NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)" || die "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY must appear at most once in .env"
+  clerk_secret_key="$(read_env_optional_value CLERK_SECRET_KEY)" || die "CLERK_SECRET_KEY must appear at most once in .env"
   domain="$(require_hostname)"
   public_base="$(require_secret_value CONNECTMD_PUBLIC_BASE_URL)"
   site_url="$(require_secret_value NEXT_PUBLIC_SITE_URL)"
+  tls_mode="$(read_env_optional_value CONNECTMD_TLS_MODE)" || die "CONNECTMD_TLS_MODE must appear at most once in .env"
+  traefik_enabled="$(read_env_optional_value CONNECTMD_TRAEFIK_ENABLED)" || die "CONNECTMD_TRAEFIK_ENABLED must appear at most once in .env"
+  http_binding="$(read_env_optional_value CONNECTMD_HTTP_BINDING)" || die "CONNECTMD_HTTP_BINDING must appear at most once in .env"
+  https_binding="$(read_env_optional_value CONNECTMD_HTTPS_BINDING)" || die "CONNECTMD_HTTPS_BINDING must appear at most once in .env"
+  validate_tls_termination "${tls_mode:-auto}" "${traefik_enabled:-false}" "$http_binding" "$https_binding"
   verification_reviewer_id="$(require_secret_value CONNECTMD_VERIFICATION_REVIEWER_ID)"
   verification_reviewer_role="$(read_env_value CONNECTMD_VERIFICATION_REVIEWER_ROLE)" || die "CONNECTMD_VERIFICATION_REVIEWER_ROLE must be set exactly once in .env"
   post_moderator_id="$(require_secret_value CONNECTMD_POST_MODERATOR_ID)"
@@ -465,19 +504,36 @@ validate_production_env() {
   [ "$meili_search_key" != "$meili_key" ] || die "API search key must differ from MEILI_MASTER_KEY"
   [ "$projection_meili_key" != "$meili_key" ] || die "Projection key must differ from MEILI_MASTER_KEY"
   [ "$meili_search_key" != "$projection_meili_key" ] || die "API search and projection keys must be distinct"
-  case "$clerk_jwks" in https://*) ;; *) die "CLERK_JWKS_URL must use HTTPS" ;; esac
-  case "$clerk_issuer" in https://*) ;; *) die "CONNECTMD_CLERK_ISSUER must use HTTPS" ;; esac
-  case "$clerk_audience" in *[!A-Za-z0-9:./_-]*) die "CONNECTMD_CLERK_AUDIENCE contains invalid characters" ;; esac
-  case "$clerk_parties" in \[*\]) ;; *) die "CONNECTMD_CLERK_AUTHORIZED_PARTIES must be a JSON list" ;; esac
+  clerk_api_configured=false
+  if [ -n "$clerk_jwks$clerk_issuer$clerk_audience" ] || { [ -n "$clerk_parties" ] && [ "$clerk_parties" != "[]" ]; }; then
+    clerk_jwks="$(require_secret_value CONNECTMD_CLERK_JWKS_URL)"
+    clerk_issuer="$(require_secret_value CONNECTMD_CLERK_ISSUER)"
+    clerk_parties="$(require_secret_value CONNECTMD_CLERK_AUTHORIZED_PARTIES)"
+    case "$clerk_jwks" in https://*) ;; *) die "CLERK_JWKS_URL must use HTTPS" ;; esac
+    case "$clerk_issuer" in https://*) ;; *) die "CONNECTMD_CLERK_ISSUER must use HTTPS" ;; esac
+    case "$clerk_audience" in *[!A-Za-z0-9:./_-]*) die "CONNECTMD_CLERK_AUDIENCE contains invalid characters" ;; esac
+    case "$clerk_parties" in \[*\]) ;; *) die "CONNECTMD_CLERK_AUTHORIZED_PARTIES must be a JSON list" ;; esac
+    clerk_api_configured=true
+  fi
   [ "${#api_key_pepper}" -ge 32 ] || die "CONNECTMD_API_KEY_PEPPER must be at least 32 characters"
-  validate_clerk_publishable_key "$clerk_publishable_key"
-  validate_clerk_secret_key "$clerk_secret_key"
+  clerk_frontend_configured=false
+  if [ -n "$clerk_publishable_key$clerk_secret_key" ]; then
+    clerk_publishable_key="$(require_secret_value NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)"
+    clerk_secret_key="$(require_secret_value CLERK_SECRET_KEY)"
+    validate_clerk_publishable_key "$clerk_publishable_key"
+    validate_clerk_secret_key "$clerk_secret_key"
+    [ "$clerk_api_configured" = true ] \
+      || die "Frontend Clerk keys require complete API Clerk verification configuration"
+    clerk_frontend_configured=true
+  fi
   case "$public_base" in "https://$domain" | "https://$domain/") ;; *) die "CONNECTMD_PUBLIC_BASE_URL must be the canonical CONNECTMD_DOMAIN HTTPS origin" ;; esac
-  case "$site_url" in "https://$domain" | "https://$domain/") ;; *) die "NEXT_PUBLIC_SITE_URL must be the canonical CONNECTMD_DOMAIN HTTPS origin" ;; esac
+  validate_canonical_https_origin "$site_url" NEXT_PUBLIC_SITE_URL
   api_base="$(read_env_optional_value NEXT_PUBLIC_API_BASE_URL)" || die "NEXT_PUBLIC_API_BASE_URL must appear at most once in .env"
   validate_public_api_base_environment_override "$api_base"
   validate_public_api_base "$api_base" "https://$domain"
-  validate_clerk_authorized_site_origin "$clerk_parties" "https://$domain"
+  if [ "$clerk_api_configured" = true ]; then
+    validate_clerk_authorized_site_origin "$clerk_parties" "$site_url"
+  fi
   [ "$verification_reviewer_role" = "recruiting_verifier" ] || die "CONNECTMD_VERIFICATION_REVIEWER_ROLE must be recruiting_verifier"
   [ "$post_moderator_role" = "content_moderator" ] || die "CONNECTMD_POST_MODERATOR_ROLE must be content_moderator"
   [ "$appeal_reviewer_role" = "appeal_reviewer" ] || die "CONNECTMD_APPEAL_REVIEWER_ROLE must be appeal_reviewer"
@@ -496,6 +552,10 @@ validate_production_env() {
   case "$lifecycle_enabled" in true | false) ;; *) die "CONNECTMD_ACCOUNT_LIFECYCLE_ENABLED must be true or false" ;; esac
   case "$lifecycle_frontend" in true | false) ;; *) die "NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED must be true or false" ;; esac
   [ "$lifecycle_enabled" = "$lifecycle_frontend" ] || die "Account lifecycle API and frontend flags must match"
+  if [ "$lifecycle_enabled" = true ]; then
+    [ "$clerk_frontend_configured" = true ] \
+      || die "Account lifecycle requires complete API and frontend Clerk configuration"
+  fi
   lifecycle_hmac="$(require_secret_value CONNECTMD_LIFECYCLE_HMAC_KEY)"
   lifecycle_aead="$(require_secret_value CONNECTMD_LIFECYCLE_AEAD_KEY)"
   witness_hmac="$(require_secret_value CONNECTMD_DELETION_WITNESS_HMAC_KEY)"
@@ -542,6 +602,16 @@ wait_for_service() {
   container="$(compose ps -q "$service")"
   [ -n "$container" ] || die "No container found for $service"
 
+  diagnose_search_projection_worker() {
+    [ "$service" = search-projection-worker ] || return 0
+    printf 'SEARCH_PROJECTION_WORKER_LOGS_BEGIN\n' >&2
+    docker logs --tail 40 "$container" >&2 || true
+    docker inspect --format 'SEARCH_PROJECTION_WORKER_STATE=status={{.State.Status}} restarting={{.State.Restarting}} oom_killed={{.State.OOMKilled}} exit_code={{.State.ExitCode}} restart_count={{.RestartCount}}' "$container" >&2 || true
+    docker top "$container" -eo pid,ppid,stat,comm,args >&2 || true
+    docker inspect --format 'SEARCH_PROJECTION_WORKER_HEALTH={{json .State.Health}}' "$container" >&2 || true
+    printf 'SEARCH_PROJECTION_WORKER_LOGS_END\n' >&2
+  }
+
   while [ "$attempts" -gt 0 ]; do
     status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || true)"
     case "$status" in
@@ -549,12 +619,14 @@ wait_for_service() {
         return 0
         ;;
       unhealthy | exited | dead)
+        diagnose_search_projection_worker
         die "$service entered state: $status"
         ;;
     esac
     sleep 2
     attempts=$((attempts - 1))
   done
+  diagnose_search_projection_worker
   die "Timed out waiting for $service to become healthy"
 }
 
@@ -1152,7 +1224,7 @@ validate_acceptance_receipt() {
 
 load_release_acceptance() {
   local image_tag="$1" expected_digest="${2:-}" expected_stage_digest="${3:-}"
-  local root candidate receipt selected selected_at accepted_at digest matches=0
+  local root candidate receipt selected="" selected_at="" accepted_at digest matches=0
   load_release_receipt "$image_tag" >/dev/null
   if [ -n "$expected_digest" ]; then
     printf '%s' "$expected_digest" | grep -Eq '^[0-9a-f]{64}$' || die "Expected acceptance digest is invalid"
@@ -1168,7 +1240,7 @@ load_release_acceptance() {
   fi
   root="$(acceptance_receipt_root)"
   [ -d "$root" ] && [ ! -L "$root" ] || die "Release acceptance history is missing or unsafe"
-  for candidate in "$root"/acceptance-"$image_tag"-*.env; do
+  for candidate in "$root"/acceptance-"$image_tag"-????????????????????????????????????????????????????????????????.env; do
     [ -f "$candidate" ] && [ ! -L "$candidate" ] || continue
     digest="$(digest_of_file "$candidate")"
     if [ -n "$expected_digest" ] && [ "$digest" != "$expected_digest" ]; then

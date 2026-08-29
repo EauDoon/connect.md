@@ -21,7 +21,11 @@ export {
   validateSearchFixture,
   validateSearchUnavailableFixture,
 } from "./fixture-contracts.mjs";
-export { validatePlaywrightJsonReceipt } from "./production-runtime.mjs";
+export {
+  summarizePlaywrightResult,
+  validatePlaywrightJsonReceipt,
+  waitForChildOutput,
+} from "./production-runtime.mjs";
 
 const isDirectExecution = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isDirectExecution) {

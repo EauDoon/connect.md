@@ -478,6 +478,40 @@ def test_production_allows_additional_clerk_authorized_parties() -> None:
     ]
 
 
+def test_production_allows_public_only_authentication() -> None:
+    settings = _production(
+        clerk_jwks_url="",
+        clerk_issuer="",
+        clerk_audience="",
+        clerk_authorized_parties=[],
+    )
+
+    settings.require_api_runtime_configuration()
+    assert settings.clerk_jwks_url is None
+    assert settings.clerk_authorized_parties == []
+
+
+def test_production_public_only_mode_rejects_lifecycle_enablement() -> None:
+    with pytest.raises((ValueError, ValidationError), match="lifecycle requires Clerk"):
+        _production(
+            clerk_jwks_url=None,
+            clerk_issuer=None,
+            clerk_audience=None,
+            clerk_authorized_parties=[],
+            account_lifecycle_enabled=True,
+        )
+
+
+def test_production_rejects_a_lone_clerk_audience() -> None:
+    with pytest.raises((ValueError, ValidationError), match="requires a JWKS URL"):
+        _production(
+            clerk_jwks_url=None,
+            clerk_issuer=None,
+            clerk_audience="connectmd-api",
+            clerk_authorized_parties=[],
+        )
+
+
 def test_production_allows_empty_or_canonical_explicit_cors_origins() -> None:
     assert _production(cors_origins=[]).cors_origins == []
     assert _production(

@@ -86,7 +86,7 @@ def test_production_worker_requires_its_dedicated_database_login(tmp_path) -> No
 
 
 async def test_run_worker_disposes_engine_when_initial_role_attestation_fails(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, capsys
 ) -> None:
     settings = SearchProjectionWorkerSettings(
         database_url="sqlite+aiosqlite://",
@@ -127,6 +127,7 @@ async def test_run_worker_disposes_engine_when_initial_role_attestation_fails(
 
     assert engine.disposed is True
     assert not settings.search_projection_heartbeat_path.exists()
+    assert capsys.readouterr().out == "event=search_projection_worker_starting\n"
 
 
 def executor(app, search: FakeSearch, **overrides: int) -> SearchProjectionExecutor:

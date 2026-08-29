@@ -1,45 +1,36 @@
 import type { MetadataRoute } from "next";
 
 import { absoluteSiteUrl } from "@/lib/public-document";
-import { recruitingReleaseEnabled } from "@/lib/recruiting-release";
-
-export const dynamic = "force-dynamic";
 
 export default function robots(): MetadataRoute.Robots {
-  const recruitingEnabled = recruitingReleaseEnabled();
   return {
     rules: {
       userAgent: "*",
-      allow: [
-        "/",
-        "/search",
-        "/discover",
-        "/p/",
-        "/r/",
-        "/posts/",
-        "/agents/",
-        "/representatives",
-        "/agent-directory",
-        ...(recruitingEnabled ? ["/organizations", "/jobs"] : []),
-      ],
+      allow: ["/", "/human", "/md", "/trust", "/agent-readme.md", "/llms.txt"],
       disallow: [
         "/account",
-        "/human",
-        "/md",
         "/agents",
-        "/feed",
-        "/moderation",
-        "/moderation-review",
+        "/agent-directory",
         "/appeal-review",
-        "/inbox",
         "/applications",
+        "/discover",
         "/employer",
-        "/verification-review",
-        "/network",
+        "/feed",
+        "/inbox",
+        "/jobs",
         "/messages/",
-        ...(recruitingEnabled ? [] : ["/organizations", "/jobs"]),
+        "/moderation",
+        "/network",
+        "/organizations",
+        "/p/",
+        "/posts/",
+        "/r/",
+        "/representatives",
+        "/search",
+        "/verification-review",
+        "/workspace",
       ],
     },
-    sitemap: [0, 1, 2, 3].map((id) => absoluteSiteUrl(`/sitemap/${id}.xml`))
+    sitemap: absoluteSiteUrl("/sitemap.xml"),
   };
 }

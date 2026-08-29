@@ -353,6 +353,14 @@ class Settings(BaseSettings):
         """Reject noncanonical raw URLs before Pydantic's URL coercion normalizes them."""
         if not isinstance(values, dict):
             return values
+        if any(
+            values.get(field) == ""
+            for field in ("clerk_jwks_url", "clerk_issuer", "clerk_audience")
+        ):
+            values = dict(values)
+            for field in ("clerk_jwks_url", "clerk_issuer", "clerk_audience"):
+                if values.get(field) == "":
+                    values[field] = None
         environment = values.get("environment", "development")
         if not isinstance(environment, str) or environment.lower() != "production":
             return values
@@ -408,6 +416,7 @@ class Settings(BaseSettings):
                 )
             if (
                 isinstance(raw_authorized_parties, list)
+                and raw_authorized_parties
                 and canonical_public_origin not in raw_authorized_parties
             ):
                 raise ValueError(
@@ -510,28 +519,41 @@ class Settings(BaseSettings):
                 )
             if self.ingest_jobs_path is None:
                 raise ValueError("production binary ingestion requires CONNECTMD_INGEST_JOBS_PATH")
-            if self.clerk_jwks_url is None:
-                raise ValueError("production Clerk JWKS URL is required and must use HTTPS")
-            if _canonical_https_jwks_url(str(self.clerk_jwks_url)) is None:
-                raise ValueError("production Clerk JWKS URL must be a canonical HTTPS URL")
-            if _uses_committed_production_placeholder(self.clerk_jwks_url):
-                raise ValueError("production Clerk JWKS URL must not use a committed placeholder")
-            if not self.clerk_issuer:
-                raise ValueError("production Clerk issuer is required and must use HTTPS")
-            if _canonical_https_origin(self.clerk_issuer) is None:
-                raise ValueError("production Clerk issuer must be a canonical HTTPS origin")
-            if _uses_committed_production_placeholder(self.clerk_issuer):
-                raise ValueError("production Clerk issuer must not use a committed placeholder")
-            if not self.clerk_authorized_parties:
-                raise ValueError("production Clerk authorized parties must be explicit")
-            if any(
-                _canonical_https_origin(party) is None
-                or _uses_committed_production_placeholder(party)
-                for party in self.clerk_authorized_parties
-            ):
-                raise ValueError(
-                    "production Clerk authorized parties must be canonical explicit HTTPS origins"
+            clerk_configured = any(
+                (
+                    self.clerk_jwks_url is not None,
+                    bool(self.clerk_issuer),
+                    bool(self.clerk_audience),
+                    bool(self.clerk_authorized_parties),
                 )
+            )
+            if clerk_configured:
+                if self.clerk_jwks_url is None:
+                    raise ValueError("production Clerk configuration requires a JWKS URL")
+                if _canonical_https_jwks_url(str(self.clerk_jwks_url)) is None:
+                    raise ValueError("production Clerk JWKS URL must be a canonical HTTPS URL")
+                if _uses_committed_production_placeholder(self.clerk_jwks_url):
+                    raise ValueError(
+                        "production Clerk JWKS URL must not use a committed placeholder"
+                    )
+                if not self.clerk_issuer:
+                    raise ValueError("production Clerk configuration requires an issuer")
+                if _canonical_https_origin(self.clerk_issuer) is None:
+                    raise ValueError("production Clerk issuer must be a canonical HTTPS origin")
+                if _uses_committed_production_placeholder(self.clerk_issuer):
+                    raise ValueError("production Clerk issuer must not use a committed placeholder")
+                if not self.clerk_authorized_parties:
+                    raise ValueError("production Clerk configuration requires authorized parties")
+                if any(
+                    _canonical_https_origin(party) is None
+                    or _uses_committed_production_placeholder(party)
+                    for party in self.clerk_authorized_parties
+                ):
+                    raise ValueError(
+                        "production Clerk authorized parties must be canonical explicit HTTPS origins"
+                    )
+            elif self.account_lifecycle_enabled:
+                raise ValueError("production account lifecycle requires Clerk authentication")
             _validate_production_cors_origins(self.cors_origins)
             if self.public_base_url is None:
                 raise ValueError(

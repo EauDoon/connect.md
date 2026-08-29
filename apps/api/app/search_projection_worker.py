@@ -153,6 +153,7 @@ async def _refresh_health_heartbeat(
 
 
 async def run_worker(settings: SearchProjectionWorkerSettings) -> int:
+    print("event=search_projection_worker_starting", flush=True)
     settings.require_runtime_configuration()
     projection = MeiliSearchProjection(settings)
     if not projection.enabled:
@@ -163,6 +164,7 @@ async def run_worker(settings: SearchProjectionWorkerSettings) -> int:
     try:
         async with session_factory() as session:
             await require_database_role(session, SEARCH_PROJECTION_DATABASE_ROLE)
+        print("event=search_projection_worker_database_ready", flush=True)
         stopping = asyncio.Event()
         loop = asyncio.get_running_loop()
         for candidate in (signal.SIGINT, signal.SIGTERM):

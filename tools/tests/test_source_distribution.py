@@ -110,6 +110,8 @@ class SourceDistributionTests(unittest.TestCase):
         fake = FakeGit(
             [
                 entry("CHANGELOG.md", b"# Changelog\n"),
+                entry(".gitattributes", b"* text=auto eol=lf\n"),
+                entry("llms.txt", b"# Connect.md\n"),
                 entry("README.md", b"# Connect.md\n"),
                 entry("VERSION", b"0.2.0\n"),
             ]
@@ -120,7 +122,22 @@ class SourceDistributionTests(unittest.TestCase):
                 Path(temporary) / "out" / "source.tar.gz",
                 git_runner=fake,
             )
-        self.assertEqual(result.file_count, 3)
+        self.assertEqual(result.file_count, 5)
+
+    def test_export_allows_committed_helpers_and_surface_source(self) -> None:
+        fake = FakeGit(
+            [
+                entry("scripts/extract-changelog-section.py"),
+                entry("surfaces/tanstack-start/README.md"),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            result = distribution.export_distribution(
+                Path(temporary) / "repo",
+                Path(temporary) / "source.tar.gz",
+                git_runner=fake,
+            )
+        self.assertEqual(result.file_count, 2)
 
     def test_export_rejects_forbidden_tracked_paths_and_modes(self) -> None:
         cases = [
@@ -134,6 +151,7 @@ class SourceDistributionTests(unittest.TestCase):
             [entry("README.md"), entry("apps/web/.turbo/cache.json")],
             [entry("README.md"), entry("apps/web/.nyc_output/coverage.json")],
             [entry("README.md"), entry("apps/web/.eslintcache")],
+            [entry("README.md"), entry("surfaces/other/README.md")],
         ]
         for entries in cases:
             with self.subTest(entries=entries):

@@ -80,4 +80,29 @@ describe("self-hosted Monaco contract", () => {
     expect(smoke).toContain('monaco_loader="$(https_get /monaco/vs/loader.js)"');
     expect(smoke).toContain('assert_monaco_loader "$monaco_loader"');
   });
+
+  it("keeps Clerk protection and challenge directives aligned in Docker CSP and smoke expectations", () => {
+    const nginx = source("infra/nginx/conf.d/connectmd.tls.conf");
+    const smoke = source("infra/tests/https-smoke.sh");
+
+    const nginxPolicy = nginx.match(/add_header Content-Security-Policy "([^"]+)"/u)?.[1];
+    const smokePolicy = smoke.match(/readonly EXPECTED_CSP="([^"]+)"/u)?.[1];
+    expect(nginxPolicy).toBeDefined();
+    expect(smokePolicy).toBe(nginxPolicy?.replaceAll("__CONNECTMD_DOMAIN__", "${DOMAIN}"));
+
+    for (const policy of [nginxPolicy, smokePolicy]) {
+      const directives = new Map(policy?.split("; ").map((directive) => {
+        const [name, ...sources] = directive.split(" ");
+        return [name, sources];
+      }));
+      for (const name of ["script-src", "script-src-elem", "frame-src"]) {
+        expect(directives.get(name)).toEqual(expect.arrayContaining([
+          "https://*.protect.clerk.com",
+          "https://challenges.cloudflare.com",
+        ]));
+      }
+      expect(directives.get("connect-src")).toContain("https://*.protect.clerk.com:*");
+      expect(policy).not.toContain("unsafe-eval");
+    }
+  });
 });

@@ -57,8 +57,8 @@ services:
     cpus: "0.25"
     pids_limit: 64
     ports:
-      - "${CONNECTMD_HTTP_PORT:-80}:80"
-      - "${CONNECTMD_HTTPS_PORT:-443}:443"
+      - "${CONNECTMD_HTTP_BINDING:-${CONNECTMD_HTTP_PORT:-80}:80}"
+      - "${CONNECTMD_HTTPS_BINDING:-${CONNECTMD_HTTPS_PORT:-443}:443}"
 
   certbot:
     image: certbot/certbot:v5.7.0@sha256:34ee91d2f43008eb78a007d22f23ed4b2eaa9a454cb27ca2c042b49527a695b4

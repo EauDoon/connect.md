@@ -7,6 +7,7 @@ import json
 import os
 import re
 import stat
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -164,7 +165,7 @@ class DeletionCommitmentJournal:
                 raise DeletionJournalError(f"{label} lock permissions are unsafe")
         handle = os.fdopen(descriptor, "a+b" if exclusive or os.name == "nt" else "rb")
         try:
-            if os.name == "nt":  # pragma: no cover - exercised by Windows CI only
+            if sys.platform == "win32":  # pragma: no cover - exercised by Windows CI only
                 import msvcrt
 
                 if handle.seek(0, os.SEEK_END) == 0:
@@ -181,7 +182,7 @@ class DeletionCommitmentJournal:
                 )
             yield
         finally:
-            if os.name == "nt":  # pragma: no cover - exercised by Windows CI only
+            if sys.platform == "win32":  # pragma: no cover - exercised by Windows CI only
                 import msvcrt
 
                 handle.seek(0)

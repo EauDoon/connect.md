@@ -1,15 +1,12 @@
 "use client";
 
-import { SignInButton, UserButton } from "@clerk/nextjs";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { LayoutGrid, Menu, Settings, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useConnectmdAuth } from "@/components/auth-provider";
-import { accountLifecycleFeatureEnabled } from "@/lib/account-lifecycle-api";
-import { PRIMARY_NAVIGATION, PUBLIC_PRIMARY_NAVIGATION, PUBLIC_UTILITY_NAVIGATION } from "@/lib/navigation";
+import { PUBLIC_PRIMARY_NAVIGATION, PUBLIC_UTILITY_NAVIGATION } from "@/lib/navigation";
 import { bindEscapeToCloseMobileNavigation, closeMobileNavigationAndRestoreFocus } from "@/lib/mobile-navigation";
 import { cn } from "@/lib/utils";
 
@@ -29,17 +26,13 @@ function NavigationLink({ href, label, active, onNavigate, mobile = false }: { h
   </Link>;
 }
 
-export function SiteHeader({ privateWorkspacesEnabled = false }: { privateWorkspacesEnabled?: boolean }) {
+export function SiteHeader() {
   const pathname = usePathname();
-  const { configured, isLoaded, isSignedIn } = useConnectmdAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
   const reducedMotion = useReducedMotion();
-  const lifecycleEnabled = accountLifecycleFeatureEnabled();
-  const privateNavigationEnabled = privateWorkspacesEnabled && configured;
-  const primaryNavigation = privateNavigationEnabled ? PRIMARY_NAVIGATION : PUBLIC_PRIMARY_NAVIGATION;
   const closeMobileNavigation = useCallback(() => setMobileOpen(false), []);
-  const isNavigationLinkActive = useCallback((href: string) => href === "/human" ? pathname === "/human" || pathname === "/md" : pathname === href, [pathname]);
+  const isNavigationLinkActive = useCallback((href: string) => pathname === href, [pathname]);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -55,14 +48,11 @@ export function SiteHeader({ privateWorkspacesEnabled = false }: { privateWorksp
         </Link>
         <div className="flex items-center gap-1">
           <div className="hidden items-center gap-0.5 lg:flex" aria-label="Product navigation">
-            {primaryNavigation.map((link) => <NavigationLink key={link.href} {...link} active={isNavigationLinkActive(link.href)} />)}
+            {PUBLIC_PRIMARY_NAVIGATION.map((link) => <NavigationLink key={link.href} {...link} active={isNavigationLinkActive(link.href)} />)}
           </div>
           <div className="hidden items-center border-l border-white/10 pl-1 lg:flex" role="group" aria-label="Trust and data navigation">
             {PUBLIC_UTILITY_NAVIGATION.map((link) => <NavigationLink key={link.href} {...link} active={isNavigationLinkActive(link.href)} />)}
           </div>
-          {privateNavigationEnabled && <div className="ml-1 border-l border-white/10 pl-2">
-            {!isLoaded ? <span className="block size-11 animate-pulse rounded-full bg-white/10" role="status" aria-label="Loading account" /> : isSignedIn ? <div className="flex items-center gap-1"><Link href="/workspace" aria-label="Your workspace" aria-current={pathname === "/workspace" ? "page" : undefined} className="hidden min-h-11 items-center gap-2 rounded-full border border-white/15 px-3 text-sm font-semibold text-white transition hover:bg-white/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid sm:inline-flex"><LayoutGrid className="size-4" aria-hidden /><span className="sr-only xl:not-sr-only">Workspace</span></Link><UserButton appearance={{ elements: { avatarBox: "size-11" } }} />{lifecycleEnabled && <Link href="/account" aria-label="Account privacy" aria-current={pathname === "/account" ? "page" : undefined} className="hidden min-h-11 items-center gap-2 rounded-full border border-white/15 px-3 text-sm font-semibold text-white transition hover:bg-white/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid sm:inline-flex"><Settings className="size-4" aria-hidden /><span className="sr-only xl:not-sr-only">Account</span></Link>}</div> : <SignInButton mode="modal"><button type="button" className="min-h-11 rounded-full border border-white/15 px-3 text-sm font-semibold text-white transition hover:bg-white/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid">Sign in</button></SignInButton>}
-          </div>}
           <button ref={mobileToggleRef} type="button" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-controls="mobile-primary-navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen((open) => !open)} className="inline-flex size-11 items-center justify-center rounded-full border border-white/15 text-white transition hover:bg-white/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid lg:hidden">
             {mobileOpen ? <X className="size-5" aria-hidden /> : <Menu className="size-5" aria-hidden />}
           </button>
@@ -79,12 +69,10 @@ export function SiteHeader({ privateWorkspacesEnabled = false }: { privateWorksp
           className="overflow-hidden border-t border-white/[.07] lg:hidden"
         >
           <div className="mx-auto grid max-w-7xl gap-2 px-5 py-4">
-            {primaryNavigation.map((link) => <NavigationLink key={link.href} {...link} mobile active={isNavigationLinkActive(link.href)} onNavigate={() => closeMobileNavigation()} />)}
+            {PUBLIC_PRIMARY_NAVIGATION.map((link) => <NavigationLink key={link.href} {...link} mobile active={isNavigationLinkActive(link.href)} onNavigate={() => closeMobileNavigation()} />)}
             <div className="mt-1 border-t border-white/10 pt-3" role="group" aria-label="Trust and data navigation">
               {PUBLIC_UTILITY_NAVIGATION.map((link) => <NavigationLink key={link.href} {...link} mobile active={isNavigationLinkActive(link.href)} onNavigate={() => closeMobileNavigation()} />)}
             </div>
-            {privateNavigationEnabled && isLoaded && isSignedIn && <NavigationLink href="/workspace" label="Workspace" mobile active={isNavigationLinkActive("/workspace")} onNavigate={() => closeMobileNavigation()} />}
-            {privateNavigationEnabled && isLoaded && isSignedIn && lifecycleEnabled && <NavigationLink href="/account" label="Account privacy" mobile active={isNavigationLinkActive("/account")} onNavigate={() => closeMobileNavigation()} />}
           </div>
         </motion.nav>}
       </AnimatePresence>

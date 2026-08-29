@@ -439,7 +439,7 @@ async def test_precommit_verification_failure_leaves_no_file_or_graph(
 
 
 async def test_reconciler_enablement_and_readiness_follow_attempted_scan(
-    api_client, tmp_path: Path
+    api_client, tmp_path: Path, monkeypatch
 ) -> None:
     app, client = api_client
     reconciler = app.state.artifact_reconciler
@@ -456,6 +456,7 @@ async def test_reconciler_enablement_and_readiness_follow_attempted_scan(
     assert readiness.status_code == 503
     assert readiness.json()["storage"] == "reconciliation_unavailable"
 
+    monkeypatch.delenv("CONNECTMD_DATABASE_URL", raising=False)
     settings = Settings(
         storage_path=tmp_path / "local-storage",
         api_key_pepper=PEPPER,

@@ -117,6 +117,7 @@ _ALLOWED_ROOT_FILES = frozenset(
         ".dockerignore",
         ".editorconfig",
         ".env.example",
+        ".gitattributes",
         ".gitignore",
         "CHANGELOG.md",
         "LICENSE",
@@ -124,6 +125,7 @@ _ALLOWED_ROOT_FILES = frozenset(
         "VERSION",
         "compose.prod.yaml",
         "compose.yaml",
+        "llms.txt",
     }
 )
 _ALLOWED_PREFIXES = (
@@ -133,6 +135,8 @@ _ALLOWED_PREFIXES = (
     "examples/",
     "infra/",
     "packages/",
+    "scripts/",
+    "surfaces/tanstack-start/",
     "tools/",
 )
 _ALLOWED_SPECIAL_PATHS = frozenset({"storage/README.md"})

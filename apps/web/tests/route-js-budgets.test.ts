@@ -28,7 +28,7 @@ function fixture(pages: Record<string, string[]>, assets: Record<string, number>
   mkdirSync(join(buildRoot, "static", "chunks"), { recursive: true });
   writeFileSync(join(buildRoot, "app-build-manifest.json"), JSON.stringify({ pages }));
   for (const [asset, size] of Object.entries(assets)) {
-    const target = join(buildRoot, asset.replaceAll("/", "\\"));
+    const target = join(buildRoot, ...asset.split("/"));
     mkdirSync(resolve(target, ".."), { recursive: true });
     writeFileSync(target, Buffer.alloc(size, 0x61));
   }

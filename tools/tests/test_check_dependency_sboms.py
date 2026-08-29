@@ -110,6 +110,59 @@ class DependencySbomCheckerTests(unittest.TestCase):
         with self.assertRaises(checker.SbomValidationError):
             checker.validate_sbom("web", lock, wrong_purl)
 
+    def test_web_allows_nested_duplicate_identity_bound_to_lock_paths(self) -> None:
+        lock, _, payload = self._write_web_fixture()
+        lock_payload = json.loads(lock.read_text(encoding="utf-8"))
+        lock_payload["packages"]["node_modules/parent/node_modules/alpha"] = {
+            "version": "1.0.0"
+        }
+        lock.write_text(json.dumps(lock_payload), encoding="utf-8")
+        candidate = copy.deepcopy(payload)
+        candidate["components"] = [
+            {
+                "type": "library",
+                "name": "alpha",
+                "version": "1.0.0",
+                "properties": [
+                    {
+                        "name": "cdx:npm:package:path",
+                        "value": "node_modules/alpha",
+                    }
+                ],
+            },
+            {
+                "type": "library",
+                "name": "alpha",
+                "version": "1.0.0",
+                "properties": [
+                    {
+                        "name": "cdx:npm:package:path",
+                        "value": "node_modules/parent/node_modules/alpha",
+                    }
+                ],
+            },
+            candidate["components"][1],
+        ]
+        sbom = self._write_json("web-nested-duplicate.json", candidate)
+
+        receipt = checker.validate_sbom("web", lock, sbom)
+
+        self.assertEqual(receipt["component_count"], 2)
+        candidate["components"][1]["properties"][0]["value"] = (
+            "node_modules/missing/node_modules/alpha"
+        )
+        invalid = self._write_json("web-unbound-duplicate.json", candidate)
+        with self.assertRaisesRegex(checker.SbomValidationError, "lockfile"):
+            checker.validate_sbom("web", lock, invalid)
+        candidate["components"][1]["properties"][0]["value"] = "node_modules/alpha"
+        repeated_path = self._write_json("web-repeated-path.json", candidate)
+        with self.assertRaisesRegex(checker.SbomValidationError, "duplicate package"):
+            checker.validate_sbom("web", lock, repeated_path)
+        candidate["components"][1].pop("properties")
+        missing_path = self._write_json("web-missing-path.json", candidate)
+        with self.assertRaisesRegex(checker.SbomValidationError, "package paths"):
+            checker.validate_sbom("web", lock, missing_path)
+
     def test_receipt_hash_ignores_volatile_and_advisory_fields(self) -> None:
         lock, sbom, payload = self._write_api_fixture()
         first = checker.validate_sbom("api", lock, sbom)

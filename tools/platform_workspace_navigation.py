@@ -1,4 +1,4 @@
-"""Fail-closed checks for the runtime private-workspace navigation shell."""
+"""Fail-closed checks for the standalone public navigation shell."""
 
 from __future__ import annotations
 
@@ -14,43 +14,24 @@ def workspace_navigation_errors(root: Path) -> list[str]:
     errors: list[str] = []
     required = {
         "apps/web/app/layout.tsx": {
-            "request-time root shell": 'export const dynamic = "force-dynamic";',
-            "server-only workspace decision": "privateWorkspaceConfiguredFromEnvironment()",
-            "header workspace state": (
-                "<SiteHeader privateWorkspacesEnabled={privateWorkspacesEnabled} />"
-            ),
-        },
-        "apps/web/lib/private-workspace-config.ts": {
-            "server-only module": 'import "server-only";',
-            "publishable-key input": "process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
-            "runtime secret input": "process.env.CLERK_SECRET_KEY",
+            "static root header": "<SiteHeader />",
+            "browser draft provider": "<DraftProvider>",
         },
         "apps/web/components/site-header.tsx": {
-            "combined server and client gate": (
-                "privateNavigationEnabled = privateWorkspacesEnabled && configured"
-            ),
-            "public navigation fallback": (
-                "privateNavigationEnabled ? PRIMARY_NAVIGATION : PUBLIC_PRIMARY_NAVIGATION"
-            ),
+            "standalone primary navigation": "PUBLIC_PRIMARY_NAVIGATION",
+            "standalone utility navigation": "PUBLIC_UTILITY_NAVIGATION",
+        },
+        "apps/web/middleware.ts": {
+            "retired workspace route": '"/workspace/:path*"',
+            "bounded retired-route response": "status: 404",
         },
         "apps/web/tests/private-route-gate.test.ts": {
-            "runtime-only secret assertion": (
-                'expect(frontend.build.args).not.toHaveProperty("CLERK_SECRET_KEY")'
-            ),
-            "runtime shell assertion": (
-                "expect(rootLayout).toContain('export const dynamic = \"force-dynamic\";')"
-            ),
+            "standalone route contract": "standalone route boundary",
+            "bounded route behavior": "returns the same bounded no-store 404 for every retired route",
         },
         "apps/web/tests/site-header-truthfulness.test.ts": {
-            "partial configuration behavior": (
-                "keeps private destinations and sign-in controls hidden when server auth is incomplete"
-            ),
-            "complete configuration behavior": (
-                "shows configured private destinations to a signed-in account"
-            ),
-            "root runtime assertion": (
-                "expect(layout).toContain('export const dynamic = \"force-dynamic\";')"
-            ),
+            "standalone header behavior": "exposes only create, Markdown, and trust navigation",
+            "no server auth decision": "requires no server auth decision in the root layout",
         },
     }
     for relative_path, markers in required.items():

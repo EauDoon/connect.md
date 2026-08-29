@@ -12,6 +12,8 @@ usage() {
 ensure_repo
 acquire_operation_lock
 validate_production_env
+[ "$(read_env_optional_value CONNECTMD_TLS_MODE)" != external ] \
+  || die "Local certificate operations are disabled with external TLS termination"
 select_release_image_tag staged-or-accepted
 domain="$(require_hostname)"
 email="$(require_secret_value ACME_EMAIL)"

@@ -102,7 +102,7 @@ describe("Human Mode v2 accessibility surface", () => {
     expect(source).toContain("<motion.div key={activeStage}");
     expect(source).toContain("function ChapterNavigation");
     expect(source).toContain("Review document");
-    expect(source).toContain("Release document");
+    expect(source).toContain("Download document");
     expect(source).toContain("id={`human-stage-${stage}`}");
     for (const stage of ["foundation", "shape", "review", "release"]) {
       expect(source).toContain(`activeStage === "${stage}" && <JourneyChapter`);
@@ -157,11 +157,11 @@ describe("Human Mode v2 accessibility surface", () => {
     expect(calloutIndex).toBeGreaterThan(-1);
     expect(calloutIndex).toBeLessThan(navigationIndex);
     expect(source).toContain('href="/md"');
-    expect(source).toContain("Have an agent-produced canonical Markdown draft?");
-    expect(source).toContain("Paste the complete draft in Markdown Mode, then return to Human Mode for recognized-field editing.");
-    expect(source).toContain("It stays local and private until a separate explicit save or publish action.");
-    expect(source).toContain("Imports create a local draft only.");
-    expect(source).toContain("Nothing publishes until you explicitly save it.");
+    expect(source).toContain("Have an existing or agent-produced draft?");
+    expect(source).toContain("Paste the complete file in Markdown Mode, then return here for recognized-field editing.");
+    expect(source).toContain("It stays in this browser session until you download it.");
+    expect(source).toContain("Downloading is the only release action in this standalone site.");
+    expect(source).toContain("nothing is uploaded");
     expect(source).not.toMatch(/localStorage|sessionStorage|indexedDB|document\.cookie/u);
   });
 });

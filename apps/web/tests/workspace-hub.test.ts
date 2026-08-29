@@ -44,13 +44,13 @@ describe("private workspace hub", () => {
     for (const href of ["/network", "/inbox", "/feed", "/applications", "/employer", "/agents", "/moderation"]) expect(markup).not.toContain(`href="${href}"`);
   });
 
-  it("is a link-only orientation layer and the header exposes it only to signed-in people", () => {
+  it("is a link-only orientation layer and stays outside standalone navigation", () => {
     const hub = readFileSync(new URL("../components/workspace-hub.tsx", import.meta.url), "utf8");
     const header = readFileSync(new URL("../components/site-header.tsx", import.meta.url), "utf8");
 
     expect(hub).not.toMatch(/\b(fetch|apiRequest|getToken|useEffect|useState|localStorage|sessionStorage)\b/u);
-    expect(header).toContain('href="/workspace"');
-    expect(header).toContain("privateNavigationEnabled && isLoaded && isSignedIn");
-    expect(header).toContain('label="Workspace"');
+    expect(header).not.toContain('href="/workspace"');
+    expect(header).not.toContain("useConnectmdAuth");
+    expect(header).toContain("PUBLIC_PRIMARY_NAVIGATION");
   });
 });

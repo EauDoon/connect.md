@@ -35,7 +35,7 @@ jobs:
         run: |
           python examples/agent-clients/check_agent_client.py
           python -m unittest discover -s examples/agent-clients -p 'test_*.py' -q
-      - run: python tools/check_platform_features.py
+      - run: python tools/check_standalone_site.py
       - run: python -m unittest discover -s tools/tests -p 'test_*.py'
       - name: Export and verify committed source distribution
         run: |
@@ -222,4 +222,5 @@ jobs:
       - run: docker run --rm --add-host api:127.0.0.1 --add-host frontend:127.0.0.1 connectmd-nginx:local nginx -t
       - run: mkdir -p .ci-certs/live/connectmd.example.test && openssl req -x509 -newkey rsa:2048 -sha256 -nodes -keyout .ci-certs/live/connectmd.example.test/privkey.pem -out .ci-certs/live/connectmd.example.test/fullchain.pem -subj /CN=connectmd.example.test -days 1 > /dev/null 2>&1
       - run: docker run --rm --add-host api:127.0.0.1 --add-host frontend:127.0.0.1 -e CONNECTMD_DOMAIN=connectmd.example.test -v "$PWD/.ci-certs:/etc/letsencrypt:ro" connectmd-nginx:local nginx -t
+      - run: bash infra/tests/nginx-external-tls.sh
       - run: bash infra/tests/https-smoke.sh

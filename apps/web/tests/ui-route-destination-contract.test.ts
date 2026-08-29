@@ -56,12 +56,11 @@ describe("UI route destination source contracts", () => {
     expect(publicPostPageSource).toContain("<PublicPostPage post={post} />");
   });
 
-  it("proves / preserves the agent handoff and current dynamic landing", () => {
+  it("proves / preserves the standalone static agent handoff", () => {
     const homePageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
-    expect(homePageSource).toContain('export const dynamic = "force-dynamic";');
-    expect(homePageSource).toContain("const agentReadmeUrl = publicDiscoveryUrl");
-    expect(homePageSource).toContain("<AgentHandoff agentReadmeUrl={agentReadmeUrl} />");
+    expect(homePageSource).toContain('import { absoluteSiteUrl } from "@/lib/public-document";');
+    expect(homePageSource).toContain('<AgentHandoff agentReadmeUrl={absoluteSiteUrl("/agent-readme.md")} />');
   });
 
   it("proves /human preserves Human Mode metadata and builder composition", () => {
@@ -146,13 +145,13 @@ describe("UI route destination source contracts", () => {
     expect(searchPageSource).toContain("<SearchExperience filters={filters} response={null} error={presentPublicReadError(error)} />");
   });
 
-  it("proves /trust exposes current privacy metadata and recruiting visibility", () => {
+  it("proves /trust exposes the standalone browser privacy boundary", () => {
     const trustPageSource = readFileSync(new URL("../app/trust/page.tsx", import.meta.url), "utf8");
 
-    expect(trustPageSource).toContain('title: "Privacy and agent data"');
+    expect(trustPageSource).toContain('title: "Privacy and data"');
     expect(trustPageSource).toContain('alternates: { canonical: "/trust" }');
-    expect(trustPageSource).toContain("const recruitingEnabled = recruitingReleaseEnabled();");
-    expect(trustPageSource).toContain("const visiblePublicRecords = recruitingEnabled");
+    expect(trustPageSource).toContain("const localData =");
+    expect(trustPageSource).toContain("const publicData =");
   });
 
   it("proves /applications is private and renders candidate-owned applications", () => {

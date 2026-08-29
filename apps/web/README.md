@@ -1,40 +1,36 @@
 # connect.md web
 
-The Next.js 15 App Router frontend for connect.md. It provides a guided Human Mode,
-Markdown Mode, and public-profile rendering. Every write goes through the connect.md
-API; the browser never talks to storage or PostgreSQL.
+The standalone Next.js 15 site deployed at
+[connect-md.vercel.app](https://connect-md.vercel.app).
+
+It provides:
+
+- a guided profile and resume builder;
+- a direct Markdown editor;
+- client-side validation and sanitized preview;
+- local .md download;
+- static agent instructions and privacy documentation.
+
+The active workflow has no account, API, database, upload, or server-side draft
+storage. Retired backend-backed routes are blocked by middleware.ts.
 
 ## Run locally
 
-```bash
-cp .env.example .env.local
-npm install
-npm run dev
-```
-
-`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` enables authenticated publishing. The editor
-and preview remain usable without it, but publishing is intentionally disabled.
-Set `NEXT_PUBLIC_API_BASE_URL` for browser requests when the API is on a
-different origin. Server-rendered public profiles use `CONNECTMD_API_BASE_URL`;
-inside Compose this is normally `http://api:8000`.
+    cp .env.example .env.local
+    npm ci
+    npm run dev
 
 ## Checks
 
-```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run build
-```
+    npm run lint
+    npm run typecheck
+    npm test
+    npm run build
 
-## Container
+## Vercel
 
-Build from this directory so the Dockerfile uses the standalone Next.js output:
+Use this directory as the Vercel project Root Directory. Set only:
 
-```bash
-docker build -t connectmd-web .
-docker run --rm -p 3000:3000 --env-file .env connectmd-web
-```
+    NEXT_PUBLIC_SITE_URL=https://connect-md.vercel.app
 
-The runtime image is non-root and contains no secrets. Supply configuration only
-at runtime.
+The production build emits a self-contained CSP and standard security headers.

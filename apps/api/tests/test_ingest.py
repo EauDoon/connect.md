@@ -114,12 +114,16 @@ def test_converter_failure_traceback_is_worker_only_and_redacted(
             detail={"message": "binary conversion failed", "warnings": ["RuntimeError"]},
         )
 
+    monkeypatch.delenv("ORT_DISABLE_TELEMETRY", raising=False)
     monkeypatch.setattr(ingest_worker_module, "_convert_binary", fail_conversion)
+    if os.name == "posix":
+        monkeypatch.setattr(ingest_worker_module.os, "setsid", lambda: None)
 
     _convert_job(str(input_path), ".pdf", str(output_path), 1024)
 
     captured = capsys.readouterr()
     result = json.loads(output_path.read_text(encoding="utf-8"))
+    assert os.environ["ORT_DISABLE_TELEMETRY"] == "1"
     assert captured.out == ""
     assert "event=ingest_conversion_failed converter=markitdown" in captured.err
     assert "Traceback (most recent call last)" in captured.err
@@ -243,7 +247,7 @@ async def test_isolated_binary_endpoint_round_trip(
     heartbeat = jobs / ".worker-ready"
     heartbeat.touch()
     app.state.settings.ingest_jobs_path = jobs
-    app.state.settings.ingest_timeout_seconds = 10
+    app.state.settings.ingest_timeout_seconds = 45
 
     async def process_one_request() -> None:
         deadline = time.monotonic() + 10

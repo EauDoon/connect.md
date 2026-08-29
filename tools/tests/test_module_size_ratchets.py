@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_LINE_CAPS = {
     "apps/api/app/main.py": 22_248,
     "tools/check_platform_features.py": 9_313,
-    "tools/platform_checker_source.py": 62,
+    "tools/platform_checker_source.py": 139,
     "tools/platform_contact_durability.py": 398,
     "tools/platform_contract_inventory.py": 995,
     "tools/platform_human_mode.py": 213,

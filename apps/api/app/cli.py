@@ -9,8 +9,13 @@ import sys
 from argparse import ArgumentParser, Namespace
 from datetime import UTC, datetime
 from hmac import compare_digest
+from pathlib import Path
 
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import and_, delete, or_, select, update
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -44,7 +49,9 @@ from app.services.database_roles import (
     ACCOUNT_ERASURE_DATABASE_ROLE,
     API_DATABASE_ROLE,
     PROJECTION_ADMIN_DATABASE_ROLE,
+    DatabaseRoleContractError,
     require_database_role,
+    require_database_url_role,
 )
 from app.services.deletion_journal import (
     DeletionCommitmentJournal,
@@ -76,6 +83,42 @@ from app.services.storage import StorageIntegrityError, VersionStore
 from app.services.taxonomy import TaxonomyService, TaxonomyUnavailable
 
 _HEX_DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+
+
+class ExactSearchAdminSettings(BaseSettings):
+    """Only exact-search projection authority is available to this one-shot command."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="CONNECTMD_", extra="ignore", hide_input_in_errors=True
+    )
+
+    environment: str = "development"
+    database_url: str = "postgresql+asyncpg://connectmd:connectmd@postgres:5432/connectmd"
+    storage_path: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[3] / "storage"
+    )
+    exact_search_cursor_keyring: str | None = None
+    exact_search_cursor_ttl_seconds: int = Field(default=900, ge=60, le=3600)
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.lower() == "production"
+
+    def require_database_role_configuration(self, expected_role: str) -> None:
+        try:
+            if (
+                self.is_production
+                and make_url(self.database_url).drivername != "postgresql+asyncpg"
+            ):
+                raise ValueError("database role is invalid")
+            require_database_url_role(self.database_url, expected_role)
+        except (ArgumentError, DatabaseRoleContractError):
+            raise ValueError("database role is invalid") from None
+
+
+def get_exact_search_admin_settings() -> ExactSearchAdminSettings:
+    return ExactSearchAdminSettings()
+
 
 # This is deliberately broader than retention disposal.  A preservation hold
 # may cover any real account-erasure resource, but never synthetic provider or
@@ -247,7 +290,7 @@ async def run_taxonomy(args: Namespace) -> int:
 
 
 async def run_exact_search(args: Namespace) -> int:
-    settings = get_settings()
+    settings = get_exact_search_admin_settings()
     settings.require_database_role_configuration(PROJECTION_ADMIN_DATABASE_ROLE)
     engine = build_engine(settings)
     session_factory = build_session_factory(settings, engine)

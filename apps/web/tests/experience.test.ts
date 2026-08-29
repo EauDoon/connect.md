@@ -19,9 +19,8 @@ describe("guided Human Mode and primary navigation", () => {
   it("keeps shared primary navigation compact around the durable product paths", () => {
     expect(PRIMARY_NAVIGATION.map((link) => link.href)).toEqual(["/discover", "/human", "/network", "/agents"]);
     expect(PUBLIC_PRIMARY_NAVIGATION).toEqual([
-      { href: "/discover", label: "Discover" },
       { href: "/human", label: "Create" },
-      { href: "/agent-directory", label: "Agent directory" },
+      { href: "/md", label: "Markdown" },
     ]);
     expect(PUBLIC_UTILITY_NAVIGATION).toEqual([{ href: "/trust", label: "Trust & data" }]);
     expect(WORKSPACE_NAVIGATION.map((link) => link.href)).toEqual(["/human", "/network", "/inbox", "/feed", "/applications", "/employer", "/agents", "/moderation"]);

@@ -8,7 +8,6 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 
 import { loadAndValidateBrowserReleaseBuildReceipt } from "../scripts/build-production-e2e.mjs";
 import {
-  API_EXACT_PATHS,
   browserCredentialHeaderKind,
   decodeProtocolBody,
   loadFixtures,
@@ -32,6 +31,13 @@ const NEXT_EGRESS_GUARD = resolve(E2E_DIRECTORY, "next-server-egress-guard.cjs")
 const NEXT_EGRESS_AUDIT_PREFIX = "connectmd-next-egress-";
 const NEXT_EGRESS_AUDIT_FILE = "next-server-egress-audit.json";
 const EXPECTED_PLAYWRIGHT_TESTS = 9;
+const PUBLIC_RELEASE_SPEC_PATH = "e2e/standalone-release.spec.ts";
+const MAX_PUBLIC_RELEASE_SPEC_LINE = 2_000;
+const MAX_PUBLIC_RELEASE_SPEC_COLUMN = 500;
+const LAYOUT_DIAGNOSTIC_TYPE = "connectmd-layout-overflow";
+const LAYOUT_DIAGNOSTIC_VIEWPORTS = new Set([160, 320]);
+const LAYOUT_DIAGNOSTIC_CATEGORIES = new Set(["link", "button", "form-control", "tabbable"]);
+const MAX_LAYOUT_DIAGNOSTIC_DOM_INDEX = 127;
 
 function loopbackOrigin(address) {
   if (!address || typeof address !== "object" || typeof address.port !== "number") {
@@ -237,7 +243,6 @@ function createFixtureApi(fixture) {
 
 function isApiPath(pathname) {
   return (
-    API_EXACT_PATHS.has(pathname) ||
     pathname.startsWith("/v1/") ||
     pathname.startsWith("/mcp/") ||
     pathname.startsWith("/a2a/") ||
@@ -390,6 +395,205 @@ function collectPlaywrightTests(suites, tests = []) {
     if (Array.isArray(suite.suites)) collectPlaywrightTests(suite.suites, tests);
   }
   return tests;
+}
+
+function boundedPublicReleaseLocation(location) {
+  if (!location || typeof location !== "object" || Array.isArray(location)) return null;
+  if (typeof location.file !== "string") return null;
+  const file = location.file.replaceAll("\\", "/");
+  if (file !== PUBLIC_RELEASE_SPEC_PATH && !file.endsWith(`/${PUBLIC_RELEASE_SPEC_PATH}`)) return null;
+  if (
+    !Number.isInteger(location.line) ||
+    location.line < 1 ||
+    location.line > MAX_PUBLIC_RELEASE_SPEC_LINE ||
+    !Number.isInteger(location.column) ||
+    location.column < 1 ||
+    location.column > MAX_PUBLIC_RELEASE_SPEC_COLUMN
+  ) {
+    return null;
+  }
+  return { line: location.line, column: location.column };
+}
+
+function firstPlaywrightErrorLocation(spec) {
+  if (!spec || typeof spec !== "object" || Array.isArray(spec)) return null;
+  const projectTests = Array.isArray(spec.tests) ? spec.tests : [];
+  for (const projectTest of projectTests) {
+    if (!projectTest || typeof projectTest !== "object" || Array.isArray(projectTest)) continue;
+    const results = Array.isArray(projectTest.results) ? projectTest.results : [];
+    for (const result of results) {
+      if (!result || typeof result !== "object" || Array.isArray(result)) continue;
+      const resultLocation = boundedPublicReleaseLocation(result.errorLocation);
+      if (resultLocation) return resultLocation;
+      if (Array.isArray(result.errors)) {
+        for (const error of result.errors) {
+          const errorLocation = boundedPublicReleaseLocation(error?.location);
+          if (errorLocation) return errorLocation;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function boundedLayoutDiagnostic(annotation) {
+  if (!annotation || typeof annotation !== "object" || Array.isArray(annotation)) return null;
+  if (
+    annotation.type !== LAYOUT_DIAGNOSTIC_TYPE ||
+    typeof annotation.description !== "string" ||
+    annotation.description.length > 256
+  ) {
+    return null;
+  }
+  let diagnostic;
+  try {
+    diagnostic = JSON.parse(annotation.description);
+  } catch {
+    return null;
+  }
+  if (!diagnostic || typeof diagnostic !== "object" || Array.isArray(diagnostic)) return null;
+  if (
+    !Number.isInteger(diagnostic.route_index) ||
+    diagnostic.route_index < 0 ||
+    diagnostic.route_index > 2 ||
+    !Number.isInteger(diagnostic.viewport_width) ||
+    !LAYOUT_DIAGNOSTIC_VIEWPORTS.has(diagnostic.viewport_width) ||
+    !Array.isArray(diagnostic.element_categories) ||
+    diagnostic.element_categories.length < 1 ||
+    diagnostic.element_categories.length > 4 ||
+    !Array.isArray(diagnostic.element_indices) ||
+    diagnostic.element_indices.length !== diagnostic.element_categories.length
+  ) {
+    return null;
+  }
+  const categories = [];
+  const indices = [];
+  for (const [position, category] of diagnostic.element_categories.entries()) {
+    const index = diagnostic.element_indices[position];
+    if (
+      typeof category !== "string" ||
+      !LAYOUT_DIAGNOSTIC_CATEGORIES.has(category) ||
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index > MAX_LAYOUT_DIAGNOSTIC_DOM_INDEX
+    ) {
+      return null;
+    }
+    categories.push(category);
+    indices.push(index);
+  }
+  return {
+    route_index: diagnostic.route_index,
+    viewport_width: diagnostic.viewport_width,
+    element_indices: indices,
+    element_categories: categories,
+  };
+}
+
+function firstLayoutDiagnostic(spec) {
+  if (!spec || typeof spec !== "object" || Array.isArray(spec)) return null;
+  const annotations = [];
+  const projectTests = Array.isArray(spec.tests) ? spec.tests : [];
+  for (const projectTest of projectTests) {
+    if (!projectTest || typeof projectTest !== "object" || Array.isArray(projectTest)) continue;
+    if (Array.isArray(projectTest.annotations)) annotations.push(...projectTest.annotations);
+    const results = Array.isArray(projectTest.results) ? projectTest.results : [];
+    for (const result of results) {
+      if (result && typeof result === "object" && !Array.isArray(result) && Array.isArray(result.annotations)) {
+        annotations.push(...result.annotations);
+      }
+    }
+  }
+  for (const annotation of annotations) {
+    const diagnostic = boundedLayoutDiagnostic(annotation);
+    if (diagnostic) return diagnostic;
+  }
+  return null;
+}
+
+function collectFailedPlaywrightSpecIndices(suites, state) {
+  if (!Array.isArray(suites)) return;
+  for (const suite of suites) {
+    if (!suite || typeof suite !== "object" || Array.isArray(suite)) continue;
+    if (Array.isArray(suite.specs)) {
+      for (const spec of suite.specs) {
+        const index = state.specCount;
+        state.specCount = Math.min(state.specCount + 1, EXPECTED_PLAYWRIGHT_TESTS);
+        if (
+          index < EXPECTED_PLAYWRIGHT_TESTS &&
+          spec &&
+          typeof spec === "object" &&
+          !Array.isArray(spec) &&
+          spec.ok === false
+        ) {
+          state.indices.push(index);
+          const location = firstPlaywrightErrorLocation(spec);
+          if (location && state.locations.length < EXPECTED_PLAYWRIGHT_TESTS) {
+            state.locations.push({ spec: index, ...location });
+          }
+          const layout = firstLayoutDiagnostic(spec);
+          if (layout && state.layout.length < EXPECTED_PLAYWRIGHT_TESTS) {
+            state.layout.push({ spec: index, ...layout });
+          }
+        }
+      }
+    }
+    collectFailedPlaywrightSpecIndices(suite.suites, state);
+  }
+}
+
+function diagnosticStatus(stats, key) {
+  return stats &&
+    Number.isInteger(stats[key]) &&
+    stats[key] >= 0 &&
+    stats[key] <= EXPECTED_PLAYWRIGHT_TESTS
+    ? stats[key]
+    : "unknown";
+}
+
+export function summarizePlaywrightResult(result) {
+  const exitCode = Number.isInteger(result?.code) && result.code >= 0 && result.code <= 255
+    ? result.code
+    : "unknown";
+  const signal = result?.signal === null
+    ? "none"
+    : typeof result?.signal === "string"
+      ? "present"
+      : "unknown";
+  let receipt;
+  try {
+    receipt = JSON.parse(typeof result?.stdout === "string" ? result.stdout : "");
+  } catch {
+    return `browser release Playwright stage failed: exit=${exitCode} signal=${signal} receipt=invalid`;
+  }
+  if (
+    !receipt ||
+    typeof receipt !== "object" ||
+    Array.isArray(receipt) ||
+    !receipt.stats ||
+    typeof receipt.stats !== "object" ||
+    Array.isArray(receipt.stats)
+  ) {
+    return `browser release Playwright stage failed: exit=${exitCode} signal=${signal} receipt=invalid`;
+  }
+  const failedTests = { indices: [], locations: [], layout: [], specCount: 0 };
+  collectFailedPlaywrightSpecIndices(receipt.suites, failedTests);
+  const failedSpecs = failedTests.indices.length > 0 ? ` failed_specs=${JSON.stringify(failedTests.indices)}` : "";
+  const failedLocations = failedTests.locations.length > 0
+    ? ` failed_locations=${JSON.stringify(failedTests.locations)}`
+    : "";
+  const layoutDiagnostics = failedTests.layout.length > 0
+    ? ` layout=${JSON.stringify(failedTests.layout)}`
+    : "";
+  return [
+    `browser release Playwright stage failed: exit=${exitCode}`,
+    `signal=${signal}`,
+    `expected=${diagnosticStatus(receipt.stats, "expected")}`,
+    `failed=${failedTests.indices.length}`,
+    `skipped=${diagnosticStatus(receipt.stats, "skipped")}`,
+    `unexpected=${diagnosticStatus(receipt.stats, "unexpected")}`,
+    `flaky=${diagnosticStatus(receipt.stats, "flaky")}${failedSpecs}${failedLocations}${layoutDiagnostics}`,
+  ].join(" ");
 }
 
 export function validatePlaywrightJsonReceipt(raw) {
@@ -585,7 +789,7 @@ function waitForChild(child) {
   });
 }
 
-function waitForChildOutput(child) {
+export function waitForChildOutput(child) {
   let stdout = "";
   let stderr = "";
   child.stdout?.setEncoding("utf8");
@@ -596,7 +800,10 @@ function waitForChildOutput(child) {
   child.stderr?.on("data", (chunk) => {
     stderr += chunk;
   });
-  return waitForChild(child).then((result) => ({ ...result, stdout, stderr }));
+  return new Promise((resolvePromise, rejectPromise) => {
+    child.once("error", rejectPromise);
+    child.once("close", (code, signal) => resolvePromise({ code, signal, stdout, stderr }));
+  });
 }
 
 export function classifyMonacoAssets(directoryExists, loaderExists) {
@@ -796,8 +1003,14 @@ export async function main() {
       { cwd: WEB_ROOT, env: environment, stdio: ["ignore", "pipe", "pipe"] },
     );
     const result = await waitForChildOutput(playwrightProcess);
+    if (result.code !== 0) process.stderr.write(`${summarizePlaywrightResult(result)}\n`);
     if (result.code !== 0) throw new Error("browser release gate failed");
-    validatePlaywrightJsonReceipt(result.stdout);
+    try {
+      validatePlaywrightJsonReceipt(result.stdout);
+    } catch (error) {
+      process.stderr.write(`${summarizePlaywrightResult(result)}\n`);
+      throw error;
+    }
     assertRunningChild(nextProcess, nextProcessId, "Playwright");
     validateNextEgressAudit(nextEgressAuditPath, apiOrigin);
   } finally {

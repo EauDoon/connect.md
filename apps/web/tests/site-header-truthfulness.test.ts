@@ -1,75 +1,41 @@
-import { createElement, type ReactNode } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import React, { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
 
-const auth = vi.hoisted(() => ({
-  current: { configured: true, isLoaded: true, isSignedIn: true }
-}));
-
-vi.mock("@/components/auth-provider", () => ({ useConnectmdAuth: () => auth.current }));
-vi.mock("@clerk/nextjs", () => ({
-  SignInButton: ({ children }: { children: ReactNode }) => children,
-  UserButton: () => null
-}));
-vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
+const navigation = vi.hoisted(() => ({ pathname: "/" }));
+vi.mock("next/navigation", () => ({ usePathname: () => navigation.pathname }));
+vi.stubGlobal("React", React);
 
 import { SiteHeader } from "../components/site-header";
 
-afterEach(() => {
-  auth.current = { configured: true, isLoaded: true, isSignedIn: true };
-  vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
-});
-
-function renderHeader(privateWorkspacesEnabled: boolean): string {
-  vi.stubGlobal("React", { createElement });
-  return renderToStaticMarkup(createElement(SiteHeader, { privateWorkspacesEnabled }));
+function renderHeader(pathname = "/") {
+  navigation.pathname = pathname;
+  return renderToStaticMarkup(createElement(SiteHeader));
 }
 
-describe("global header deployment truthfulness", () => {
-  it("keeps private destinations and sign-in controls hidden when server auth is incomplete", () => {
-    vi.stubEnv("NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED", "true");
-    const markup = renderHeader(false);
-
-    expect(markup).toContain('href="/agent-directory"');
-    for (const href of ["/network", "/agents", "/workspace", "/account"]) {
-      expect(markup).not.toContain(`href="${href}"`);
+describe("standalone global header", () => {
+  it("exposes only create, Markdown, and trust navigation", () => {
+    const markup = renderHeader();
+    for (const href of ["/human", "/md", "/trust"]) expect(markup).toContain('href="' + href + '"');
+    for (const href of ["/discover", "/agent-directory", "/network", "/agents", "/workspace", "/account", "/employer"]) {
+      expect(markup).not.toContain('href="' + href + '"');
     }
-    expect(markup).not.toContain("Sign in");
+    expect(markup).not.toMatch(/Sign in|Sign out/u);
   });
 
-  it("shows configured private destinations to a signed-in account", () => {
-    vi.stubEnv("NEXT_PUBLIC_ACCOUNT_LIFECYCLE_ENABLED", "true");
-    const markup = renderHeader(true);
-
-    for (const href of ["/network", "/agents", "/workspace", "/account"]) {
-      expect(markup).toContain(`href="${href}"`);
-    }
-    expect(markup).not.toContain('href="/agent-directory"');
+  it("uses exact current-page semantics in the rendered navigation", () => {
+    const markup = renderHeader("/md");
+    expect(markup.match(/href="\/md"/gu)).toHaveLength(1);
+    expect(markup.match(/aria-current="page"/gu)).toHaveLength(1);
+    expect(markup).not.toContain('href="/human" aria-current="page"');
+    expect(markup).not.toContain('href="/trust" aria-current="page"');
   });
 
-  it("fails closed when the client auth provider is also unconfigured", () => {
-    auth.current = { configured: false, isLoaded: true, isSignedIn: false };
-    const markup = renderHeader(true);
-
-    expect(markup).toContain('href="/agent-directory"');
-    expect(markup).not.toContain('href="/network"');
-    expect(markup).not.toContain('href="/workspace"');
-  });
-
-  it("binds the server-only environment decision into the root header", () => {
+  it("requires no server auth decision in the root layout", () => {
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-
-    expect(layout).toContain(
-      'import { privateWorkspaceConfiguredFromEnvironment } from "@/lib/private-workspace-config";'
-    );
-    expect(layout).toContain('export const dynamic = "force-dynamic";');
-    expect(layout).toContain(
-      "const privateWorkspacesEnabled = privateWorkspaceConfiguredFromEnvironment();"
-    );
-    expect(layout).toContain(
-      "<SiteHeader privateWorkspacesEnabled={privateWorkspacesEnabled} />"
-    );
+    expect(layout).toContain("<SiteHeader />");
+    expect(layout).toContain("<DraftProvider>");
+    expect(layout).not.toMatch(/force-dynamic|privateWorkspaceConfiguredFromEnvironment|Clerk|auth-provider|CLERK_SECRET_KEY/u);
   });
 });

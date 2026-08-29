@@ -6,9 +6,8 @@ export const PRIMARY_NAVIGATION = [
 ] as const;
 
 export const PUBLIC_PRIMARY_NAVIGATION = [
-  { href: "/discover", label: "Discover" },
   { href: "/human", label: "Create" },
-  { href: "/agent-directory", label: "Agent directory" },
+  { href: "/md", label: "Markdown" },
 ] as const;
 
 export const PUBLIC_UTILITY_NAVIGATION = [

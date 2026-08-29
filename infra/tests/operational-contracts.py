@@ -671,7 +671,7 @@ if bash_binary is not None:
             )
 
             holder_environment = dict(os.environ)
-            holder_environment["CONNECTMD_OPERATION_LOCK_HELD"] = "1"
+            holder_environment.pop("CONNECTMD_OPERATION_LOCK_HELD", None)
             lock_holder = subprocess.Popen(
                 [
                     bash_binary,
@@ -688,7 +688,18 @@ if bash_binary is not None:
             )
             try:
                 assert lock_holder.stdout is not None
-                assert lock_holder.stdout.readline() == "locked\n"
+                holder_stdout = lock_holder.stdout.readline()
+                if holder_stdout != "locked\n":
+                    holder_stderr = (
+                        lock_holder.stderr.read()
+                        if lock_holder.poll() is not None
+                        and lock_holder.stderr is not None
+                        else ""
+                    )
+                    raise AssertionError(
+                        "operation lock holder did not announce its lock: "
+                        f"stdout={holder_stdout!r}, stderr={holder_stderr!r}"
+                    )
                 contender_environment = dict(os.environ)
                 contender_environment.pop("CONNECTMD_OPERATION_LOCK_HELD", None)
                 lock_contender = subprocess.run(
@@ -1248,6 +1259,7 @@ assert "API_READINESS_PROBE=PASS" in health
 assert library.index('while [ "$attempts" -gt 0 ]; do', library.index("wait_for_service()")) < library.index(
     "sleep 2", library.index("wait_for_service()")
 )
+assert '  diagnose_search_projection_worker\n  die "Timed out waiting for $service to become healthy"' in library
 assert 'if [ "${lifecycle_enabled:-false}" = "true" ]; then' in health
 assert health.index("lifecycle_enabled=") < health.index(
     "wait_for_profiled_service account-lifecycle account-erasure-worker"
@@ -1745,10 +1757,35 @@ assert_compose_hardening_contract(base_compose_yaml, production_compose_yaml)
 base_services = base_compose_yaml["services"]
 edge_network = base_compose_yaml["networks"]["connectmd_app"]
 assert edge_network["driver"] == "bridge"
-assert edge_network["ipam"]["config"] == [{"subnet": "172.31.254.0/24"}]
+assert edge_network["ipam"]["config"] == [
+    {"subnet": "172.31.254.0/24", "ip_range": "172.31.254.128/25"}
+]
 assert base_services["nginx"]["networks"]["connectmd_app"] == {
     "ipv4_address": "172.31.254.2"
 }
+assert compose.count("${CONNECTMD_CLERK_JWKS_URL:-}") == 2
+assert compose.count("${CONNECTMD_CLERK_ISSUER:-}") == 2
+assert compose.count("${CONNECTMD_CLERK_AUTHORIZED_PARTIES:-[]}") == 2
+assert compose.count("${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}") == 2
+assert compose.count("${CLERK_SECRET_KEY:-}") == 1
+assert "CLERK_JWKS_URL:?" not in compose
+assert "CLERK_PUBLISHABLE_KEY:?" not in compose
+nginx_environment = base_services["nginx"]["environment"]
+assert nginx_environment["CONNECTMD_TLS_MODE"] == "${CONNECTMD_TLS_MODE:-auto}"
+assert nginx_environment["CONNECTMD_HTTP_BINDING"].startswith(
+    "${CONNECTMD_HTTP_BINDING:-"
+)
+assert nginx_environment["CONNECTMD_HTTPS_BINDING"].startswith(
+    "${CONNECTMD_HTTPS_BINDING:-"
+)
+assert base_services["nginx"]["labels"] == [
+    "traefik.enable=${CONNECTMD_TRAEFIK_ENABLED:-false}",
+    "traefik.http.routers.connectmd.rule=Host(`${CONNECTMD_DOMAIN:-connectmd.invalid}`)",
+    "traefik.http.routers.connectmd.entrypoints=websecure",
+    "traefik.http.routers.connectmd.tls=true",
+    "traefik.http.routers.connectmd.tls.certresolver=letsencrypt",
+    "traefik.http.services.connectmd.loadbalancer.server.port=80",
+]
 assert "ports" not in base_services["api"] and "expose" not in base_services["api"]
 clerk_backend_environment_keys = {
     "CONNECTMD_CLERK_BACKEND_SECRET",
@@ -1985,7 +2022,12 @@ def assert_production_env_contract(source: str) -> None:
         'api_base="$(read_env_optional_value NEXT_PUBLIC_API_BASE_URL)"',
         'validate_public_api_base_environment_override "$api_base"',
         'validate_public_api_base "$api_base" "https://$domain"',
-        'validate_clerk_authorized_site_origin "$clerk_parties" "https://$domain"',
+        'validate_canonical_https_origin "$site_url" NEXT_PUBLIC_SITE_URL',
+        'validate_clerk_authorized_site_origin "$clerk_parties" "$site_url"',
+        'clerk_api_configured=false',
+        'clerk_frontend_configured=false',
+        '[ "$clerk_parties" != "[]" ]',
+        'if [ "$clerk_api_configured" = true ]; then',
     ):
         assert marker in contract, marker
 
@@ -1997,7 +2039,9 @@ for missing_marker in (
     'api_base="$(read_env_optional_value NEXT_PUBLIC_API_BASE_URL)"',
     'validate_public_api_base_environment_override "$api_base"',
     'validate_public_api_base "$api_base" "https://$domain"',
-    'validate_clerk_authorized_site_origin "$clerk_parties" "https://$domain"',
+    'validate_canonical_https_origin "$site_url" NEXT_PUBLIC_SITE_URL',
+    'validate_clerk_authorized_site_origin "$clerk_parties" "$site_url"',
+    '[ "$clerk_parties" != "[]" ]',
 ):
     counterexample = library.replace(missing_marker, "missing", 1)
     try:
@@ -2036,6 +2080,35 @@ for missing_marker in (
     else:
         raise AssertionError(
             f"public API base contract accepted missing guard: {missing_marker}"
+        )
+
+
+def assert_canonical_https_origin_contract(source: str) -> None:
+    function_start = source.index("validate_canonical_https_origin() {")
+    function_end = source.index("\n}\n", function_start)
+    contract = source[function_start:function_end]
+    for marker in (
+        "validate_canonical_https_origin() {",
+        'https://*) hostname="${value#https://}" ;;',
+        'is_lowercase_dns_hostname "$hostname"',
+        "must be a canonical HTTPS origin",
+    ):
+        assert marker in contract, marker
+
+
+assert_canonical_https_origin_contract(library)
+for missing_marker in (
+    'https://*) hostname="${value#https://}" ;;',
+    'is_lowercase_dns_hostname "$hostname"',
+):
+    weakened = library.replace(missing_marker, "missing", 1)
+    try:
+        assert_canonical_https_origin_contract(weakened)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError(
+            f"canonical HTTPS origin contract accepted missing guard: {missing_marker}"
         )
 
 
@@ -3279,8 +3352,14 @@ assert (
 )
 assert 'git clone --quiet --no-hardlinks "$repo_root" "$worktree"' in recovery_roundtrip
 assert 'setpriv --reuid "$CONTAINER_UID" --regid "$CONTAINER_GID"' in recovery_roundtrip
+assert 'env HOME="$runtime_home" XDG_CONFIG_HOME="$runtime_home/.config"' in recovery_roundtrip
+assert "env -u HOME" not in recovery_roundtrip
 assert "docker version --format" in recovery_roundtrip
 assert 'CONNECTMD_COMPOSE_PROJECT_NAME="$project_name"' in recovery_roundtrip
+assert "export CONNECTMD_HTTP_BINDING=80" in recovery_roundtrip
+assert "export CONNECTMD_HTTPS_BINDING=443" in recovery_roundtrip
+assert "18081" not in recovery_roundtrip
+assert "18444" not in recovery_roundtrip
 assert "down --volumes --remove-orphans" in recovery_roundtrip
 assert 'rm -rf -- "$scratch"' in recovery_roundtrip
 assert (

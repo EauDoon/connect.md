@@ -102,12 +102,16 @@ except ImportError:
 
 try:
     from .platform_checker_source import append_error as _error
+    from .platform_checker_source import function_source as _function_source
     from .platform_checker_source import (
         ordered_anchor_positions as _ordered_anchor_positions,
     )
     from .platform_checker_source import read_anchor_source as _read_anchor_source
     from .platform_checker_source import (
         require_source_markers as _require_source_markers,
+    )
+    from .platform_checker_source import (
+        typescript_function_source as _typescript_function_source,
     )
     from .platform_human_mode import (
         human_mode_surface_errors as _human_mode_surface_errors,
@@ -116,12 +120,16 @@ try:
     from .platform_workspace_navigation import workspace_navigation_errors
 except ImportError:
     from platform_checker_source import append_error as _error
+    from platform_checker_source import function_source as _function_source
     from platform_checker_source import (
         ordered_anchor_positions as _ordered_anchor_positions,
     )
     from platform_checker_source import read_anchor_source as _read_anchor_source
     from platform_checker_source import (
         require_source_markers as _require_source_markers,
+    )
+    from platform_checker_source import (
+        typescript_function_source as _typescript_function_source,
     )
     from platform_human_mode import (
         human_mode_surface_errors as _human_mode_surface_errors,
@@ -1724,53 +1732,6 @@ def _agent_web_helper_extraction_errors(root: Path) -> list[str]:
     return errors
 
 
-def _function_source(
-    source: str, function_name: str, relative_path: str, errors: list[str]
-) -> str:
-    """Return one named function body, failing closed on missing or ambiguous source."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError as exc:
-        _error(
-            errors,
-            f"repository.anchors.{relative_path}",
-            f"cannot parse source: {exc}",
-        )
-        return ""
-    functions = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == function_name
-    ]
-    if len(functions) != 1:
-        _error(
-            errors,
-            f"repository.anchors.{relative_path}",
-            f"must define exactly one {function_name!r} function",
-        )
-        return ""
-    return ast.get_source_segment(source, functions[0]) or ""
-
-
-def _typescript_function_source(
-    source: str, function_name: str, relative_path: str, errors: list[str]
-) -> str:
-    """Return one exported TypeScript function body without parsing TS as Python."""
-    marker = f"export function {function_name}"
-    starts = [match.start() for match in re.finditer(re.escape(marker), source)]
-    if len(starts) != 1:
-        _error(
-            errors,
-            f"repository.anchors.{relative_path}",
-            f"must define exactly one {function_name!r} function",
-        )
-        return ""
-    start = starts[0]
-    next_start = source.find("\nexport function ", start + len(marker))
-    return source[start : next_start if next_start >= 0 else len(source)]
-
-
 def _document_visibility_guard_line(
     source: str, relative_path: str, errors: list[str]
 ) -> int | None:
@@ -1854,24 +1815,16 @@ def _public_html_mirror_surface_errors(root: Path) -> list[str]:
             "canonical resume identifier": "`/r/${encodeURIComponent(document.identifier)}`",
         },
         "apps/web/app/sitemap.ts": {
-            "Next sitemap partition function": "export function generateSitemaps()",
-            "stable sitemap category IDs": "const sitemapCategoryIds = [0, 1, 2, 3] as const;",
-            "50,000 URL ceiling": "const maxSitemapEntries = 50_000;",
-            "bounded cursor pages": "const maxCursorPages = 250;",
-            "Next runtime category normalization": 'const categoryId = typeof id === "string" && /^[0-3]$/.test(id) ? Number(id) : id;',
-            "document category": "if (categoryId === 0) return collectDocumentSitemap();",
-            "recruitment category": "if (categoryId === 1) return collectRecruitmentSitemap();",
-            "agent category": "if (categoryId === 2) return collectAgentSitemap();",
-            "public post category": "if (categoryId === 3) return collectPostSitemap();",
-            "public post inventory reader": "listPublicPostsOnServer(200, cursor)",
-            "public post duplicate guard": "The public post inventory repeated a post.",
-            "public post cursor guard": "The public post inventory cursor did not progress.",
-            "public post sitemap ceiling": "The public post inventory exceeded its 50,000-post sitemap window.",
-            "cap before append": "if (entries.length >= maxSitemapEntries) return false;",
-            "document fallback": "return fallbackEntries;",
+            "static metadata route": "MetadataRoute.Sitemap",
+            "root route": 'absoluteSiteUrl("/")',
+            "guided route": 'absoluteSiteUrl("/human")',
+            "Markdown route": 'absoluteSiteUrl("/md")',
+            "trust route": 'absoluteSiteUrl("/trust")',
         },
         "apps/web/app/robots.ts": {
-            "generated sitemap IDs": "[0, 1, 2, 3].map((id) => absoluteSiteUrl(`/sitemap/${id}.xml`))",
+            "standalone allowlist": 'allow: ["/", "/human", "/md", "/trust", "/agent-readme.md", "/llms.txt"]',
+            "retired discovery exclusion": '"/discover"',
+            "single sitemap": 'sitemap: absoluteSiteUrl("/sitemap.xml")',
         },
         "apps/web/tests/public-projections.test.ts": {
             "minimal named resume DigitalDocument": "projects a named resume as minimal DigitalDocument structured data",
@@ -1882,11 +1835,9 @@ def _public_html_mirror_surface_errors(root: Path) -> list[str]:
             "canonical source and version": "binds the HTML body and source facts to the canonical response fields",
         },
         "apps/web/tests/sitemap.test.ts": {
-            "stable sitemap IDs and robots parity": "generates stable category IDs and advertises their production URLs",
-            "50,000 counterexample": "caps category 0 at 50,000 URLs including base entries",
-            "document fail-closed fallback": "fails closed to category 0 base entries for malformed inventory data",
-            "recruitment fail-closed fallback": "returns an empty category 1 sitemap when a later recruitment read fails",
-            "agent fail-closed fallback": "returns an empty category 2 sitemap when a directory continuation is unavailable",
+            "standalone sitemap": "publishes only the pages that work without a backend",
+            "retired crawler exclusions": "keeps backend-only routes out of crawlers",
+            "production sitemap": 'expect(value.sitemap).toBe("https://connect.md/sitemap.xml");',
         },
     }
     for relative_path, markers in required.items():
@@ -3593,6 +3544,24 @@ def _recruiting_release_gate_errors(
             "compose.yaml#recruiting-release-gate",
             "the API and frontend services must each receive the default-false recruiting gate",
         )
+    if (root / "apps/web/public/llms.txt").is_file():
+        _require_source_markers(
+            _read_anchor_source(root, "apps/web/middleware.ts", errors),
+            "apps/web/middleware.ts#retired-recruiting-routes",
+            {
+                "retired organization route": '"/organizations/:path*"',
+                "retired job route": '"/jobs/:path*"',
+                "bounded response": "status: 404",
+            },
+            errors,
+        )
+        _require_source_markers(
+            robots,
+            "apps/web/app/robots.ts#retired-recruiting-routes",
+            {"organization crawler exclusion": '"/organizations"', "job crawler exclusion": '"/jobs"'},
+            errors,
+        )
+        return errors
     _require_source_markers(
         web_gate,
         "apps/web/lib/recruiting-release.ts#recruiting-release-gate",
@@ -6805,15 +6774,9 @@ def _public_trust_surface_errors(
         page_path,
         {
             "canonical public route": 'alternates: { canonical: "/trust" }',
-            "plain-language current behavior": (
-                "plain-language description of current product visibility, not a legal privacy policy"
-            ),
-            "no legal retention promise": (
-                "does not set legal terms or promise a retention or deletion outcome"
-            ),
-            "no agent authority escalation": (
-                "Finding a profile or Agent Identity does not grant contact, publishing, application, or maintenance authority"
-            ),
+            "plain-language current behavior": "This Vercel deployment is a standalone drafting site.",
+            "no hidden persistence": "It does not write your content to localStorage, sessionStorage, IndexedDB, cookies, a server action, or an API route.",
+            "no agent authority escalation": "grant no authority over any person or file",
         },
         errors,
     )
@@ -6821,9 +6784,9 @@ def _public_trust_surface_errors(
         _read_anchor_source(root, "apps/web/tests/public-trust.test.ts", errors),
         "apps/web/tests/public-trust.test.ts",
         {
-            "canonical route assertion": 'expect(metadata.alternates).toEqual({ canonical: "/trust" });',
-            "plain-language assertion": "rather than an invented legal policy",
-            "authority boundary assertion": "does not grant contact, publishing, application, or maintenance authority",
+            "canonical route assertion": 'alternates: { canonical: "/trust" }',
+            "plain-language assertion": "states exactly what remains local and what Vercel serves",
+            "authority boundary assertion": "has no auth, recruiting, split-origin, or backend branches",
         },
         errors,
     )
@@ -7101,22 +7064,19 @@ def _current_platform_surface_errors(
     )
     _require_source_markers(
         source("apps/web/app/sitemap.ts"),
-        "apps/web/app/sitemap.ts#public-post-sitemap",
+        "apps/web/app/sitemap.ts#standalone-public-sitemap",
         {
-            "four category source": "const sitemapCategoryIds = [0, 1, 2, 3] as const;",
-            "Next runtime category normalization": 'const categoryId = typeof id === "string" && /^[0-3]$/.test(id) ? Number(id) : id;',
-            "post category": "if (categoryId === 3) return collectPostSitemap();",
-            "post reader": "listPublicPostsOnServer(200, cursor)",
+            "static sitemap type": "MetadataRoute.Sitemap",
+            "standalone trust route": 'absoluteSiteUrl("/trust")',
         },
         errors,
     )
     _require_source_markers(
         source("apps/web/tests/sitemap.test.ts"),
-        "apps/web/tests/sitemap.test.ts#public-post-sitemap",
+        "apps/web/tests/sitemap.test.ts#standalone-public-sitemap",
         {
-            "four category test": "toEqual([{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }])",
-            "category three test": "publishes chronological public post HTML URLs from every successful category 3 page",
-            "category three fail-closed": "fails category 3 closed on a later request failure, duplicate post, or cursor loop",
+            "static site inventory": "publishes only the pages that work without a backend",
+            "retired public post exclusion": '"/posts/"',
         },
         errors,
     )
@@ -8645,6 +8605,54 @@ def check_registry(
         _error(errors, "registry.features", "must be a non-empty array")
         return errors
 
+    seen_feature_ids: set[str] = set()
+    duplicate_feature_id = False
+    for index, feature in enumerate(features):
+        feature_id = feature.get("id") if isinstance(feature, dict) else None
+        if isinstance(feature_id, str) and feature_id in seen_feature_ids:
+            duplicate_feature_id = True
+            _error(
+                errors,
+                f"registry.features[{index}].id",
+                f"duplicates feature id {feature_id!r}",
+            )
+        elif isinstance(feature_id, str):
+            seen_feature_ids.add(feature_id)
+    if duplicate_feature_id:
+        return errors
+
+    # Reject missing mandatory authority before the expensive repository scan.
+    # The mutation suite checks each constraint independently, so doing this
+    # after AST inventory would repeat the same full scan dozens of times.
+    missing_mandatory_constraint = False
+    for index, feature in enumerate(features):
+        if not isinstance(feature, dict):
+            continue
+        feature_id = feature.get("id")
+        authority = feature.get("authority")
+        constraints = (
+            authority.get("constraints") if isinstance(authority, dict) else None
+        )
+        if (
+            not isinstance(feature_id, str)
+            or not isinstance(constraints, list)
+            or not all(isinstance(constraint, str) for constraint in constraints)
+        ):
+            continue
+        missing_constraints = REQUIRED_FEATURE_CONSTRAINTS.get(feature_id, set()) - set(
+            constraints
+        )
+        if missing_constraints:
+            missing_mandatory_constraint = True
+            _error(
+                errors,
+                f"registry.features[{index}].authority.constraints",
+                "is missing required constraints: "
+                + ", ".join(sorted(missing_constraints)),
+            )
+    if missing_mandatory_constraint:
+        return errors
+
     advanced_claim_present = any(
         isinstance(feature, dict)
         and feature.get("stage")
@@ -8724,21 +8732,12 @@ def check_registry(
                 f"{prefix}.authority.write_actors",
                 errors,
             )
-            constraints = _strings(
+            _strings(
                 authority.get("constraints"),
                 f"{prefix}.authority.constraints",
                 errors,
                 nonempty=True,
             )
-            required_constraints = REQUIRED_FEATURE_CONSTRAINTS.get(feature_id, set())
-            missing_constraints = required_constraints - set(constraints)
-            if missing_constraints:
-                _error(
-                    errors,
-                    f"{prefix}.authority.constraints",
-                    "is missing required constraints: "
-                    + ", ".join(sorted(missing_constraints)),
-                )
 
         surfaces = _object(
             item.get("surfaces"),
