@@ -106,6 +106,11 @@ def main() -> None:
     if environment != ["NEXT_PUBLIC_SITE_URL=https://connect-md.vercel.app"]:
         errors.append(f"unexpected Vercel environment contract: {environment}")
 
+    workflow = read(ROOT / ".github" / "workflows" / "ci.yml")
+    for retired_job in ("api", "infrastructure"):
+        if f"\n  {retired_job}:" in workflow:
+            errors.append(f"CI still runs retired {retired_job} job")
+
     for name in ("agent-readme.md", "llms.txt"):
         contents = read(WEB / "public" / name)
         for marker in ("browser", "no publishing API", "download"):
