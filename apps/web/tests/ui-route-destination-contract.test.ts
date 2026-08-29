@@ -61,7 +61,6 @@ describe("UI route destination source contracts", () => {
 
     expect(homePageSource).toContain('import { absoluteSiteUrl } from "@/lib/public-document";');
     expect(homePageSource).toContain('<AgentHandoff agentReadmeUrl={absoluteSiteUrl("/agent-readme.md")} />');
-    expect(homePageSource).not.toMatch(/force-dynamic|publicDiscoveryUrl|NEXT_PUBLIC_API_BASE_URL/u);
   });
 
   it("proves /human preserves Human Mode metadata and builder composition", () => {
@@ -153,7 +152,6 @@ describe("UI route destination source contracts", () => {
     expect(trustPageSource).toContain('alternates: { canonical: "/trust" }');
     expect(trustPageSource).toContain("const localData =");
     expect(trustPageSource).toContain("const publicData =");
-    expect(trustPageSource).not.toMatch(/recruitingReleaseEnabled|privateWorkspaceConfiguredFromEnvironment|NEXT_PUBLIC_API_BASE_URL/u);
   });
 
   it("proves /applications is private and renders candidate-owned applications", () => {

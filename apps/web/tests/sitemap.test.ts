@@ -24,6 +24,7 @@ describe("standalone Vercel discovery", () => {
       "/agents",
       "/organizations",
       "/jobs",
+      "/posts/",
       "/workspace",
     ]));
     expect(value.sitemap).toBe("https://connect.md/sitemap.xml");

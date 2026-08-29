@@ -2003,14 +2003,14 @@
       "owner": "canonical-documents",
       "witness": {
         "assertion_anchors": [
-          "expect(homePageSource).toContain('export const dynamic = \"force-dynamic\";');",
-          "expect(homePageSource).toContain(\"const agentReadmeUrl = publicDiscoveryUrl\");"
+          "expect(homePageSource).toContain('import { absoluteSiteUrl } from \"@/lib/public-document\";');",
+          "expect(homePageSource).toContain('<AgentHandoff agentReadmeUrl={absoluteSiteUrl(\"/agent-readme.md\")} />');"
         ],
         "case_witness": "const homePageSource = readFileSync(new URL(\"../app/page.tsx\", import.meta.url), \"utf8\");",
         "evidence_mode": "page_source",
         "page_module": "apps/web/app/page.tsx",
         "source_binding": "homePageSource",
-        "test": "proves / preserves the agent handoff and current dynamic landing",
+        "test": "proves / preserves the standalone static agent handoff",
         "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
       }
     },
@@ -2408,14 +2408,14 @@
       "owner": "public-search",
       "witness": {
         "assertion_anchors": [
-          "expect(trustPageSource).toContain('title: \"Privacy and agent data\"');",
+          "expect(trustPageSource).toContain('title: \"Privacy and data\"');",
           "expect(trustPageSource).toContain('alternates: { canonical: \"/trust\" }');"
         ],
         "case_witness": "const trustPageSource = readFileSync(new URL(\"../app/trust/page.tsx\", import.meta.url), \"utf8\");",
         "evidence_mode": "page_source",
         "page_module": "apps/web/app/trust/page.tsx",
         "source_binding": "trustPageSource",
-        "test": "proves /trust exposes current privacy metadata and recruiting visibility",
+        "test": "proves /trust exposes the standalone browser privacy boundary",
         "test_path": "apps/web/tests/ui-route-destination-contract.test.ts"
       }
     },

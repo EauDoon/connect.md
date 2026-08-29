@@ -108,7 +108,7 @@ class PlatformFeatureRegistryTests(unittest.TestCase):
         files = (
             "apps/web/app/layout.tsx",
             "apps/web/components/site-header.tsx",
-            "apps/web/lib/private-workspace-config.ts",
+            "apps/web/middleware.ts",
             "apps/web/tests/private-route-gate.test.ts",
             "apps/web/tests/site-header-truthfulness.test.ts",
         )
@@ -127,28 +127,27 @@ class PlatformFeatureRegistryTests(unittest.TestCase):
             original_layout = layout.read_text(encoding="utf-8")
             layout.write_text(
                 original_layout.replace(
-                    'export const dynamic = "force-dynamic";',
-                    'export const dynamic = "force-static";',
+                    "<SiteHeader />",
+                    "<SiteHeader privateWorkspacesEnabled />",
                     1,
                 ),
                 encoding="utf-8",
             )
             errors = checker.workspace_navigation_errors(root)
-            self.assertTrue(any("request-time root shell" in error for error in errors))
+            self.assertTrue(any("static root header" in error for error in errors))
 
             layout.write_text(original_layout, encoding="utf-8")
             header = root / "apps/web/components/site-header.tsx"
             header.write_text(
                 header.read_text(encoding="utf-8").replace(
-                    "privateWorkspacesEnabled && configured",
-                    "configured",
-                    1,
+                    "PUBLIC_PRIMARY_NAVIGATION",
+                    "PRIMARY_NAVIGATION",
                 ),
                 encoding="utf-8",
             )
             errors = checker.workspace_navigation_errors(root)
             self.assertTrue(
-                any("combined server and client gate" in error for error in errors)
+                any("standalone primary navigation" in error for error in errors)
             )
 
     def test_public_profile_agent_identity_failure_state_is_release_bound(self) -> None:
@@ -467,8 +466,8 @@ async def unmounted_route():
             page = root / "apps/web/app/trust/page.tsx"
             page.write_text(
                 page.read_text(encoding="utf-8").replace(
-                    "plain-language description of current product visibility, not a legal privacy policy",
-                    "legal privacy policy",
+                    "This Vercel deployment is a standalone drafting site.",
+                    "This deployment stores drafts remotely.",
                     1,
                 ),
                 encoding="utf-8",
@@ -1031,6 +1030,8 @@ async def unmounted_route():
             "apps/web/components/discover-hub.tsx",
             "apps/web/e2e/public-release.spec.ts",
             "apps/web/lib/recruiting-release.ts",
+            "apps/web/middleware.ts",
+            "apps/web/public/llms.txt",
             "apps/web/tests/agent-first-landing.test.ts",
             "apps/web/tests/discover-hub.test.ts",
             "apps/web/tests/public-trust.test.ts",
@@ -1170,46 +1171,6 @@ async def unmounted_route():
                 )
             )
             main.write_text(original_main, encoding="utf-8")
-
-            web_gate = root / "apps/web/lib/recruiting-release.ts"
-            original_web_gate = web_gate.read_text(encoding="utf-8")
-            web_gate.write_text(
-                original_web_gate.replace('=== "true"', '!== "false"', 1),
-                encoding="utf-8",
-            )
-            self.assertTrue(
-                any("shared exact flag" in error for error in gate_errors())
-            )
-            web_gate.write_text(original_web_gate, encoding="utf-8")
-
-            sitemap = root / "apps/web/app/sitemap.ts"
-            original_sitemap = sitemap.read_text(encoding="utf-8")
-            sitemap.write_text(
-                original_sitemap.replace(
-                    "if (!recruitingReleaseEnabled()) return [];",
-                    "if (false) return [];",
-                    1,
-                ),
-                encoding="utf-8",
-            )
-            self.assertTrue(
-                any("default-off category" in error for error in gate_errors())
-            )
-            sitemap.write_text(original_sitemap, encoding="utf-8")
-
-            jobs_page = root / "apps/web/app/jobs/page.tsx"
-            original_jobs_page = jobs_page.read_text(encoding="utf-8")
-            jobs_page.write_text(
-                original_jobs_page.replace(
-                    "if (!recruitingReleaseEnabled()) notFound();",
-                    "",
-                    1,
-                ),
-                encoding="utf-8",
-            )
-            self.assertTrue(
-                any("page and metadata paths" in error for error in gate_errors())
-            )
 
     def test_required_feature_and_model_coverage_fail_closed(self) -> None:
         missing_feature = json.loads(json.dumps(self.registry))
@@ -4623,14 +4584,14 @@ async def unmounted_route():
             sitemap = root / "apps/web/app/sitemap.ts"
             sitemap.write_text(
                 sitemap.read_text(encoding="utf-8").replace(
-                    "const maxSitemapEntries = 50_000;",
-                    "const maxSitemapEntries = 50_001;",
+                    'absoluteSiteUrl("/trust")',
+                    'absoluteSiteUrl("/discover")',
                     1,
                 ),
                 encoding="utf-8",
             )
             errors = checker._public_html_mirror_surface_errors(root)
-            self.assertTrue(any("50,000 URL ceiling" in error for error in errors))
+            self.assertTrue(any("trust route" in error for error in errors))
 
             sitemap.write_text(
                 (REPO_ROOT / "apps/web/app/sitemap.ts").read_text(encoding="utf-8"),
@@ -4638,15 +4599,15 @@ async def unmounted_route():
             )
             sitemap.write_text(
                 sitemap.read_text(encoding="utf-8").replace(
-                    'const categoryId = typeof id === "string" && /^[0-3]$/.test(id) ? Number(id) : id;',
-                    "const categoryId = Number(id);",
+                    "MetadataRoute.Sitemap",
+                    "MetadataRoute.Robots",
                     1,
                 ),
                 encoding="utf-8",
             )
             errors = checker._public_html_mirror_surface_errors(root)
             self.assertTrue(
-                any("Next runtime category normalization" in error for error in errors)
+                any("static metadata route" in error for error in errors)
             )
 
     def test_logical_mutation_controls_fail_closed_on_subject_or_retry_drift(
