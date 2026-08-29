@@ -140,6 +140,11 @@ describe("Human Mode v2 accessibility surface", () => {
     expect(source).toContain("patchHumanFields(canonicalMarkdownRef.current, kind, patchFields)");
     expect(source).toContain("Advanced Markdown preserved");
     expect(source).toContain("Unknown frontmatter and unedited sections stay intact.");
+    expect(source).toContain("isEmptyDraft(markdown)");
+    expect(source).toContain("replaceMarkdown(starterFor(kind))");
+    expect(source).toContain("Human Mode is locked because the draft is empty.");
+    expect(source).toContain("Restore the starter template or paste a complete Markdown file in Markdown Mode.");
+    expect(source).toContain("Reset starter");
   });
 
   it("preserves reduced-motion scrolling and keyboard-native stage controls", () => {
