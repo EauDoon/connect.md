@@ -606,6 +606,8 @@ wait_for_service() {
     [ "$service" = search-projection-worker ] || return 0
     printf 'SEARCH_PROJECTION_WORKER_LOGS_BEGIN\n' >&2
     docker logs --tail 40 "$container" >&2 || true
+    docker inspect --format 'SEARCH_PROJECTION_WORKER_STATE=status={{.State.Status}} restarting={{.State.Restarting}} oom_killed={{.State.OOMKilled}} exit_code={{.State.ExitCode}} restart_count={{.RestartCount}}' "$container" >&2 || true
+    docker top "$container" -eo pid,ppid,stat,comm,args >&2 || true
     docker inspect --format 'SEARCH_PROJECTION_WORKER_HEALTH={{json .State.Health}}' "$container" >&2 || true
     printf 'SEARCH_PROJECTION_WORKER_LOGS_END\n' >&2
   }
