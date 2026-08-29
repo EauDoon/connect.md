@@ -33,13 +33,36 @@ class MarkdownVersionConflictError(MarkdownValidationError):
 PUBLIC_MARKDOWN_VALIDATION_DETAIL = "the Markdown payload failed canonical validation"
 
 
+def _frontmatter_yaml_location(mark: object | None) -> str:
+    """Format a YAML mark as a 1-indexed document location after the opening ---."""
+    line = getattr(mark, "line", None)
+    column = getattr(mark, "column", None)
+    if not isinstance(line, int) or not isinstance(column, int) or line < 0 or column < 0:
+        return ""
+    return f" at line {line + 2}, column {column + 1}"
+
+
+def _frontmatter_yaml_cause(exc: yaml.YAMLError) -> str:
+    """Keep scanner/parser causes without embedding YAML snippets from str(exc)."""
+    parts: list[str] = []
+    for attr in ("context", "problem"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip().rstrip("."))
+    return ": ".join(parts) if parts else "YAML could not be parsed"
+
+
 class UniqueKeyLoader(yaml.SafeLoader):
     """Safe YAML loader that refuses ambiguous duplicate mapping keys."""
 
     def compose_node(self, parent: Node | None, index: int) -> Node | None:
         """Reject aliases before PyYAML can construct an expanded object graph."""
         if self.check_event(AliasEvent):
-            raise MarkdownValidationError("YAML aliases are not allowed in frontmatter")
+            event = self.peek_event()
+            raise MarkdownValidationError(
+                "YAML aliases are not allowed in frontmatter"
+                + _frontmatter_yaml_location(getattr(event, "start_mark", None))
+            )
         return super().compose_node(parent, index)
 
 
@@ -49,10 +72,11 @@ def _construct_mapping(
     mapping: dict[str, Any] = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=deep)
+        location = _frontmatter_yaml_location(getattr(key_node, "start_mark", None))
         if not isinstance(key, str):
-            raise MarkdownValidationError("frontmatter keys must be strings")
+            raise MarkdownValidationError("frontmatter keys must be strings" + location)
         if key in mapping:
-            raise MarkdownValidationError(f"frontmatter contains duplicate key '{key}'")
+            raise MarkdownValidationError(f"frontmatter contains duplicate key '{key}'" + location)
         mapping[key] = loader.construct_object(value_node, deep=deep)
     return mapping
 
@@ -197,8 +221,12 @@ def split_markdown(markdown: str, *, kind: str | None = None) -> tuple[dict[str,
     except MarkdownValidationError:
         raise
     except yaml.YAMLError as exc:
-        problem = getattr(exc, "problem", None)
-        raise MarkdownValidationError(f"invalid YAML frontmatter: {problem or str(exc)}") from exc
+        location = _frontmatter_yaml_location(
+            getattr(exc, "problem_mark", None) or getattr(exc, "context_mark", None)
+        )
+        raise MarkdownValidationError(
+            f"invalid YAML frontmatter{location}: {_frontmatter_yaml_cause(exc)}"
+        ) from exc
     if not isinstance(frontmatter, dict):
         raise MarkdownValidationError("frontmatter must be a YAML mapping")
     return frontmatter, match.group("body")

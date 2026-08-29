@@ -253,6 +253,40 @@ def test_split_rejects_yaml_alias_expansion() -> None:
         split_markdown(document)
 
 
+def test_split_names_yaml_parse_line_and_cause() -> None:
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "packages"
+        / "markdown-schemas"
+        / "fixtures"
+        / "invalid"
+        / "profile-invalid-yaml.md"
+    )
+    with pytest.raises(MarkdownValidationError) as caught:
+        split_markdown(path.read_text(encoding="utf-8"))
+    message = str(caught.value)
+    assert "invalid YAML frontmatter at line 3, column " in message
+    assert "while parsing a flow sequence" in message
+    assert "expected ',' or ']'" in message
+    assert "schema_version: [1" not in message
+
+
+def test_split_names_duplicate_key_and_alias_lines() -> None:
+    duplicate = "---\nname: Ada Lovelace\nname: Grace Hopper\n---\n# Ada Lovelace\n"
+    with pytest.raises(
+        MarkdownValidationError,
+        match=r"frontmatter contains duplicate key 'name' at line 3, column 1\Z",
+    ):
+        split_markdown(duplicate)
+
+    aliased = "---\nname: &person Ada Lovelace\nalias_name: *person\n---\n# Ada Lovelace\n"
+    with pytest.raises(
+        MarkdownValidationError,
+        match=r"YAML aliases are not allowed in frontmatter at line 3, column \d+\Z",
+    ):
+        split_markdown(aliased)
+
+
 def test_prepare_client_document_checks_final_lf_canonical_output_only() -> None:
     source = profile_markdown().replace("\n", "\r\n")
     rendered, _ = prepare_client_document(
