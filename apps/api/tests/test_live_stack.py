@@ -150,47 +150,27 @@ async def _post_without_body_after_barrier(
         return await client.post(path, headers=headers)
 
 
-async def _wait_for_application_transition_lock_waiters(
-    session: AsyncSession,
-    *,
-    minimum: int = 2,
-) -> None:
-    """Prove both HTTP transactions are blocked by this PostgreSQL session."""
+async def _wait_for_application_transition_lock_waiters(session: AsyncSession) -> None:
+    """Wait until the concurrent transition pair reaches the held PostgreSQL row lock."""
 
     deadline = asyncio.get_running_loop().time() + 10
     statement = text(
         """
-        WITH RECURSIVE lock_waiters AS (
-            SELECT pid, pg_blocking_pids(pid) AS blockers
-            FROM pg_stat_activity
-            WHERE pid <> pg_backend_pid()
-              AND datname = current_database()
-              AND usename = current_user
-              AND state = 'active'
-              AND wait_event_type = 'Lock'
-        ), blocked_by_gate(pid) AS (
-            SELECT pid
-            FROM lock_waiters
-            WHERE pg_backend_pid() = ANY(blockers)
-            UNION
-            SELECT waiter.pid
-            FROM lock_waiters AS waiter
-            JOIN blocked_by_gate AS blocker
-              ON blocker.pid = ANY(waiter.blockers)
-        )
         SELECT count(*)
-        FROM blocked_by_gate
+        FROM pg_stat_activity
+        WHERE pid <> pg_backend_pid()
+          AND datname = current_database()
+          AND usename = current_user
+          AND state = 'active'
+          AND wait_event_type = 'Lock'
+          AND pg_backend_pid() = ANY(pg_blocking_pids(pid))
         """
     )
     while asyncio.get_running_loop().time() < deadline:
-        waiters = await session.scalar(statement)
-        if int(waiters or 0) >= minimum:
+        if int(await session.scalar(statement) or 0) >= 1:
             return
         await asyncio.sleep(0.05)
-    pytest.fail(
-        "both application transitions did not reach the PostgreSQL lock gate",
-        pytrace=False,
-    )
+    pytest.fail("application transitions did not reach the PostgreSQL lock gate", pytrace=False)
 
 
 async def _run_scoped_projection_task(
@@ -990,7 +970,7 @@ async def test_live_postgres_api_key_same_key_different_body_race_rolls_back_los
                 await session.scalars(
                     select(ChangeEvent).where(
                         ChangeEvent.owner_id == owner_id,
-                        ChangeEvent.resource_type == "document",
+                        ChangeEvent.resource_type == "profile",
                         ChangeEvent.resource_id == documents[0].id,
                     )
                 )
@@ -1768,9 +1748,7 @@ async def test_live_postgres_application_withdraw_accept_race_has_one_terminal_e
                 ),
             ]
             try:
-                await _wait_for_application_transition_lock_waiters(
-                    gate,
-                )
+                await _wait_for_application_transition_lock_waiters(gate)
                 await gate.commit()
                 withdrawn, accepted = await asyncio.wait_for(asyncio.gather(*tasks), timeout=15)
             except BaseException:

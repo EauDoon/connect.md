@@ -102,12 +102,16 @@ except ImportError:
 
 try:
     from .platform_checker_source import append_error as _error
+    from .platform_checker_source import function_source as _function_source
     from .platform_checker_source import (
         ordered_anchor_positions as _ordered_anchor_positions,
     )
     from .platform_checker_source import read_anchor_source as _read_anchor_source
     from .platform_checker_source import (
         require_source_markers as _require_source_markers,
+    )
+    from .platform_checker_source import (
+        typescript_function_source as _typescript_function_source,
     )
     from .platform_human_mode import (
         human_mode_surface_errors as _human_mode_surface_errors,
@@ -116,12 +120,16 @@ try:
     from .platform_workspace_navigation import workspace_navigation_errors
 except ImportError:
     from platform_checker_source import append_error as _error
+    from platform_checker_source import function_source as _function_source
     from platform_checker_source import (
         ordered_anchor_positions as _ordered_anchor_positions,
     )
     from platform_checker_source import read_anchor_source as _read_anchor_source
     from platform_checker_source import (
         require_source_markers as _require_source_markers,
+    )
+    from platform_checker_source import (
+        typescript_function_source as _typescript_function_source,
     )
     from platform_human_mode import (
         human_mode_surface_errors as _human_mode_surface_errors,
@@ -1722,53 +1730,6 @@ def _agent_web_helper_extraction_errors(root: Path) -> list[str]:
                 f"must not retain extracted presentation marker {marker!r}"
             )
     return errors
-
-
-def _function_source(
-    source: str, function_name: str, relative_path: str, errors: list[str]
-) -> str:
-    """Return one named function body, failing closed on missing or ambiguous source."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError as exc:
-        _error(
-            errors,
-            f"repository.anchors.{relative_path}",
-            f"cannot parse source: {exc}",
-        )
-        return ""
-    functions = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == function_name
-    ]
-    if len(functions) != 1:
-        _error(
-            errors,
-            f"repository.anchors.{relative_path}",
-            f"must define exactly one {function_name!r} function",
-        )
-        return ""
-    return ast.get_source_segment(source, functions[0]) or ""
-
-
-def _typescript_function_source(
-    source: str, function_name: str, relative_path: str, errors: list[str]
-) -> str:
-    """Return one exported TypeScript function body without parsing TS as Python."""
-    marker = f"export function {function_name}"
-    starts = [match.start() for match in re.finditer(re.escape(marker), source)]
-    if len(starts) != 1:
-        _error(
-            errors,
-            f"repository.anchors.{relative_path}",
-            f"must define exactly one {function_name!r} function",
-        )
-        return ""
-    start = starts[0]
-    next_start = source.find("\nexport function ", start + len(marker))
-    return source[start : next_start if next_start >= 0 else len(source)]
 
 
 def _document_visibility_guard_line(
@@ -8645,6 +8606,54 @@ def check_registry(
         _error(errors, "registry.features", "must be a non-empty array")
         return errors
 
+    seen_feature_ids: set[str] = set()
+    duplicate_feature_id = False
+    for index, feature in enumerate(features):
+        feature_id = feature.get("id") if isinstance(feature, dict) else None
+        if isinstance(feature_id, str) and feature_id in seen_feature_ids:
+            duplicate_feature_id = True
+            _error(
+                errors,
+                f"registry.features[{index}].id",
+                f"duplicates feature id {feature_id!r}",
+            )
+        elif isinstance(feature_id, str):
+            seen_feature_ids.add(feature_id)
+    if duplicate_feature_id:
+        return errors
+
+    # Reject missing mandatory authority before the expensive repository scan.
+    # The mutation suite checks each constraint independently, so doing this
+    # after AST inventory would repeat the same full scan dozens of times.
+    missing_mandatory_constraint = False
+    for index, feature in enumerate(features):
+        if not isinstance(feature, dict):
+            continue
+        feature_id = feature.get("id")
+        authority = feature.get("authority")
+        constraints = (
+            authority.get("constraints") if isinstance(authority, dict) else None
+        )
+        if (
+            not isinstance(feature_id, str)
+            or not isinstance(constraints, list)
+            or not all(isinstance(constraint, str) for constraint in constraints)
+        ):
+            continue
+        missing_constraints = REQUIRED_FEATURE_CONSTRAINTS.get(feature_id, set()) - set(
+            constraints
+        )
+        if missing_constraints:
+            missing_mandatory_constraint = True
+            _error(
+                errors,
+                f"registry.features[{index}].authority.constraints",
+                "is missing required constraints: "
+                + ", ".join(sorted(missing_constraints)),
+            )
+    if missing_mandatory_constraint:
+        return errors
+
     advanced_claim_present = any(
         isinstance(feature, dict)
         and feature.get("stage")
@@ -8724,21 +8733,12 @@ def check_registry(
                 f"{prefix}.authority.write_actors",
                 errors,
             )
-            constraints = _strings(
+            _strings(
                 authority.get("constraints"),
                 f"{prefix}.authority.constraints",
                 errors,
                 nonempty=True,
             )
-            required_constraints = REQUIRED_FEATURE_CONSTRAINTS.get(feature_id, set())
-            missing_constraints = required_constraints - set(constraints)
-            if missing_constraints:
-                _error(
-                    errors,
-                    f"{prefix}.authority.constraints",
-                    "is missing required constraints: "
-                    + ", ".join(sorted(missing_constraints)),
-                )
 
         surfaces = _object(
             item.get("surfaces"),

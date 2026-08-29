@@ -609,6 +609,12 @@ wait_for_service() {
         return 0
         ;;
       unhealthy | exited | dead)
+        if [ "$service" = search-projection-worker ]; then
+          printf 'SEARCH_PROJECTION_WORKER_LOGS_BEGIN\n' >&2
+          docker logs --tail 40 "$container" >&2 || true
+          docker inspect --format 'SEARCH_PROJECTION_WORKER_HEALTH={{json .State.Health}}' "$container" >&2 || true
+          printf 'SEARCH_PROJECTION_WORKER_LOGS_END\n' >&2
+        fi
         die "$service entered state: $status"
         ;;
     esac

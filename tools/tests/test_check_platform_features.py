@@ -88,6 +88,22 @@ class PlatformFeatureRegistryTests(unittest.TestCase):
     def test_current_registry_passes(self) -> None:
         self.assertEqual(self.check(self.registry), [])
 
+    def test_function_source_cache_tracks_content_and_utf8_offsets(self) -> None:
+        path = "fixture.py"
+        errors: list[str] = []
+        first = 'def outer():\n    def target():\n        return "café"\n'
+        second = first.replace("café", "茶")
+
+        self.assertEqual(
+            checker._function_source(first, "target", path, errors),
+            'def target():\n        return "café"',
+        )
+        self.assertEqual(
+            checker._function_source(second, "target", path, errors),
+            'def target():\n        return "茶"',
+        )
+        self.assertEqual(errors, [])
+
     def test_private_workspace_navigation_runtime_fails_closed(self) -> None:
         files = (
             "apps/web/app/layout.tsx",
