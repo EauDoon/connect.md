@@ -318,6 +318,24 @@ validate_canonical_https_origin() {
     || die "$variable_name must be a canonical HTTPS origin"
 }
 
+validate_tls_termination() {
+  local mode="$1" traefik_enabled="$2" http_binding="$3" https_binding="$4"
+  case "$mode" in auto | external) ;; *) die "CONNECTMD_TLS_MODE must be auto or external" ;; esac
+  case "$traefik_enabled" in true | false) ;; *) die "CONNECTMD_TRAEFIK_ENABLED must be true or false" ;; esac
+  if [ "$mode" = external ]; then
+    case "$http_binding" in
+      127.0.0.1:*:80) ;;
+      *) die "External TLS termination requires a loopback-only CONNECTMD_HTTP_BINDING" ;;
+    esac
+    case "$https_binding" in
+      127.0.0.1:*:443) ;;
+      *) die "External TLS termination requires a loopback-only CONNECTMD_HTTPS_BINDING" ;;
+    esac
+  elif [ "$traefik_enabled" = true ]; then
+    die "Traefik routing requires CONNECTMD_TLS_MODE=external"
+  fi
+}
+
 validate_public_api_base_environment_override() {
   local configured_base="$1"
   if [[ -v NEXT_PUBLIC_API_BASE_URL && "$NEXT_PUBLIC_API_BASE_URL" != "$configured_base" ]]; then
@@ -435,7 +453,7 @@ except (AssertionError, UnicodeEncodeError, ValueError, TypeError, json.JSONDeco
 }
 
 validate_production_env() {
-  local postgres_user postgres_password migrator_db_password api_db_password projection_db_password projection_admin_db_password erasure_db_password backup_db_password meili_key meili_search_key projection_meili_key erasure_meili_key clerk_jwks clerk_issuer clerk_audience clerk_parties clerk_api_configured api_key_pepper clerk_publishable_key clerk_secret_key clerk_frontend_configured domain public_base site_url api_base verification_reviewer_id verification_reviewer_role post_moderator_id post_moderator_role appeal_reviewer_id appeal_reviewer_role api_readiness_path recruiting_enabled lifecycle_enabled lifecycle_frontend lifecycle_hmac lifecycle_aead witness_hmac witness_dir witness_path backup_path clerk_backend_secret clerk_backend_base_url database_secret other_database_secret
+  local postgres_user postgres_password migrator_db_password api_db_password projection_db_password projection_admin_db_password erasure_db_password backup_db_password meili_key meili_search_key projection_meili_key erasure_meili_key clerk_jwks clerk_issuer clerk_audience clerk_parties clerk_api_configured api_key_pepper clerk_publishable_key clerk_secret_key clerk_frontend_configured domain public_base site_url api_base tls_mode traefik_enabled http_binding https_binding verification_reviewer_id verification_reviewer_role post_moderator_id post_moderator_role appeal_reviewer_id appeal_reviewer_role api_readiness_path recruiting_enabled lifecycle_enabled lifecycle_frontend lifecycle_hmac lifecycle_aead witness_hmac witness_dir witness_path backup_path clerk_backend_secret clerk_backend_base_url database_secret other_database_secret
   assert_env_file_matches_process_environment
   postgres_user="$(read_env_value POSTGRES_USER)" || die "POSTGRES_USER must be set exactly once in .env"
   [ "$postgres_user" = postgres ] || die "POSTGRES_USER must remain the operator-only postgres bootstrap identity"
@@ -459,6 +477,11 @@ validate_production_env() {
   domain="$(require_hostname)"
   public_base="$(require_secret_value CONNECTMD_PUBLIC_BASE_URL)"
   site_url="$(require_secret_value NEXT_PUBLIC_SITE_URL)"
+  tls_mode="$(read_env_optional_value CONNECTMD_TLS_MODE)" || die "CONNECTMD_TLS_MODE must appear at most once in .env"
+  traefik_enabled="$(read_env_optional_value CONNECTMD_TRAEFIK_ENABLED)" || die "CONNECTMD_TRAEFIK_ENABLED must appear at most once in .env"
+  http_binding="$(read_env_optional_value CONNECTMD_HTTP_BINDING)" || die "CONNECTMD_HTTP_BINDING must appear at most once in .env"
+  https_binding="$(read_env_optional_value CONNECTMD_HTTPS_BINDING)" || die "CONNECTMD_HTTPS_BINDING must appear at most once in .env"
+  validate_tls_termination "${tls_mode:-auto}" "${traefik_enabled:-false}" "$http_binding" "$https_binding"
   verification_reviewer_id="$(require_secret_value CONNECTMD_VERIFICATION_REVIEWER_ID)"
   verification_reviewer_role="$(read_env_value CONNECTMD_VERIFICATION_REVIEWER_ROLE)" || die "CONNECTMD_VERIFICATION_REVIEWER_ROLE must be set exactly once in .env"
   post_moderator_id="$(require_secret_value CONNECTMD_POST_MODERATOR_ID)"

@@ -535,6 +535,16 @@ services:
     environment:
       CONNECTMD_DOMAIN: ${CONNECTMD_DOMAIN:-}
       CONNECTMD_RELEASE_TAG: ${CONNECTMD_IMAGE_TAG:-local}
+      CONNECTMD_TLS_MODE: ${CONNECTMD_TLS_MODE:-auto}
+      CONNECTMD_HTTP_BINDING: ${CONNECTMD_HTTP_BINDING:-${CONNECTMD_HTTP_PORT:-80}:80}
+      CONNECTMD_HTTPS_BINDING: ${CONNECTMD_HTTPS_BINDING:-${CONNECTMD_HTTPS_PORT:-443}:443}
+    labels:
+      - "traefik.enable=${CONNECTMD_TRAEFIK_ENABLED:-false}"
+      - "traefik.http.routers.connectmd.rule=Host(`${CONNECTMD_DOMAIN:-connectmd.invalid}`)"
+      - "traefik.http.routers.connectmd.entrypoints=websecure"
+      - "traefik.http.routers.connectmd.tls=true"
+      - "traefik.http.routers.connectmd.tls.certresolver=letsencrypt"
+      - "traefik.http.services.connectmd.loadbalancer.server.port=80"
     ports:
       - "${CONNECTMD_HTTP_BINDING:-${CONNECTMD_HTTP_PORT:-80}:80}"
     volumes:

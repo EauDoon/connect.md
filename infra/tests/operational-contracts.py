@@ -1769,6 +1769,22 @@ assert compose.count("${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}") == 2
 assert compose.count("${CLERK_SECRET_KEY:-}") == 1
 assert "CLERK_JWKS_URL:?" not in compose
 assert "CLERK_PUBLISHABLE_KEY:?" not in compose
+nginx_environment = base_services["nginx"]["environment"]
+assert nginx_environment["CONNECTMD_TLS_MODE"] == "${CONNECTMD_TLS_MODE:-auto}"
+assert nginx_environment["CONNECTMD_HTTP_BINDING"].startswith(
+    "${CONNECTMD_HTTP_BINDING:-"
+)
+assert nginx_environment["CONNECTMD_HTTPS_BINDING"].startswith(
+    "${CONNECTMD_HTTPS_BINDING:-"
+)
+assert base_services["nginx"]["labels"] == [
+    "traefik.enable=${CONNECTMD_TRAEFIK_ENABLED:-false}",
+    "traefik.http.routers.connectmd.rule=Host(`${CONNECTMD_DOMAIN:-connectmd.invalid}`)",
+    "traefik.http.routers.connectmd.entrypoints=websecure",
+    "traefik.http.routers.connectmd.tls=true",
+    "traefik.http.routers.connectmd.tls.certresolver=letsencrypt",
+    "traefik.http.services.connectmd.loadbalancer.server.port=80",
+]
 assert "ports" not in base_services["api"] and "expose" not in base_services["api"]
 clerk_backend_environment_keys = {
     "CONNECTMD_CLERK_BACKEND_SECRET",

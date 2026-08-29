@@ -42,22 +42,29 @@ services = compose["services"]
 api = services["api"]
 nginx = services["nginx"]
 edge = compose["networks"]["connectmd_app"]
+proxy_headers = (ROOT / "infra/nginx/conf.d/snippets/proxy-headers.conf").read_text(
+    encoding="utf-8"
+)
 
 command = api["command"]
 flag = command.index("--forwarded-allow-ips")
 assert command[flag + 1] == TRUSTED_PROXY
 assert command[flag + 1] != "*" and "/" not in command[flag + 1]
 assert nginx["networks"]["connectmd_app"]["ipv4_address"] == TRUSTED_PROXY
-assert edge["ipam"]["config"] == [{"subnet": "172.31.254.0/24"}]
+assert edge["ipam"]["config"] == [
+    {"subnet": "172.31.254.0/24", "ip_range": "172.31.254.128/25"}
+]
 assert "ports" not in api and "expose" not in api
+assert "proxy_set_header X-Forwarded-For $remote_addr;" in proxy_headers
+assert "proxy_set_header X-Forwarded-Proto https;" in proxy_headers
 
 # A direct request from any untrusted container cannot forge client identity.
 assert asyncio.run(observed_client("172.31.254.19", "198.51.100.77")) == (
     "172.31.254.19",
     43210,
 )
-# For the trusted Nginx peer, Uvicorn's rightmost-untrusted walk ignores
-# attacker-controlled leading entries in Nginx's appended chain.
+# For the trusted Nginx peer, Uvicorn's rightmost-untrusted walk also ignores
+# attacker-controlled leading entries if a multi-hop chain reaches it.
 assert asyncio.run(observed_client(TRUSTED_PROXY, "198.51.100.77, 203.0.113.25")) == (
     "203.0.113.25",
     0,

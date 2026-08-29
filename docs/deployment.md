@@ -30,6 +30,8 @@ Create an `A` (and, if used, `AAAA`) DNS record for the single hostname in `CONN
 dig +short connectmd.example.com
 ```
 
+When a trusted host-level Traefik instance already owns ports 80 and 443, set `CONNECTMD_TLS_MODE=external`, `CONNECTMD_TRAEFIK_ENABLED=true`, `CONNECTMD_HTTP_BINDING=127.0.0.1:18080:80`, and `CONNECTMD_HTTPS_BINDING=127.0.0.1::443`. The last value confines the production override's otherwise-required, unused port 443 publication to an ephemeral loopback port. Traefik then terminates public TLS and discovers the labeled Nginx container on its private Docker network; Nginx retains the application routing, limits, CSP, HSTS, and trusted proxy boundary. Leave the default `auto` mode for a dedicated host where this stack issues and serves its own certificate. Never enable external mode with a publicly bound port.
+
 ## 2. Prepare the host and environment
 
 Use a dedicated, non-root deploy account with Docker access. The API image runs as UID/GID `10001`, so this fresh host must reserve the same numeric identity for the deploy account that owns the bind-mounted deletion authorities. Keep the repository in a directory owned by that account.
@@ -200,5 +202,5 @@ That command starts the worker; run `infra/scripts/health.sh` to require its aut
 - Uvicorn accepts forwarding headers only from the fixed Nginx address `172.31.254.2`. Nginx appends the direct peer to `X-Forwarded-For`; Uvicorn's right-to-left trusted-hop walk selects the first untrusted address, so a client-supplied leading value is not accepted as the client. Other containers on the bridge remain untrusted.
 - The account-erasure worker has no host port and is absent unless the `account-lifecycle` profile is explicitly selected. Its presence never widens the fresh dedicated connect.md target boundary.
 - Before TLS is issued, the port-80 bootstrap serves only ACME challenges and `/nginx-health`; application and authenticated API traffic return 503 rather than crossing plaintext HTTP.
-- Nginx automatically uses TLS whenever the named certificate volume contains a valid certificate for `CONNECTMD_DOMAIN`; otherwise it exposes only the HTTP ACME bootstrap server.
+- In the default `auto` mode, Nginx uses TLS whenever the named certificate volume contains a valid certificate for `CONNECTMD_DOMAIN`; otherwise it exposes only the HTTP ACME bootstrap server. `external` mode is reserved for the documented loopback-bound reverse-proxy deployment.
 - The certificate setup supports one hostname. Change `CONNECTMD_DOMAIN` only through a planned DNS and certificate replacement.

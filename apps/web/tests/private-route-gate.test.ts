@@ -159,7 +159,7 @@ describe("server-side private route gate", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("keeps the Clerk secret in permitted server runtime sources only", () => {
+  it("keeps the optional Clerk secret in permitted server runtime sources only", () => {
     const compose = parse(source("compose.yaml"));
     const frontend = compose.services.frontend;
     const dockerfile = source("apps/web/Dockerfile");
@@ -167,9 +167,7 @@ describe("server-side private route gate", () => {
     const middleware = source("apps/web/middleware.ts");
     const privateWorkspaceConfig = source("apps/web/lib/private-workspace-config.ts");
 
-    expect(frontend.environment.CLERK_SECRET_KEY).toBe(
-      "${CLERK_SECRET_KEY:?Set CLERK_SECRET_KEY in .env}",
-    );
+    expect(frontend.environment.CLERK_SECRET_KEY).toBe("${CLERK_SECRET_KEY:-}");
     expect(frontend.build.args).not.toHaveProperty("CLERK_SECRET_KEY");
     expect(dockerfile).not.toContain("CLERK_SECRET_KEY");
     expect(rootLayout).toContain('export const dynamic = "force-dynamic";');

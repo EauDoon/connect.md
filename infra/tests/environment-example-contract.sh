@@ -131,6 +131,32 @@ do
   printf '%s\n' "$output" | grep -Fq 'NEXT_PUBLIC_SITE_URL must be a canonical HTTPS origin' \
     || die "A noncanonical frontend origin returned the wrong failure"
 done
+for valid_tls_configuration in \
+  'auto false none none' \
+  'external false 127.0.0.1:18080:80 127.0.0.1::443' \
+  'external true 127.0.0.1:18080:80 127.0.0.1:18443:443'
+do
+  # shellcheck disable=SC2086
+  set -- $valid_tls_configuration
+  bash -c 'source "$1"; validate_tls_termination "$2" "$3" "$4" "$5"' bash \
+    "$fixture/infra/scripts/lib.sh" "$1" "$2" "${3:-}" "${4:-}" \
+    || die "A safe TLS termination configuration was rejected"
+done
+for invalid_tls_configuration in \
+  'invalid false 127.0.0.1:18080:80 127.0.0.1::443' \
+  'auto invalid none none' \
+  'auto true none none' \
+  'external true 80:80 127.0.0.1::443' \
+  'external true 0.0.0.0:18080:80 127.0.0.1::443' \
+  'external true 127.0.0.1:18080:80 443:443'
+do
+  # shellcheck disable=SC2086
+  set -- $invalid_tls_configuration
+  if bash -c 'source "$1"; validate_tls_termination "$2" "$3" "$4" "$5"' bash \
+    "$fixture/infra/scripts/lib.sh" "$1" "$2" "${3:-}" "${4:-}" >/dev/null 2>&1; then
+    die "An unsafe TLS termination configuration was accepted"
+  fi
+done
 for valid_api_base in '' "$canonical_public_origin"; do
   bash -c 'source "$1"; validate_public_api_base "$2" "$3"' bash \
     "$fixture/infra/scripts/lib.sh" "$valid_api_base" "$canonical_public_origin" \

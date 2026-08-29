@@ -53,10 +53,20 @@ run_outer() {
   temp_root="$(realpath -e "$temp_parent")"
 
   cleanup() {
-    local status=$?
+    local status=$? worker_container
     trap - EXIT
     set +e
     if [ "$project_created" = true ] && [ -n "$worktree" ] && [ -f "$worktree/.env" ]; then
+      if [ "$status" -ne 0 ]; then
+        worker_container="$(sudo --non-interactive docker compose --project-name "$project_name" --env-file "$worktree/.env" \
+          -f "$worktree/compose.yaml" -f "$worktree/compose.prod.yaml" ps --all -q search-projection-worker 2>/dev/null || true)"
+        if [ -n "$worker_container" ]; then
+          printf 'RECOVERY_SEARCH_PROJECTION_WORKER_LOGS_BEGIN\n' >&2
+          sudo --non-interactive docker logs --tail 40 "$worker_container" >&2 || true
+          sudo --non-interactive docker inspect --format 'RECOVERY_SEARCH_PROJECTION_WORKER_HEALTH={{json .State.Health}}' "$worker_container" >&2 || true
+          printf 'RECOVERY_SEARCH_PROJECTION_WORKER_LOGS_END\n' >&2
+        fi
+      fi
       sudo --non-interactive docker compose --project-name "$project_name" --env-file "$worktree/.env" \
         -f "$worktree/compose.yaml" -f "$worktree/compose.prod.yaml" down --volumes --remove-orphans >/dev/null 2>&1
     fi
