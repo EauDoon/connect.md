@@ -456,6 +456,27 @@ Legacy experience.
       expect(validateDraft(markdown, "profile").map((issue) => issue.message).join(" ")).toContain("exactly one space after the # markers");
     }
   });
+
+  it("keeps the agent drafting runbook examples valid against the same client validator", () => {
+    const readme = readFileSync(new URL("../public/agent-readme.md", import.meta.url), "utf8");
+    const blocks = [...readme.matchAll(/```markdown\n([\s\S]*?)```/gu)].map((match) => match[1].replace(/\n$/u, ""));
+    expect(blocks).toEqual([profileStarter.trimEnd(), resumeStarter.trimEnd()]);
+    expect(hasValidationErrors(validateDraft(blocks[0], "profile"))).toBe(false);
+    expect(hasValidationErrors(validateDraft(blocks[1], "resume"))).toBe(false);
+    expect(readme).toMatch(/YAML aliases/u);
+    expect(readme).toContain(String(PROFILE_RESUME_MAX_UTF8_BYTES));
+    expect(readme).toMatch(/unknown frontmatter fields/u);
+  });
+
+  it("does not advertise a server API as the standalone validator", () => {
+    const issues = validateDraft(profileStarter, "profile");
+    expect(issues.map((issue) => issue.message)).toEqual([
+      "Client validation passed. Download locally; this site does not upload or publish."
+    ]);
+    const panel = readFileSync(new URL("../components/validation-panel.tsx", import.meta.url), "utf8");
+    expect(panel).toContain("Ready to download");
+    expect(panel).not.toMatch(/\bAPI\b/u);
+  });
 });
 
 describe("draft subject isolation", () => {
