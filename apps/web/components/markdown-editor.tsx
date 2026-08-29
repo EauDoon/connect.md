@@ -80,7 +80,7 @@ export function MarkdownEditor() {
             <PublishPanel issues={issues} />
             <section aria-labelledby="preview-title">
               <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3"><h2 id="preview-title" className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white"><Eye className="size-4 shrink-0 text-acid" aria-hidden /> Live preview</h2><span className="min-w-0 break-words text-xs text-mist">Sanitized</span></div>
-              <div className="max-h-[420px] overflow-auto rounded-2xl border border-white/10 bg-[#f6f7f3] p-6 text-slate-950"><MarkdownPreview markdown={markdown} className="light-preview" headingOffset={2} /></div>
+              <div tabIndex={0} aria-label="Sanitized Markdown preview" className="max-h-[420px] overflow-auto rounded-2xl border border-white/10 bg-[#f6f7f3] p-6 text-slate-950"><MarkdownPreview markdown={markdown} className="light-preview" headingOffset={2} /></div>
             </section>
           </aside>
         </div>

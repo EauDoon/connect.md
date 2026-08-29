@@ -8,7 +8,6 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 
 import { loadAndValidateBrowserReleaseBuildReceipt } from "../scripts/build-production-e2e.mjs";
 import {
-  API_EXACT_PATHS,
   browserCredentialHeaderKind,
   decodeProtocolBody,
   loadFixtures,
@@ -32,7 +31,7 @@ const NEXT_EGRESS_GUARD = resolve(E2E_DIRECTORY, "next-server-egress-guard.cjs")
 const NEXT_EGRESS_AUDIT_PREFIX = "connectmd-next-egress-";
 const NEXT_EGRESS_AUDIT_FILE = "next-server-egress-audit.json";
 const EXPECTED_PLAYWRIGHT_TESTS = 9;
-const PUBLIC_RELEASE_SPEC_PATH = "e2e/public-release.spec.ts";
+const PUBLIC_RELEASE_SPEC_PATH = "e2e/standalone-release.spec.ts";
 const MAX_PUBLIC_RELEASE_SPEC_LINE = 2_000;
 const MAX_PUBLIC_RELEASE_SPEC_COLUMN = 500;
 const LAYOUT_DIAGNOSTIC_TYPE = "connectmd-layout-overflow";
@@ -244,7 +243,6 @@ function createFixtureApi(fixture) {
 
 function isApiPath(pathname) {
   return (
-    API_EXACT_PATHS.has(pathname) ||
     pathname.startsWith("/v1/") ||
     pathname.startsWith("/mcp/") ||
     pathname.startsWith("/a2a/") ||

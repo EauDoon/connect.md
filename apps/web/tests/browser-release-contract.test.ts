@@ -368,7 +368,7 @@ describe("production browser release gate", () => {
       title: "token=secret-should-not-appear",
     });
     Object.assign(failed.suites[0].specs[2].tests[0].results[0], {
-      errorLocation: { file: "e2e/public-release.spec.ts", line: 1025, column: 17 },
+      errorLocation: { file: "e2e/standalone-release.spec.ts", line: 1025, column: 17 },
       errors: [
         {
           location: { file: "C:/private/token-output.spec.ts", line: 11, column: 4 },

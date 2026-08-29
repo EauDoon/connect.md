@@ -112,6 +112,14 @@ def main() -> None:
             if marker not in contents:
                 errors.append(f"public/{name} is missing {marker}")
 
+    playwright = read(WEB / "playwright.config.ts") + read(WEB / "e2e" / "production-runtime.mjs")
+    if playwright.count("standalone-release.spec.ts") != 2:
+        errors.append("Playwright must run only the standalone release spec")
+    release_spec = read(WEB / "e2e" / "standalone-release.spec.ts")
+    for marker in ("retired backend routes fail closed", "no publishing API", "serious accessibility checks"):
+        if marker not in release_spec:
+            errors.append(f"standalone browser release spec is missing {marker}")
+
     download = read(WEB / "components" / "publish-panel.tsx")
     for marker in ("new Blob([markdown]", "anchor.click()", "anchor.remove()", "URL.revokeObjectURL(objectUrl)"):
         if marker not in download:
