@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import Protocol
 
 from fastapi import Request
 from sqlalchemy import text
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.services.artifact_durability import ArtifactIntentGateLease
 from app.services.database_roles import API_DATABASE_ROLE, require_database_role
 from app.services.storage import StorageIntegrityError
@@ -23,6 +24,10 @@ EXPECTED_ALEMBIC_HEAD = "0028_scrub_verification_change_payloads"
 
 class DatabaseSchemaNotCurrent(RuntimeError):
     pass
+
+
+class DatabaseSettings(Protocol):
+    database_url: str
 
 
 async def require_current_database_schema(session: AsyncSession) -> None:
@@ -78,7 +83,7 @@ def _compensate_rollback_files(request: Request, session: AsyncSession) -> None:
             continue
 
 
-def build_engine(settings: Settings | None = None) -> AsyncEngine:
+def build_engine(settings: DatabaseSettings | None = None) -> AsyncEngine:
     current = settings or get_settings()
     return create_async_engine(
         current.database_url,
@@ -90,7 +95,7 @@ def build_engine(settings: Settings | None = None) -> AsyncEngine:
 
 
 def build_session_factory(
-    settings: Settings | None = None, engine: AsyncEngine | None = None
+    settings: DatabaseSettings | None = None, engine: AsyncEngine | None = None
 ) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine or build_engine(settings), expire_on_commit=False)
 

@@ -18,6 +18,7 @@ from app.services.database_roles import (
     _ROLE_ATTESTATION_SQL,
     API_DATABASE_ROLE,
     MIGRATOR_DATABASE_ROLE,
+    PROJECTION_ADMIN_DATABASE_ROLE,
     DatabaseRoleContractError,
     require_database_role,
     require_database_role_sync,
@@ -317,16 +318,46 @@ def test_synchronous_migrator_attestation_and_sqlite_noop() -> None:
     assert sqlite.execute_calls == 0
 
 
+def test_exact_search_admin_settings_keep_production_authority_scoped(tmp_path) -> None:
+    settings = cli.ExactSearchAdminSettings(
+        environment="production",
+        database_url=(
+            "postgresql+asyncpg://connectmd_projection_admin:secret@postgres:5432/connectmd"
+        ),
+        storage_path=tmp_path,
+        exact_search_cursor_keyring=(
+            '[{"kid":"v1","secret":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]'
+        ),
+    )
+
+    settings.require_database_role_configuration(PROJECTION_ADMIN_DATABASE_ROLE)
+    assert set(type(settings).model_fields) == {
+        "environment",
+        "database_url",
+        "storage_path",
+        "exact_search_cursor_keyring",
+        "exact_search_cursor_ttl_seconds",
+    }
+
+
 @pytest.mark.parametrize(
-    ("command", "args"),
+    ("command", "args", "settings_factory"),
     [
-        (cli.rebuild_search, ()),
-        (cli.run_taxonomy, (Namespace(taxonomy_action="verify", if_required=False),)),
-        (cli.run_exact_search, (Namespace(exact_search_action="verify", if_required=False),)),
+        (cli.rebuild_search, (), "get_settings"),
+        (
+            cli.run_taxonomy,
+            (Namespace(taxonomy_action="verify", if_required=False),),
+            "get_settings",
+        ),
+        (
+            cli.run_exact_search,
+            (Namespace(exact_search_action="verify", if_required=False),),
+            "get_exact_search_admin_settings",
+        ),
     ],
 )
 async def test_projection_admin_commands_reject_the_wrong_configured_role_before_work(
-    monkeypatch, command, args: tuple[object, ...]
+    monkeypatch, command, args: tuple[object, ...], settings_factory: str
 ) -> None:
     seen: list[str] = []
 
@@ -335,7 +366,7 @@ async def test_projection_admin_commands_reject_the_wrong_configured_role_before
             seen.append(expected_role)
             raise ValueError("production database role is invalid")
 
-    monkeypatch.setattr(cli, "get_settings", lambda: _Settings())
+    monkeypatch.setattr(cli, settings_factory, lambda: _Settings())
 
     with pytest.raises(ValueError, match="database role is invalid"):
         await command(*args)
