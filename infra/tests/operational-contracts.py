@@ -3294,6 +3294,10 @@ assert 'env HOME="$runtime_home" XDG_CONFIG_HOME="$runtime_home/.config"' in rec
 assert "env -u HOME" not in recovery_roundtrip
 assert "docker version --format" in recovery_roundtrip
 assert 'CONNECTMD_COMPOSE_PROJECT_NAME="$project_name"' in recovery_roundtrip
+assert "export CONNECTMD_HTTP_BINDING=80" in recovery_roundtrip
+assert "export CONNECTMD_HTTPS_BINDING=443" in recovery_roundtrip
+assert "18081" not in recovery_roundtrip
+assert "18444" not in recovery_roundtrip
 assert "down --volumes --remove-orphans" in recovery_roundtrip
 assert 'rm -rf -- "$scratch"' in recovery_roundtrip
 assert (

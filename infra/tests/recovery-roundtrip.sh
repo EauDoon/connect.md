@@ -290,6 +290,8 @@ run_inner() {
 
   domain="recovery-$token.test"
   public_base="https://$domain"
+  export CONNECTMD_HTTP_BINDING=80
+  export CONNECTMD_HTTPS_BINDING=443
   cp "$REPO_ROOT/.env.example" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   set_env_value POSTGRES_PASSWORD 1111111111111111111111111111111111111111111111111111111111111111
@@ -315,8 +317,6 @@ run_inner() {
   set_env_value CONNECTMD_DOMAIN "$domain"
   set_env_value CONNECTMD_PUBLIC_BASE_URL "$public_base"
   set_env_value NEXT_PUBLIC_SITE_URL "$public_base"
-  set_env_value CONNECTMD_HTTP_PORT 18081
-  set_env_value CONNECTMD_HTTPS_PORT 18444
   set_env_value ACME_EMAIL ci-recovery@invalid.test
   set_env_value CONNECTMD_BACKUP_DIR "$backup_dir"
   set_env_value CONNECTMD_BACKUP_MIN_FREE_BYTES 1

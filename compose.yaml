@@ -536,7 +536,7 @@ services:
       CONNECTMD_DOMAIN: ${CONNECTMD_DOMAIN:-}
       CONNECTMD_RELEASE_TAG: ${CONNECTMD_IMAGE_TAG:-local}
     ports:
-      - "${CONNECTMD_HTTP_PORT:-80}:80"
+      - "${CONNECTMD_HTTP_BINDING:-${CONNECTMD_HTTP_PORT:-80}:80}"
     volumes:
       - certbot_etc:/etc/letsencrypt:ro
       - certbot_webroot:/var/www/certbot:ro
