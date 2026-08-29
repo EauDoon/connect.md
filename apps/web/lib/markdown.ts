@@ -117,37 +117,72 @@ export function starterFor(kind: DocumentKind) {
   return kind === "profile" ? profileStarter : resumeStarter;
 }
 
+/** Package-owned Profile/Resume limit from canonical-markdown-limits.json. */
+export const PROFILE_RESUME_MAX_UTF8_BYTES = 131072;
+
+const FRONTMATTER_YAML_OPTIONS = {
+  uniqueKeys: true,
+  maxAliasCount: 0,
+  merge: false,
+  resolveKnownTags: false,
+  logLevel: "error"
+} as const;
+
+function utf8ByteLength(value: string) {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+function canonicalSizeMessage() {
+  return `canonical Profile/Resume Markdown exceeds ${PROFILE_RESUME_MAX_UTF8_BYTES} UTF-8 bytes`;
+}
+
+function describeFrontmatterYamlError(error: unknown) {
+  const message = error instanceof Error ? error.message.split("\n")[0] : "unknown parser error";
+  if (/alias/iu.test(message)) return "YAML aliases are not allowed in frontmatter.";
+  if (/Map keys must be unique/u.test(message)) return "Frontmatter contains a duplicate YAML key.";
+  return `Frontmatter YAML is invalid: ${message}`;
+}
+
+type FrontmatterInspection = {
+  attributes: Record<string, unknown>;
+  body: string;
+  hasFrontmatter: boolean;
+  issue: string | null;
+};
+
+function inspectFrontmatter(markdown: string): FrontmatterInspection {
+  const emptyAttributes = {} as Record<string, unknown>;
+  if (utf8ByteLength(markdown) > PROFILE_RESUME_MAX_UTF8_BYTES * 2) {
+    return { attributes: emptyAttributes, body: "", hasFrontmatter: false, issue: canonicalSizeMessage() };
+  }
+  const source = normaliseMarkdown(markdown);
+  if (utf8ByteLength(source) > PROFILE_RESUME_MAX_UTF8_BYTES) {
+    return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: canonicalSizeMessage() };
+  }
+  const match = source.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!match) return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: "Frontmatter delimiters are missing." };
+  try {
+    const parsed = YAML.parse(match[1], FRONTMATTER_YAML_OPTIONS);
+    if (!isRecord(parsed)) {
+      return { attributes: emptyAttributes, body: match[2], hasFrontmatter: true, issue: "Frontmatter must contain a YAML object." };
+    }
+    return { attributes: parsed, body: match[2], hasFrontmatter: true, issue: null };
+  } catch (error) {
+    return { attributes: emptyAttributes, body: match[2], hasFrontmatter: true, issue: describeFrontmatterYamlError(error) };
+  }
+}
+
 export function normaliseMarkdown(markdown: string) {
   return markdown.replace(/\r\n?/g, "\n").replace(/\s+$/u, "") + "\n";
 }
 
 export function splitFrontmatter(markdown: string) {
-  const source = normaliseMarkdown(markdown);
-  const match = source.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { attributes: {} as Record<string, unknown>, body: source, hasFrontmatter: false };
-
-  try {
-    const parsed = YAML.parse(match[1]);
-    return {
-      attributes: isRecord(parsed) ? parsed : {},
-      body: match[2],
-      hasFrontmatter: true
-    };
-  } catch {
-    return { attributes: {} as Record<string, unknown>, body: match[2], hasFrontmatter: true };
-  }
+  const { attributes, body, hasFrontmatter } = inspectFrontmatter(markdown);
+  return { attributes, body, hasFrontmatter };
 }
 
 export function frontmatterParseIssue(markdown: string) {
-  const source = normaliseMarkdown(markdown);
-  const match = source.match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
-  if (!match) return "Frontmatter delimiters are missing.";
-  try {
-    const parsed = YAML.parse(match[1]);
-    return isRecord(parsed) ? null : "Frontmatter must contain a YAML object.";
-  } catch (error) {
-    return `Frontmatter YAML is invalid: ${error instanceof Error ? error.message : "unknown parser error"}`;
-  }
+  return inspectFrontmatter(markdown).issue;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

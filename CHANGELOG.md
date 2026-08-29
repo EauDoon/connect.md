@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Standalone Human/Markdown Mode now fails closed on YAML aliases, duplicate keys, unknown frontmatter fields, malformed server timestamps, and drafts over the package 128 KiB UTF-8 limit, and CI covers the canonical invalid fixtures.
+
 ### Added
 
 - [`surfaces/tanstack-start/`](surfaces/tanstack-start/): experimental parallel TanStack Start live-preview surface (v2.20.1). Paper light UI, unique-prefix handles, honest `writesOffered: false`, CTA "Paste this into your agent". Demo Focus sections only — no invented employers/titles/metrics. **Does not replace** `apps/web` or `apps/api`.

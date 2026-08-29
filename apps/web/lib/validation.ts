@@ -1,6 +1,4 @@
-import YAML from "yaml";
-
-import { type DocumentKind, scanMarkdownHeadings, scanMarkdownHeadingSyntaxIssues, splitFrontmatter } from "@/lib/markdown";
+import { type DocumentKind, frontmatterParseIssue, scanMarkdownHeadings, scanMarkdownHeadingSyntaxIssues, splitFrontmatter } from "@/lib/markdown";
 
 export type ValidationIssue = {
   level: "error" | "warning";
@@ -106,21 +104,48 @@ function validatePublicStarterPlaceholders(issues: ValidationIssue[], attributes
   }
 }
 
+const SERVER_OWNED_FRONTMATTER_FIELDS = ["id", "owner_id", "version", "updated_at"] as const;
+const SHARED_FRONTMATTER_FIELDS = ["schema", "schema_version", "name", "headline", "location", "skills", "visibility"] as const;
+const V2_FRONTMATTER_FIELDS = ["occupations", "industries", "languages", "seniority", "work_modes", "availability", "open_to", "organizations", "public_representation", "contact"] as const;
+
+function allowedFrontmatterKeys(kind: DocumentKind, schemaVersion: 1 | 2) {
+  const identity = kind === "profile" ? ["handle"] : ["slug", "title"];
+  const versioned = schemaVersion === 2 ? V2_FRONTMATTER_FIELDS : [];
+  return new Set<string>([...SHARED_FRONTMATTER_FIELDS, ...identity, ...versioned, ...SERVER_OWNED_FRONTMATTER_FIELDS]);
+}
+
+function validateUnknownFrontmatterKeys(issues: ValidationIssue[], attributes: Record<string, unknown>, kind: DocumentKind, schemaVersion: 1 | 2) {
+  const allowed = allowedFrontmatterKeys(kind, schemaVersion);
+  const unknown = Object.keys(attributes).filter((key) => !allowed.has(key));
+  if (unknown.length) issues.push({ level: "error", message: `unknown frontmatter fields: ${unknown.join(", ")}.` });
+}
+
+function validateOptionalServerFields(issues: ValidationIssue[], attributes: Record<string, unknown>) {
+  if (Object.hasOwn(attributes, "id") && (typeof attributes.id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(attributes.id))) {
+    issues.push({ level: "error", message: "id must be a UUID." });
+  }
+  if (Object.hasOwn(attributes, "owner_id") && (typeof attributes.owner_id !== "string" || !attributes.owner_id.trim() || attributes.owner_id.length > 255)) {
+    issues.push({ level: "error", message: "owner_id is invalid." });
+  }
+  if (Object.hasOwn(attributes, "version") && (typeof attributes.version !== "number" || !Number.isInteger(attributes.version) || attributes.version < 1)) {
+    issues.push({ level: "error", message: "version must be a positive integer." });
+  }
+  if (Object.hasOwn(attributes, "updated_at") && (typeof attributes.updated_at !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u.test(attributes.updated_at))) {
+    issues.push({ level: "error", message: "updated_at must be a UTC timestamp." });
+  }
+}
+
 export function validateDraft(markdown: string, kind: DocumentKind): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const { attributes, body, hasFrontmatter } = splitFrontmatter(markdown);
-
-  if (!hasFrontmatter) {
-    issues.push({ level: "error", message: "Start with YAML frontmatter delimited by --- lines." });
+  const parseIssue = frontmatterParseIssue(markdown);
+  if (parseIssue) {
+    issues.push({
+      level: "error",
+      message: parseIssue === "Frontmatter delimiters are missing." ? "Start with YAML frontmatter delimited by --- lines." : parseIssue
+    });
     return issues;
   }
-
-  const rawFrontmatter = markdown.match(/^---\n([\s\S]*?)\n---/);
-  try {
-    YAML.parse(rawFrontmatter?.[1] ?? "");
-  } catch (error) {
-    issues.push({ level: "error", message: `Frontmatter is not valid YAML: ${error instanceof Error ? error.message : "unknown parser error"}` });
-  }
+  const { attributes, body } = splitFrontmatter(markdown);
 
   if (attributes.schema !== `connect.md/${kind}`) {
     issues.push({ level: "error", message: `schema must be connect.md/${kind}.` });
@@ -128,6 +153,9 @@ export function validateDraft(markdown: string, kind: DocumentKind): ValidationI
   const schemaVersion = attributes.schema_version;
   if (schemaVersion !== 1 && schemaVersion !== 2) {
     issues.push({ level: "error", message: "schema_version must be the supported integer 1 or 2." });
+  } else {
+    validateUnknownFrontmatterKeys(issues, attributes, kind, schemaVersion);
+    validateOptionalServerFields(issues, attributes);
   }
   validateStructuredText(issues, attributes.name, "name", SCHEMA_LIMITS.name);
   if (typeof attributes.name === "string" && attributes.name.endsWith("#")) issues.push({ level: "error", message: "name cannot end with # because it cannot be represented exactly as a Markdown title." });
