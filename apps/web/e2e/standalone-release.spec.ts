@@ -14,6 +14,7 @@ type AxeWindow = Window & {
 
 const require = createRequire(resolve(process.cwd(), "package.json"));
 const axeScriptPath = require.resolve("axe-core/axe.min.js");
+const expectedSiteOrigin = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? process.env.E2E_BASE_URL ?? "").origin;
 
 async function seriousAccessibilityViolations(page: Page) {
   await page.addScriptTag({ path: axeScriptPath });
@@ -31,7 +32,7 @@ test("landing is an agent-first standalone site", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/connect\.md/u);
   await expect(page.getByRole("heading", { level: 1, name: "Choose what you want done." })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Agent README" })).toHaveAttribute("href", "https://connect.md/agent-readme.md");
+  await expect(page.getByRole("link", { name: "Agent README" })).toHaveAttribute("href", `${expectedSiteOrigin}/agent-readme.md`);
   await expect(page.getByRole("link", { name: /sign in/iu })).toHaveCount(0);
 });
 
@@ -83,10 +84,10 @@ test("crawler metadata lists only working public pages", async ({ request }) => 
   const robots = await (await request.get("/robots.txt")).text();
   expect(robots).toContain("Allow: /human");
   expect(robots).toContain("Disallow: /discover");
-  expect(robots).toContain("Sitemap: https://connect.md/sitemap.xml");
+  expect(robots).toContain(`Sitemap: ${expectedSiteOrigin}/sitemap.xml`);
 
   const sitemap = await (await request.get("/sitemap.xml")).text();
-  for (const path of ["/", "/human", "/md", "/trust"]) expect(sitemap).toContain(`<loc>https://connect.md${path}</loc>`);
+  for (const path of ["/", "/human", "/md", "/trust"]) expect(sitemap).toContain(`<loc>${expectedSiteOrigin}${path}</loc>`);
   expect(sitemap).not.toContain("/discover");
 });
 
