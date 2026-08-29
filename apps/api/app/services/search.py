@@ -348,7 +348,12 @@ class MeiliSearchProjection:
                 raise SearchUnavailable("Meilisearch index setup is unavailable") from exc
 
     async def _wait_for_task(
-        self, client: httpx.AsyncClient, response: httpx.Response, operation: str
+        self,
+        client: httpx.AsyncClient,
+        response: httpx.Response,
+        operation: str,
+        *,
+        missing_index_ok: bool = False,
     ) -> None:
         try:
             submission = response.json()
@@ -368,6 +373,13 @@ class MeiliSearchProjection:
                 ) from exc
             state = payload.get("status") if isinstance(payload, dict) else None
             if state == "succeeded":
+                return
+            if (
+                state == "failed"
+                and missing_index_ok
+                and isinstance(payload.get("error"), dict)
+                and payload["error"].get("code") == "index_not_found"
+            ):
                 return
             if state in {"failed", "canceled"}:
                 raise SearchUnavailable(f"Meilisearch rejected {operation}")
@@ -389,7 +401,9 @@ class MeiliSearchProjection:
                 )
                 if response.status_code != 404:
                     response.raise_for_status()
-                    await self._wait_for_task(client, response, "index reset")
+                    await self._wait_for_task(
+                        client, response, "index reset", missing_index_ok=True
+                    )
         except httpx.HTTPError as exc:
             raise SearchUnavailable("Meilisearch index reset is unavailable") from exc
         await self.configure_index()
