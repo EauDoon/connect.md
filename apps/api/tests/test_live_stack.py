@@ -160,14 +160,26 @@ async def _wait_for_application_transition_lock_waiters(
     deadline = asyncio.get_running_loop().time() + 10
     statement = text(
         """
+        WITH RECURSIVE lock_waiters AS (
+            SELECT pid, pg_blocking_pids(pid) AS blockers
+            FROM pg_stat_activity
+            WHERE pid <> pg_backend_pid()
+              AND datname = current_database()
+              AND usename = current_user
+              AND state = 'active'
+              AND wait_event_type = 'Lock'
+        ), blocked_by_gate(pid) AS (
+            SELECT pid
+            FROM lock_waiters
+            WHERE pg_backend_pid() = ANY(blockers)
+            UNION
+            SELECT waiter.pid
+            FROM lock_waiters AS waiter
+            JOIN blocked_by_gate AS blocker
+              ON blocker.pid = ANY(waiter.blockers)
+        )
         SELECT count(*)
-        FROM pg_stat_activity
-        WHERE pid <> pg_backend_pid()
-          AND datname = current_database()
-          AND usename = current_user
-          AND state = 'active'
-          AND wait_event_type = 'Lock'
-          AND pg_backend_pid() = ANY(pg_blocking_pids(pid))
+        FROM blocked_by_gate
         """
     )
     while asyncio.get_running_loop().time() < deadline:
@@ -972,7 +984,7 @@ async def test_live_postgres_api_key_same_key_different_body_race_rolls_back_los
             ).all()
             assert len(receipts) == 1
             assert receipts[0].resource_type == "profile"
-            assert receipts[0].resource_id == documents[0].id
+            assert receipts[0].resource_id == f"{documents[0].id}@1"
             _assert_text_excludes(receipts[0].response_body, loser_identifier)
             events = (
                 await session.scalars(
@@ -1215,8 +1227,8 @@ async def test_live_postgres_production_lifespan_exact_and_projection_role(tmp_p
     identifier = f"ci-exact-{suffix}"
     create_key = f"live-exact-create-{identifier}"
     update_key = f"live-exact-update-{identifier}"
-    legacy_headline = f"Live exact legacy {suffix}"
-    current_headline = f"Live exact current {suffix}"
+    legacy_headline = f"LegacyOnly{suffix}"
+    current_headline = f"CurrentOnly{suffix}"
     settings = _production_live_settings(live, tmp_path, suffix)
     app = create_app(settings)
     projection_session_factory, projection_engine = build_search_projection_session_factory(live)

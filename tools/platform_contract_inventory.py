@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
 """Dependency-light static API and Next.js route inventory helpers."""
 
 from __future__ import annotations
 
 import ast
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 ROUTE_RE = re.compile(r"^(GET|POST|PUT|PATCH|DELETE) (/.+)$")
@@ -47,66 +47,41 @@ _ROUTE_DECORATOR_METHODS = _ROUTE_METHODS | {
 _RouterRef = tuple[Path, str]
 
 
+@dataclass(eq=False)
 class _RouteRecord:
-    def __init__(
-        self, hidden: bool, decorator_body: str, source_path: str, line: int
-    ) -> None:
-        self.hidden = hidden
-        self.decorator_body = decorator_body
-        self.source_path = source_path
-        self.line = line
+    hidden: bool
+    decorator_body: str
+    source_path: str
+    line: int
 
 
+@dataclass(eq=False)
 class _RouterSpec:
-    def __init__(
-        self,
-        prefix: str | None,
-        include_in_schema: bool | None,
-        source_path: str,
-        line: int,
-    ) -> None:
-        self.prefix = prefix
-        self.include_in_schema = include_in_schema
-        self.source_path = source_path
-        self.line = line
+    prefix: str | None
+    include_in_schema: bool | None
+    source_path: str
+    line: int
 
 
+@dataclass(eq=False)
 class _RouterRoute:
-    def __init__(
-        self,
-        receiver: ast.AST,
-        method: str,
-        path: str | None,
-        include_in_schema: bool | None,
-        decorator_body: str,
-        source_path: str,
-        line: int,
-    ) -> None:
-        self.receiver = receiver
-        self.method = method
-        self.path = path
-        self.include_in_schema = include_in_schema
-        self.decorator_body = decorator_body
-        self.source_path = source_path
-        self.line = line
+    receiver: ast.AST
+    method: str
+    path: str | None
+    include_in_schema: bool | None
+    decorator_body: str
+    source_path: str
+    line: int
 
 
+@dataclass(eq=False)
 class _RouterInclude:
-    def __init__(
-        self,
-        receiver: ast.AST,
-        child: ast.AST | None,
-        prefix: str | None,
-        include_in_schema: bool | None,
-        source_path: str,
-        line: int,
-    ) -> None:
-        self.receiver = receiver
-        self.child = child
-        self.prefix = prefix
-        self.include_in_schema = include_in_schema
-        self.source_path = source_path
-        self.line = line
+    receiver: ast.AST
+    child: ast.AST | None
+    prefix: str | None
+    include_in_schema: bool | None
+    source_path: str
+    line: int
 
 
 class _RouteModule:
@@ -228,8 +203,24 @@ def _route_bool_bindings(body: list[ast.stmt]) -> dict[str, bool]:
     return bindings
 
 
-def _route_decorator_body(source: str, decorator: ast.Call) -> str:
-    segment = ast.get_source_segment(source, decorator) or ""
+def _route_decorator_body(source_lines: list[bytes], decorator: ast.Call) -> str:
+    if decorator.end_lineno is None or decorator.end_col_offset is None:
+        return ""
+    first = decorator.lineno - 1
+    last = decorator.end_lineno - 1
+    if first == last:
+        segment_bytes = source_lines[first][
+            decorator.col_offset : decorator.end_col_offset
+        ]
+    else:
+        segment_bytes = b"".join(
+            (
+                source_lines[first][decorator.col_offset :],
+                *source_lines[first + 1 : last],
+                source_lines[last][: decorator.end_col_offset],
+            )
+        )
+    segment = segment_bytes.decode("utf-8")
     opening = segment.find("(")
     closing = segment.rfind(")")
     if opening >= 0 and closing > opening:
@@ -378,6 +369,7 @@ def _route_module_analysis(
         )
         return None
 
+    source_lines = source.encode("utf-8").splitlines(keepends=True)
     module = _RouteModule(
         path=path,
         source=source,
@@ -487,7 +479,7 @@ def _route_module_analysis(
                         method=decorator.func.attr,
                         path=route_path,
                         include_in_schema=include_in_schema,
-                        decorator_body=_route_decorator_body(source, decorator),
+                        decorator_body=_route_decorator_body(source_lines, decorator),
                         source_path=_route_source_path(root, path),
                         line=decorator.lineno,
                     )
@@ -587,6 +579,7 @@ def _direct_route_records(
     errors: list[str],
 ) -> dict[str, _RouteRecord]:
     records: dict[str, _RouteRecord] = {}
+    source_lines = source.encode("utf-8").splitlines(keepends=True)
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -614,7 +607,7 @@ def _direct_route_records(
                 route,
                 _RouteRecord(
                     hidden=hidden,
-                    decorator_body=_route_decorator_body(source, decorator),
+                    decorator_body=_route_decorator_body(source_lines, decorator),
                     source_path=source_path,
                     line=decorator.lineno,
                 ),

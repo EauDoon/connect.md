@@ -69,7 +69,7 @@ In Vercel Project Settings, enable **Automatically expose System Environment Var
 The existing API must be configured for the exact Vercel frontend origin before authenticated browser calls can work:
 
 1. Add the frontend HTTPS origin to `CONNECTMD_CORS_ORIGINS` as an exact canonical origin. Do not use `*`, a wildcard subdomain, an origin with a path, or credentials in the value.
-2. Add the API public origin and the frontend origin to `CONNECTMD_CLERK_AUTHORIZED_PARTIES` as exact canonical origins. The API configuration requires its `CONNECTMD_PUBLIC_BASE_URL` to be present in this list.
+2. When enabling Clerk, add the API public origin and the frontend origin to `CONNECTMD_CLERK_AUTHORIZED_PARTIES` as exact canonical origins. The API configuration requires its `CONNECTMD_PUBLIC_BASE_URL` to be present in this list. For public-only mode, omit the Clerk URLs and audience, use an empty authorized-party list, and omit both frontend Clerk keys; partial configuration is rejected and protected operations remain unavailable.
 3. Configure the same frontend origin in Clerk's allowed origins and redirect settings. Use exact preview origins only when a preview is deliberately authorized.
 4. Set the API's `CONNECTMD_PUBLIC_BASE_URL` to the origin that should own protocol discovery, OAuth metadata, Agent Card links, canonical Markdown URLs, and API-generated absolute links. If that is the API origin, keep the frontend URL in `NEXT_PUBLIC_SITE_URL` and use the API origin for both API base variables.
 5. Ensure the API's public HTTPS endpoint is reachable from Vercel and retains its TLS, request limits, authentication, idempotency, and rate-limit controls. Vercel cannot reach the private Compose hostname `api:8000`.

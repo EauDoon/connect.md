@@ -108,6 +108,29 @@ printf '%s\n' "$output" | grep -Fq 'CONNECTMD_CLERK_AUTHORIZED_PARTIES must incl
   || die "Optimized Python returned the wrong Clerk authorized-party failure"
 
 canonical_public_origin='https://connect.example.test'
+for valid_site_origin in \
+  'https://connect.example.test' \
+  'https://connect-md.vercel.app'
+do
+  bash -c 'source "$1"; validate_canonical_https_origin "$2" NEXT_PUBLIC_SITE_URL' bash \
+    "$fixture/infra/scripts/lib.sh" "$valid_site_origin" \
+    || die "A canonical split frontend origin was rejected"
+done
+for invalid_site_origin in \
+  'http://connect.example.test' \
+  'https://Connect.example.test' \
+  'https://connect.example.test/' \
+  'https://connect.example.test:443' \
+  'https://user@connect.example.test' \
+  'https://connect.example.test/path'
+do
+  if output="$(bash -c 'source "$1"; validate_canonical_https_origin "$2" NEXT_PUBLIC_SITE_URL' bash \
+    "$fixture/infra/scripts/lib.sh" "$invalid_site_origin" 2>&1)"; then
+    die "A noncanonical frontend origin unexpectedly passed production preflight"
+  fi
+  printf '%s\n' "$output" | grep -Fq 'NEXT_PUBLIC_SITE_URL must be a canonical HTTPS origin' \
+    || die "A noncanonical frontend origin returned the wrong failure"
+done
 for valid_api_base in '' "$canonical_public_origin"; do
   bash -c 'source "$1"; validate_public_api_base "$2" "$3"' bash \
     "$fixture/infra/scripts/lib.sh" "$valid_api_base" "$canonical_public_origin" \

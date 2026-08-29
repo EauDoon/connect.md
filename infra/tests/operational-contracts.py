@@ -1756,10 +1756,19 @@ assert_compose_hardening_contract(base_compose_yaml, production_compose_yaml)
 base_services = base_compose_yaml["services"]
 edge_network = base_compose_yaml["networks"]["connectmd_app"]
 assert edge_network["driver"] == "bridge"
-assert edge_network["ipam"]["config"] == [{"subnet": "172.31.254.0/24"}]
+assert edge_network["ipam"]["config"] == [
+    {"subnet": "172.31.254.0/24", "ip_range": "172.31.254.128/25"}
+]
 assert base_services["nginx"]["networks"]["connectmd_app"] == {
     "ipv4_address": "172.31.254.2"
 }
+assert compose.count("${CONNECTMD_CLERK_JWKS_URL:-}") == 2
+assert compose.count("${CONNECTMD_CLERK_ISSUER:-}") == 2
+assert compose.count("${CONNECTMD_CLERK_AUTHORIZED_PARTIES:-[]}") == 2
+assert compose.count("${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}") == 2
+assert compose.count("${CLERK_SECRET_KEY:-}") == 1
+assert "CLERK_JWKS_URL:?" not in compose
+assert "CLERK_PUBLISHABLE_KEY:?" not in compose
 assert "ports" not in base_services["api"] and "expose" not in base_services["api"]
 clerk_backend_environment_keys = {
     "CONNECTMD_CLERK_BACKEND_SECRET",
@@ -1996,7 +2005,12 @@ def assert_production_env_contract(source: str) -> None:
         'api_base="$(read_env_optional_value NEXT_PUBLIC_API_BASE_URL)"',
         'validate_public_api_base_environment_override "$api_base"',
         'validate_public_api_base "$api_base" "https://$domain"',
-        'validate_clerk_authorized_site_origin "$clerk_parties" "https://$domain"',
+        'validate_canonical_https_origin "$site_url" NEXT_PUBLIC_SITE_URL',
+        'validate_clerk_authorized_site_origin "$clerk_parties" "$site_url"',
+        'clerk_api_configured=false',
+        'clerk_frontend_configured=false',
+        '[ "$clerk_parties" != "[]" ]',
+        'if [ "$clerk_api_configured" = true ]; then',
     ):
         assert marker in contract, marker
 
@@ -2008,7 +2022,9 @@ for missing_marker in (
     'api_base="$(read_env_optional_value NEXT_PUBLIC_API_BASE_URL)"',
     'validate_public_api_base_environment_override "$api_base"',
     'validate_public_api_base "$api_base" "https://$domain"',
-    'validate_clerk_authorized_site_origin "$clerk_parties" "https://$domain"',
+    'validate_canonical_https_origin "$site_url" NEXT_PUBLIC_SITE_URL',
+    'validate_clerk_authorized_site_origin "$clerk_parties" "$site_url"',
+    '[ "$clerk_parties" != "[]" ]',
 ):
     counterexample = library.replace(missing_marker, "missing", 1)
     try:
@@ -2047,6 +2063,35 @@ for missing_marker in (
     else:
         raise AssertionError(
             f"public API base contract accepted missing guard: {missing_marker}"
+        )
+
+
+def assert_canonical_https_origin_contract(source: str) -> None:
+    function_start = source.index("validate_canonical_https_origin() {")
+    function_end = source.index("\n}\n", function_start)
+    contract = source[function_start:function_end]
+    for marker in (
+        "validate_canonical_https_origin() {",
+        'https://*) hostname="${value#https://}" ;;',
+        'is_lowercase_dns_hostname "$hostname"',
+        "must be a canonical HTTPS origin",
+    ):
+        assert marker in contract, marker
+
+
+assert_canonical_https_origin_contract(library)
+for missing_marker in (
+    'https://*) hostname="${value#https://}" ;;',
+    'is_lowercase_dns_hostname "$hostname"',
+):
+    weakened = library.replace(missing_marker, "missing", 1)
+    try:
+        assert_canonical_https_origin_contract(weakened)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError(
+            f"canonical HTTPS origin contract accepted missing guard: {missing_marker}"
         )
 
 
