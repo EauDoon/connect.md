@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Browser draft validation now rejects wrong-typed and unexpected nested v2 frontmatter fields, including malformed contact channels and non-http(s) URL or email values, matching the write schema.
 - YAML frontmatter parse failures now name the document line and column, including aliases, duplicate keys, and scanner/parser causes, in the browser validator and API exceptions.
 - Standalone Human/Markdown Mode now fails closed on YAML aliases, duplicate keys, unknown frontmatter fields, malformed server timestamps, and drafts over the package 128 KiB UTF-8 limit, and CI covers the canonical invalid fixtures.
 - `/agent-readme.md` now documents a complete private v2 starter that the browser validator accepts, plus fail-closed alias, unknown-field, and 128 KiB rules. Validation copy no longer claims an API is the authority on the standalone Vercel site.
