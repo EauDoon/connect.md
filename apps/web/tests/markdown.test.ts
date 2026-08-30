@@ -484,6 +484,32 @@ Legacy experience.
     }
   });
 
+  it("rejects wrong-typed nested v2 fields, extra keys, and malformed contact URLs or emails", () => {
+    const messages = (markdown: string) => validateDraft(markdown, "profile").map((issue) => issue.message).join(" ");
+
+    expect(messages(v2Profile.replace("status: not_disclosed\n", "status: not_disclosed\n  surprise: nested\n"))).toContain("availability has unknown fields: surprise");
+    expect(messages(v2Profile.replace("availability:\n  status: not_disclosed\n", "availability: []\n"))).toContain("availability must be a YAML object, not a list");
+    expect(messages(v2Profile.replace("name: Ari Chen", "name: 12345").replace("# Ari Chen", "# 12345"))).toContain("name must be text, not a number");
+    expect(messages(v2Profile.replace("    label: Payments\n", "    label: Payments\n    surprise: nested\n"))).toContain("skills[0] has unknown fields: surprise");
+    expect(messages(v2Profile.replace("work_modes: [hybrid]\n", "work_modes:\n  - on_site: true\n"))).toContain("work_modes may contain only text values on_site, hybrid, or remote");
+    expect(messages(v2Profile.replace("  status: not_disclosed\n", "  status: not_disclosed\n  hours_per_week: true\n"))).toContain("availability.hours_per_week must be an integer, not a boolean");
+    expect(messages(v2Profile.replace("  status: not_disclosed\n", "  status: not_disclosed\n  notice_days: 800\n"))).toContain("availability.notice_days must be between 0 and 730");
+    expect(messages(v2Profile.replace("  disclosure: platform_only\n", "  disclosure: platform_only\n  channels:\n    - type: email\n      value: ada@example.test\n"))).toContain("contact.channels must be empty unless disclosure is public");
+    expect(messages(v2Profile.replace("  disclosure: platform_only\n", "  disclosure: public\n  channels:\n    - type: email\n      value: not-an-email\n"))).toContain("contact.channels[0].value must be an email address");
+    expect(messages(v2Profile.replace("  disclosure: platform_only\n", "  disclosure: public\n  channels:\n    - type: url\n      value: javascript:alert(1)\n"))).toContain("contact.channels[0].value must be an http or https URL");
+    expect(messages(v2Profile.replace("  disclosure: platform_only\n", "  disclosure: public\n  channels:\n    - type: phone\n      value: call-me\n"))).toContain("contact.channels[0].value must be a phone number");
+    expect(messages(v2Profile.replace("  disclosure: platform_only\n", "  disclosure: public\n  channels:\n    - type: email\n      value: ada@example.test\n      extra: nested\n"))).toContain("contact.channels[0] has unknown fields: extra");
+    expect(messages(v2Profile.replace("organizations: []\n", "organizations:\n  - scheme: wikidata\n    id: Q42\n    label: Example\n    relationship: other\n    url: javascript:alert(1)\n"))).toContain("organizations[0].url must be an http or https URL");
+    expect(messages(v2Profile.replace("  status: self\n", "  status: self\n  public_url: ftp://example.test/ada\n"))).toContain("public_representation.public_url must be an http or https URL");
+    expect(messages(v2Profile.replace("  disclosure: platform_only\n", `  disclosure: public\n  channels:\n${Array.from({ length: 21 }, (_, index) => `    - type: platform\n      value: channel-${index}\n`).join("")}`))).toContain("contact.channels can contain at most 20 items");
+    expect(messages(v2Profile.replace("  disclosure: platform_only\n", "  disclosure: public\n  channels:\n    - type: email\n      value: ada@example.test\n    - type: email\n      value: ada@example.test\n      label: Work\n"))).toContain("contact.channels cannot repeat a type/value pair");
+
+    const canonical = readFileSync(new URL("../../../packages/markdown-schemas/examples/profile.md", import.meta.url), "utf8");
+    expect(hasValidationErrors(validateDraft(canonical, "profile"))).toBe(false);
+    const publicContact = v2Profile.replace("  disclosure: platform_only\n", "  disclosure: public\n  channels:\n    - type: email\n      value: ada@example.test\n      label: Work email\n    - type: url\n      value: https://example.test/ari\n");
+    expect(hasValidationErrors(validateDraft(publicContact, "profile"))).toBe(false);
+  });
+
   it("keeps the agent drafting runbook examples valid against the same client validator", () => {
     const readme = readFileSync(new URL("../public/agent-readme.md", import.meta.url), "utf8");
     const blocks = [...readme.matchAll(/```markdown\n([\s\S]*?)```/gu)].map((match) => match[1].replace(/\n$/u, ""));
@@ -493,6 +519,8 @@ Legacy experience.
     expect(readme).toMatch(/YAML aliases/u);
     expect(readme).toContain(String(PROFILE_RESUME_MAX_UTF8_BYTES));
     expect(readme).toMatch(/unknown frontmatter fields/u);
+    expect(readme).toMatch(/unexpected nested objects/u);
+    expect(readme).toMatch(/malformed contact or URL values/u);
   });
 
   it("does not advertise a server API as the standalone validator", () => {

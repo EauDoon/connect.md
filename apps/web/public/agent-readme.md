@@ -19,7 +19,7 @@ Never invent employers, dates, qualifications, skills, locations, achievements, 
 
 ## Validator
 
-The browser fails closed. A draft is rejected when it has YAML aliases, merge keys, duplicate frontmatter keys, unknown frontmatter fields, or more than 131072 UTF-8 bytes after LF canonicalization.
+The browser fails closed. A draft is rejected when it has YAML aliases, merge keys, duplicate frontmatter keys, unknown frontmatter fields, unexpected nested objects, wrong-typed structured fields, malformed contact or URL values, or more than 131072 UTF-8 bytes after LF canonicalization.
 
 `schema_version: 2` requires structured `occupations`, `industries`, `location`, `skills`, `languages`, `seniority`, `work_modes`, `availability`, `open_to`, `organizations`, `public_representation`, and `contact`. Do not omit those keys or invent extra ones. Use lowercase letters, numbers, and hyphens for `handle` or `slug`. Keep the first draft `visibility: private` unless the person explicitly asks for public-ready metadata. The visibility field is metadata only; this site never publishes. Replace starter placeholders such as Unspecified occupation, location, or skill before treating a draft as public-ready.
 
