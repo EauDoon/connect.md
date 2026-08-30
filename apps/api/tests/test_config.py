@@ -137,6 +137,37 @@ def test_recruiting_release_defaults_off_and_requires_explicit_environment_opt_i
     assert Settings(_env_file=None).recruiting_enabled is True
 
 
+def test_documented_operator_limits_default_and_honor_environment(monkeypatch) -> None:
+    monkeypatch.delenv("CONNECTMD_MAX_UPLOAD_BYTES", raising=False)
+    monkeypatch.delenv("CONNECTMD_AGENT_OUTREACH_DIRECT_PEER_DAILY_LIMIT", raising=False)
+
+    settings = Settings(_env_file=None)
+    assert settings.max_upload_bytes == 10 * 1024 * 1024
+    assert settings.agent_outreach_direct_peer_daily_limit == 100
+
+    monkeypatch.setenv("CONNECTMD_MAX_UPLOAD_BYTES", "1048576")
+    monkeypatch.setenv("CONNECTMD_AGENT_OUTREACH_DIRECT_PEER_DAILY_LIMIT", "25")
+    settings = Settings(_env_file=None)
+    assert settings.max_upload_bytes == 1_048_576
+    assert settings.agent_outreach_direct_peer_daily_limit == 25
+
+
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [
+        ({"max_upload_bytes": 1023}, "max_upload_bytes"),
+        ({"max_upload_bytes": 12 * 1024 * 1024 + 1}, "max_upload_bytes"),
+        ({"agent_outreach_direct_peer_daily_limit": 0}, "agent_outreach_direct_peer_daily_limit"),
+        ({"agent_outreach_direct_peer_daily_limit": 10_001}, "agent_outreach_direct_peer_daily_limit"),
+    ],
+)
+def test_documented_operator_limits_reject_out_of_range(
+    overrides: dict[str, object], match: str
+) -> None:
+    with pytest.raises(ValidationError, match=match):
+        Settings(_env_file=None, **overrides)
+
+
 @pytest.mark.parametrize(
     ("first_key", "second_key"),
     [
