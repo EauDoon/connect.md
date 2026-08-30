@@ -1301,6 +1301,11 @@ assert "POSTGRES_PASSWORD" not in api
 assert "CONNECTMD_MEILISEARCH_SEARCH_KEY" in api
 assert "CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING" in api
 assert "CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS" in api
+assert "CONNECTMD_MAX_UPLOAD_BYTES: ${CONNECTMD_MAX_UPLOAD_BYTES:-10485760}" in api
+assert (
+    "CONNECTMD_AGENT_OUTREACH_DIRECT_PEER_DAILY_LIMIT: "
+    "${CONNECTMD_AGENT_OUTREACH_DIRECT_PEER_DAILY_LIMIT:-100}"
+) in api
 assert "MEILI_MASTER_KEY" not in api
 assert "CONNECTMD_DELETION_JOURNAL_PATH: /deletion-journal" in api
 assert (
@@ -1959,6 +1964,8 @@ assert (
 assert "CONNECTMD_ACCOUNT_ERASURE_MEILI_KEY=" in environment_example
 assert "CONNECTMD_EXACT_SEARCH_CURSOR_KEYRING=" in environment_example
 assert "CONNECTMD_EXACT_SEARCH_CURSOR_TTL_SECONDS=900" in environment_example
+assert "CONNECTMD_MAX_UPLOAD_BYTES=10485760" in environment_example
+assert "CONNECTMD_AGENT_OUTREACH_DIRECT_PEER_DAILY_LIMIT=100" in environment_example
 assert "validate_exact_search_cursor_authority" in library
 assert "one to three unique kid/secret objects" in library
 assert 're.fullmatch(r"[A-Za-z0-9_-]+", secret)' in library

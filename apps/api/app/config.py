@@ -226,7 +226,9 @@ class Settings(BaseSettings):
     storage_path: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parents[3] / "storage"
     )
-    max_upload_bytes: int = 10 * 1024 * 1024
+    # Default 10 MiB; the production Nginx client_max_body_size is 12m, so the
+    # API must not advertise a larger ingest/write body than the reverse proxy.
+    max_upload_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, le=12 * 1024 * 1024)
     max_extracted_bytes: int = Field(default=8 * 1024 * 1024, ge=1024)
     # The production converter is intentionally a single serial worker. Keeping
     # the API limiter aligned prevents queued jobs from consuming their timeout.
