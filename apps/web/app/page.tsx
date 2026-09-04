@@ -128,7 +128,7 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 lg:flex-row lg:items-center">
           <div>
             <p className="eyebrow">No lock-in</p>
-            <h2 className="mt-3 max-w-2xl font-display text-3xl font-semibold tracking-[-.04em] text-white sm:text-4xl">Your final artifact is the file—not an account.</h2>
+            <h2 className="mt-3 max-w-2xl font-display text-3xl font-semibold tracking-[-.04em] text-white sm:text-4xl">Your final artifact is the file, not an account.</h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-mist">The site validates and previews locally, then hands the Markdown back to you.</p>
           </div>
           <Link href="/human" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-acid px-5 text-sm font-bold text-ink transition hover:bg-[#e5ff92] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid motion-reduce:transition-none">
@@ -149,7 +149,7 @@ export default function HomePage() {
       </section>
 
       <footer className="border-t border-white/10 px-5 py-8 text-center text-xs text-mist">
-        <p>connect.md turns professional facts into portable Markdown—entirely in your browser.</p>
+        <p>connect.md turns professional facts into portable Markdown, entirely in your browser.</p>
       </footer>
     </main>
   );

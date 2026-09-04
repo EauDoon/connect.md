@@ -210,6 +210,7 @@ describe("production browser release gate", () => {
   it("pins the browser and accessibility engines and exposes one bounded harness command", () => {
     const manifest = JSON.parse(source("apps/web/package.json"));
     const lock = JSON.parse(source("apps/web/package-lock.json"));
+    const standaloneSpec = source("apps/web/e2e/standalone-release.spec.ts");
 
     expect(manifest.devDependencies["@playwright/test"]).toBe("1.62.1");
     expect(manifest.devDependencies["axe-core"]).toBe("4.12.1");
@@ -217,6 +218,7 @@ describe("production browser release gate", () => {
     expect(manifest.scripts["test:e2e"]).toBe("node e2e/production-harness.mjs");
     expect(lock.packages["node_modules/@playwright/test"].version).toBe("1.62.1");
     expect(lock.packages["node_modules/axe-core"].version).toBe("4.12.1");
+    expect(standaloneSpec).toContain('page.emulateMedia({ reducedMotion: "reduce" })');
   });
 
   it("runs the gate only after the production build with a locally resolved browser package", () => {

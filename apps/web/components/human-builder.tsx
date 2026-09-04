@@ -252,7 +252,7 @@ export function HumanBuilder() {
                     <ChapterNavigation stage="shape" onNavigate={activateStage} />
                   </JourneyChapter>}
 
-                  {activeStage === "review" && <JourneyChapter stage="review" title="Watch the document resolve" description="This rendered response is generated from the same in-memory Markdown buffer—sanitized for preview, with no separate form state.">
+                  {activeStage === "review" && <JourneyChapter stage="review" title="Watch the document resolve" description="This rendered response comes from the same in-memory Markdown buffer. It is sanitized for preview, with no separate form state.">
                     <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 px-1 pb-3">
                       <h3 className="inline-flex items-center gap-2 text-sm font-semibold text-white"><Eye className="size-4 text-acid" aria-hidden /> Live document</h3>
                       <span aria-live="polite" className="inline-flex items-center gap-1.5 text-xs text-mist">{previewUpdating && <motion.span aria-hidden className="size-1.5 rounded-full bg-acid" animate={reducedMotion ? undefined : { opacity: [0.35, 1, 0.35] }} transition={{ duration: 0.8, repeat: Infinity }} />}{previewUpdating ? "Updating" : "Sanitized preview"}</span>

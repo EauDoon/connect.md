@@ -8,7 +8,7 @@ import { publicSiteOrigin } from "@/lib/public-document";
 
 export const metadata: Metadata = {
   metadataBase: new URL(publicSiteOrigin()),
-  title: { default: "connect.md — work, in Markdown", template: "%s · connect.md" },
+  title: { default: "connect.md: work, in Markdown", template: "%s · connect.md" },
   description: "Build a portable professional profile or resume as Markdown, privately in your browser.",
   alternates: { canonical: "/" }
 };
