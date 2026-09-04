@@ -93,13 +93,16 @@ describe("dual-mode canonical draft continuity", () => {
     expect(source).toContain("duration: reducedMotion ? 0 : 0.22");
   });
 
-  it("flushes every mounted guided buffer synchronously before either editing-mode link routes", () => {
+  it("flushes every mounted guided buffer before navigation and protects pending edits from unload", () => {
     const modeSwitch = readFileSync(new URL("../components/mode-switch.tsx", import.meta.url), "utf8");
     const humanBuilder = readFileSync(new URL("../components/human-builder.tsx", import.meta.url), "utf8");
 
     expect(modeSwitch).toContain("onClick={onBeforeNavigate}");
     expect(humanBuilder).toContain('<ModeSwitch mode="human" onBeforeNavigate={flushBufferedFields} />');
-    expect(humanBuilder).toContain("for (const flush of [...bufferedFlushersRef.current]) flush();");
+    expect(humanBuilder).toContain("flushed = flush() || flushed;");
+    expect(humanBuilder).toContain('window.addEventListener("beforeunload", warnForPendingGuidedEdit);');
+    expect(humanBuilder).toContain('window.removeEventListener("beforeunload", warnForPendingGuidedEdit);');
+    expect(humanBuilder).toContain("if (!flushBufferedFields()) return;");
     expect(humanBuilder.indexOf("flushBufferedFields();")).toBeLessThan(humanBuilder.indexOf("setHumanStage(stage);"));
   });
 

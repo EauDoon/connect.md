@@ -107,8 +107,20 @@ export function HumanBuilder() {
   }, []);
 
   const flushBufferedFields = useCallback(() => {
-    for (const flush of [...bufferedFlushersRef.current]) flush();
+    let flushed = false;
+    for (const flush of [...bufferedFlushersRef.current]) flushed = flush() || flushed;
+    return flushed;
   }, []);
+
+  useEffect(() => {
+    function warnForPendingGuidedEdit(event: BeforeUnloadEvent) {
+      if (!flushBufferedFields()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnForPendingGuidedEdit);
+    return () => window.removeEventListener("beforeunload", warnForPendingGuidedEdit);
+  }, [flushBufferedFields]);
 
   useEffect(() => {
     if (reducedMotion) {

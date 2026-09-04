@@ -46,7 +46,26 @@ test("agent presets expose bounded drafting instructions", async ({ page }) => {
   await expect(instruction).toContainText("Do not publish, upload, contact anyone");
 });
 
-test("guided edits survive mode navigation and warn before a full reload", async ({ page }) => {
+test("focused guided text is protected before blur", async ({ page }) => {
+  await page.goto("/human");
+  await page.getByRole("button", { name: "Next: shape" }).click();
+  const pendingNarrative = "Focused work that has not left the field yet.";
+  await page.locator("#narrative").fill(pendingNarrative);
+
+  const warningPromise = page.waitForEvent("dialog");
+  const reloadAttempt = page.reload({ timeout: 1_500 }).then(
+    () => "navigated",
+    (error: unknown) => error instanceof Error ? error.name : "failed",
+  );
+  const warning = await warningPromise;
+  expect(warning.type()).toBe("beforeunload");
+  await warning.dismiss();
+  expect(await reloadAttempt).toBe("TimeoutError");
+  await expect(page.locator("#narrative")).toHaveValue(pendingNarrative);
+  await expect(page).toHaveURL(/\/human$/u);
+});
+
+test("guided edits survive navigation and stop warning after an exact download", async ({ page }) => {
   await page.goto("/human");
   await page.getByRole("button", { name: "Next: shape" }).click();
   await page.getByText("More professional signals", { exact: false }).click();
@@ -87,6 +106,12 @@ test("guided edits survive mode navigation and warn before a full reload", async
   await expect(page.getByRole("heading", { level: 1, name: "Edit the source. Keep the same document." })).toBeVisible();
   await expect(page.locator('aside[aria-label="Markdown status and preview"]')).toContainText("Ari Example");
 
+  expect(await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(true);
+
   const metadataDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download profile .md" }).click();
   const metadataDownload = await metadataDownloadPromise;
@@ -96,13 +121,15 @@ test("guided edits survive mode navigation and warn before a full reload", async
   const metadataMarkdown = Buffer.concat(metadataChunks).toString("utf8");
   expect(metadataMarkdown).toContain("proficiency: professional");
   expect(metadataMarkdown).toContain("relationship: past_employer");
+  await expect(page.locator("#download-status")).toContainText("The current draft matches that local file; nothing was uploaded.");
 
-  const warning = page.waitForEvent("dialog");
-  const reload = page.reload();
-  const dialog = await warning;
-  expect(dialog.type()).toBe("beforeunload");
-  await dialog.accept();
-  await reload;
+  let warnedAfterDownload = false;
+  page.once("dialog", async (unexpectedDialog) => {
+    warnedAfterDownload = true;
+    await unexpectedDialog.accept();
+  });
+  await page.reload();
+  expect(warnedAfterDownload).toBe(false);
 });
 
 test("a valid draft tracks whether its local download is current", async ({ page }) => {
