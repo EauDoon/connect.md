@@ -15,6 +15,7 @@ type DraftState = {
   revision: number;
   masked: boolean;
   humanStage: HumanJourneyStage;
+  localDownloadReceipt: LocalDownloadReceipt | null;
   setMarkdown: (markdown: string) => void;
   replaceMarkdown: (markdown: string) => void;
   replaceDraft: (kind: DocumentKind, markdown: string) => void;
@@ -22,7 +23,14 @@ type DraftState = {
   setHumanStage: (stage: HumanJourneyStage) => void;
   hydrateSavedDocument: (document: DocumentResponse) => void;
   recordSavedDocument: (document: DocumentResponse, rebasedMarkdown: string) => void;
+  recordLocalDownload: (filename: string) => void;
   getDraftSnapshot: () => { kind: DocumentKind; markdown: string; revision: number; lineage: number; identifier: string; savedDocument: DocumentResponse | null } | null;
+};
+
+export type LocalDownloadReceipt = {
+  filename: string;
+  kind: DocumentKind;
+  markdown: string;
 };
 
 const DraftContext = createContext<DraftState | null>(null);
@@ -40,6 +48,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const [savedDocument, setSavedDocument] = useState<DocumentResponse | null>(null);
   const [revision, setRevision] = useState(0);
   const [humanStage, updateHumanStage] = useState<HumanJourneyStage>("foundation");
+  const [localDownloadReceipt, setLocalDownloadReceipt] = useState<LocalDownloadReceipt | null>(null);
   const [draftOwner, setDraftOwner] = useState<string | null>(null);
   const kindRef = useRef(kind);
   const markdownRef = useRef(markdown);
@@ -73,6 +82,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     updateKind("profile");
     updateMarkdown(profileStarter);
     setSavedDocument(null);
+    setLocalDownloadReceipt(null);
     setRevision((current) => current + 1);
     kindRef.current = "profile";
     markdownRef.current = profileStarter;
@@ -154,6 +164,14 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     updateMarkdown(canonicalRebase);
     setSavedDocument(canonicalDocument);
   }, []);
+  const recordLocalDownload = useCallback((filename: string) => {
+    if (maskDraftRef.current) return;
+    setLocalDownloadReceipt({
+      filename,
+      kind: kindRef.current,
+      markdown: markdownRef.current,
+    });
+  }, []);
   const getDraftSnapshot = useCallback(() => maskOwnedDraftSnapshot(maskDraftRef.current, {
     kind: kindRef.current,
     markdown: markdownRef.current,
@@ -169,6 +187,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     revision,
     masked: maskDraft,
     humanStage: maskDraft ? "foundation" as const : humanStage,
+    localDownloadReceipt: maskDraft ? null : localDownloadReceipt,
     setMarkdown,
     replaceMarkdown,
     replaceDraft,
@@ -176,8 +195,9 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setHumanStage,
     hydrateSavedDocument,
     recordSavedDocument,
+    recordLocalDownload,
     getDraftSnapshot
-  }), [getDraftSnapshot, humanStage, hydrateSavedDocument, kind, markdown, maskDraft, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setHumanStage, setKind, setMarkdown]);
+  }), [getDraftSnapshot, humanStage, hydrateSavedDocument, kind, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }

@@ -135,25 +135,27 @@ describe("dual-mode canonical draft continuity", () => {
     const { createRoot } = await import("react-dom/client");
     const root = createRoot(container as unknown as Element);
     let mountSequence = 0;
-    let observed = { surface: "", instance: 0, adjacent: "", markdown: "", masked: false, stage: "foundation" };
+    let observed = { surface: "", instance: 0, adjacent: "", markdown: "", masked: false, stage: "foundation", downloadFilename: "" };
     let setMarkdown: (markdown: string) => void = () => undefined;
     let setHumanStage: (stage: "foundation" | "shape" | "review" | "release") => void = () => undefined;
     let setAdjacent: (value: string) => void = () => undefined;
+    let recordLocalDownload: (filename: string) => void = () => undefined;
 
     function HumanSurface() {
       const draft = useDraft();
       const [instance] = useState(() => ++mountSequence);
       const [adjacent, updateAdjacent] = useState("clean");
-      observed = { surface: "human", instance, adjacent, markdown: draft.markdown, masked: draft.masked, stage: draft.humanStage };
+      observed = { surface: "human", instance, adjacent, markdown: draft.markdown, masked: draft.masked, stage: draft.humanStage, downloadFilename: draft.localDownloadReceipt?.filename ?? "" };
       setMarkdown = draft.setMarkdown;
       setHumanStage = draft.setHumanStage;
       setAdjacent = updateAdjacent;
+      recordLocalDownload = draft.recordLocalDownload;
       return null;
     }
 
     function MarkdownSurface() {
       const draft = useDraft();
-      observed = { surface: "markdown", instance: 0, adjacent: "clean", markdown: draft.markdown, masked: draft.masked, stage: draft.humanStage };
+      observed = { surface: "markdown", instance: 0, adjacent: "clean", markdown: draft.markdown, masked: draft.masked, stage: draft.humanStage, downloadFilename: draft.localDownloadReceipt?.filename ?? "" };
       return null;
     }
 
@@ -165,11 +167,12 @@ describe("dual-mode canonical draft continuity", () => {
         setMarkdown("# Alpha private Markdown");
         setHumanStage("review");
         setAdjacent("alpha-owned-filename.pdf");
+        recordLocalDownload("alpha.md");
       });
-      expect(observed).toMatchObject({ surface: "human", adjacent: "alpha-owned-filename.pdf", markdown: "# Alpha private Markdown\n", stage: "review" });
+      expect(observed).toMatchObject({ surface: "human", adjacent: "alpha-owned-filename.pdf", markdown: "# Alpha private Markdown\n", stage: "review", downloadFilename: "alpha.md" });
 
       await act(async () => { root.render(renderSurface("markdown")); });
-      expect(observed).toMatchObject({ surface: "markdown", markdown: "# Alpha private Markdown\n", stage: "review" });
+      expect(observed).toMatchObject({ surface: "markdown", markdown: "# Alpha private Markdown\n", stage: "review", downloadFilename: "alpha.md" });
       await act(async () => { root.render(renderSurface("human")); });
       await act(async () => { setAdjacent("alpha-owned-provenance"); });
       const sameSubjectInstance = observed.instance;
@@ -177,7 +180,7 @@ describe("dual-mode canonical draft continuity", () => {
       authFixture.current = { ...authFixture.current, isLoaded: false };
       await act(async () => { root.render(renderSurface("human")); });
       expect(observed.instance).toBeGreaterThan(sameSubjectInstance);
-      expect(observed).toMatchObject({ adjacent: "clean", masked: true, stage: "foundation" });
+      expect(observed).toMatchObject({ adjacent: "clean", masked: true, stage: "foundation", downloadFilename: "" });
       expect(observed.markdown).not.toContain("Alpha private");
       expect(observed.adjacent).not.toContain("alpha-owned");
 
@@ -185,7 +188,7 @@ describe("dual-mode canonical draft continuity", () => {
       authFixture.current = { ...authFixture.current, isLoaded: true, subject: "beta" };
       await act(async () => { root.render(renderSurface("human")); });
       expect(observed.instance).toBeGreaterThan(loadingInstance);
-      expect(observed).toMatchObject({ adjacent: "clean", markdown: expect.not.stringContaining("Alpha private"), stage: "foundation" });
+      expect(observed).toMatchObject({ adjacent: "clean", markdown: expect.not.stringContaining("Alpha private"), stage: "foundation", downloadFilename: "" });
 
       await act(async () => {
         setMarkdown("# Beta private Markdown");
