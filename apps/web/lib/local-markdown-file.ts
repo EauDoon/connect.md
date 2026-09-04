@@ -11,13 +11,15 @@ export type LocalMarkdownDraft = {
   markdown: string;
 };
 
+export const LOCAL_MARKDOWN_FILE_MAX_BYTES = PROFILE_RESUME_MAX_UTF8_BYTES * 2;
+
 export function localMarkdownFilenameIssue(filename: string) {
   return /\.md$/iu.test(filename.trim()) ? null : "Choose a Markdown file with a .md extension.";
 }
 
 export function localMarkdownFileSizeIssue(byteLength: number) {
-  return byteLength > PROFILE_RESUME_MAX_UTF8_BYTES
-    ? `The file exceeds the ${PROFILE_RESUME_MAX_UTF8_BYTES.toLocaleString("en-US")} byte limit.`
+  return byteLength > LOCAL_MARKDOWN_FILE_MAX_BYTES
+    ? `The file exceeds the ${LOCAL_MARKDOWN_FILE_MAX_BYTES.toLocaleString("en-US")} byte local-open limit.`
     : null;
 }
 
