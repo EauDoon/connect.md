@@ -49,11 +49,53 @@ test("agent presets expose bounded drafting instructions", async ({ page }) => {
 test("guided edits survive mode navigation and warn before a full reload", async ({ page }) => {
   await page.goto("/human");
   await page.getByRole("button", { name: "Next: shape" }).click();
-  await page.locator("#name").fill("Ari Example");
-  await page.locator("#name").press("Tab");
+  await page.getByText("More professional signals", { exact: false }).click();
+  await page.locator("#language-proficiency").selectOption("professional");
+  await page.locator("#organization-relationship").selectOption("past_employer");
+  await page.getByRole("button", { name: "Review document" }).click();
+  await page.getByRole("button", { name: "Back to Shape" }).click();
+  await page.getByText("More professional signals", { exact: false }).click();
+  await expect(page.locator("#language-proficiency")).toHaveValue("professional");
+  await expect(page.locator("#organization-relationship")).toHaveValue("past_employer");
+  await page.getByRole("navigation", { name: /Editing mode/iu }).getByRole("link", { name: "Markdown" }).click();
+  await page.getByRole("link", { name: "Continue in Guided" }).click();
+  await page.getByText("More professional signals", { exact: false }).click();
+  await expect(page.locator("#language-proficiency")).toHaveValue("professional");
+  await expect(page.locator("#organization-relationship")).toHaveValue("past_employer");
+
+  const replacementChooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Open local .md" }).click();
+  const replacementChooser = await replacementChooserPromise;
+  await replacementChooser.setFiles({
+    name: "replacement-profile.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(profileStarter.replaceAll("Your Name", "Ari Example")),
+  });
+  await page.getByText("More professional signals", { exact: false }).click();
+  await expect(page.locator("#language-proficiency")).toHaveValue("");
+  await expect(page.locator("#organization-relationship")).toHaveValue("current_employer");
+
+  await page.locator("#language-proficiency").selectOption("professional");
+  await page.locator("#languages").fill("English");
+  await page.locator("#languages").press("Tab");
+  await expect(page.locator("#language-proficiency")).toHaveValue("professional");
+  await page.locator("#organization-relationship").selectOption("past_employer");
+  await page.locator("#organizations").fill("Example Company");
+  await page.locator("#organizations").press("Tab");
+  await expect(page.locator("#organization-relationship")).toHaveValue("past_employer");
   await page.getByRole("navigation", { name: /Editing mode/iu }).getByRole("link", { name: "Markdown" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Edit the source. Keep the same document." })).toBeVisible();
   await expect(page.locator('aside[aria-label="Markdown status and preview"]')).toContainText("Ari Example");
+
+  const metadataDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download profile .md" }).click();
+  const metadataDownload = await metadataDownloadPromise;
+  const metadataStream = await metadataDownload.createReadStream();
+  const metadataChunks: Buffer[] = [];
+  for await (const chunk of metadataStream) metadataChunks.push(Buffer.from(chunk));
+  const metadataMarkdown = Buffer.concat(metadataChunks).toString("utf8");
+  expect(metadataMarkdown).toContain("proficiency: professional");
+  expect(metadataMarkdown).toContain("relationship: past_employer");
 
   const warning = page.waitForEvent("dialog");
   const reload = page.reload();

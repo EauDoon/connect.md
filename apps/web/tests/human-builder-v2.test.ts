@@ -89,6 +89,17 @@ describe("Human Mode v2 accessibility surface", () => {
     expect(source).toContain('className="min-h-11 px-2"');
   });
 
+  it("keeps new-language and new-organization choices until their labels commit", () => {
+    const source = humanModeSource();
+    expect(source).toContain("guidedReferenceChoices");
+    expect(source).toContain("setGuidedReferenceChoices");
+    expect(source).toContain("key={`structured-v2-${lineage}`}");
+    expect(source).toContain("patch({ languages: commaValues(nextValue), languageProficiency })");
+    expect(source).toContain("patch({ organizations: commaValues(nextValue), organizationRelationship })");
+    expect(source).toContain("setGuidedReferenceChoices({ languageProficiency: event.target.value");
+    expect(source).toContain("setGuidedReferenceChoices({ organizationRelationship: event.target.value");
+  });
+
   it("renders exactly one progressive chapter with explicit chapter navigation", () => {
     const source = humanModeSource();
     expect(source).toContain('aria-label="Human Mode chapter navigation"');

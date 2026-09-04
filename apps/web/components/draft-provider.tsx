@@ -3,7 +3,7 @@
 import React, { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useConnectmdAuth } from "@/components/auth-provider";
-import { documentIdentifier, profileStarter, type DocumentKind, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
+import { documentIdentifier, profileStarter, type DocumentKind, type HumanFields, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
 import { type DocumentResponse } from "@/lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject } from "@/lib/draft-security";
 import { type HumanJourneyStage } from "@/lib/human-journey";
@@ -13,18 +13,28 @@ type DraftState = {
   markdown: string;
   savedDocument: DocumentResponse | null;
   revision: number;
+  lineage: number;
   masked: boolean;
   humanStage: HumanJourneyStage;
+  guidedReferenceChoices: GuidedReferenceChoices;
   localDownloadReceipt: LocalDownloadReceipt | null;
   setMarkdown: (markdown: string) => void;
   replaceMarkdown: (markdown: string) => void;
   replaceDraft: (kind: DocumentKind, markdown: string) => void;
   setKind: (kind: DocumentKind) => void;
   setHumanStage: (stage: HumanJourneyStage) => void;
+  setGuidedReferenceChoices: (choices: Partial<GuidedReferenceChoices>) => void;
   hydrateSavedDocument: (document: DocumentResponse) => void;
   recordSavedDocument: (document: DocumentResponse, rebasedMarkdown: string) => void;
   recordLocalDownload: (filename: string) => void;
   getDraftSnapshot: () => { kind: DocumentKind; markdown: string; revision: number; lineage: number; identifier: string; savedDocument: DocumentResponse | null } | null;
+};
+
+export type GuidedReferenceChoices = Pick<HumanFields, "languageProficiency" | "organizationRelationship">;
+
+const defaultGuidedReferenceChoices: GuidedReferenceChoices = {
+  languageProficiency: "",
+  organizationRelationship: "current_employer",
 };
 
 export type LocalDownloadReceipt = {
@@ -47,7 +57,9 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const [markdown, updateMarkdown] = useState(profileStarter);
   const [savedDocument, setSavedDocument] = useState<DocumentResponse | null>(null);
   const [revision, setRevision] = useState(0);
+  const [lineage, setLineage] = useState(0);
   const [humanStage, updateHumanStage] = useState<HumanJourneyStage>("foundation");
+  const [guidedReferenceChoices, updateGuidedReferenceChoices] = useState(defaultGuidedReferenceChoices);
   const [localDownloadReceipt, setLocalDownloadReceipt] = useState<LocalDownloadReceipt | null>(null);
   const [draftOwner, setDraftOwner] = useState<string | null>(null);
   const kindRef = useRef(kind);
@@ -89,6 +101,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = null;
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
+    updateGuidedReferenceChoices(defaultGuidedReferenceChoices);
     updateHumanStage("foundation");
     setDraftOwner(resolvedSubject);
   }, [draftOwner, resolvedSubject]);
@@ -109,6 +123,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = null;
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
+    updateGuidedReferenceChoices(defaultGuidedReferenceChoices);
     updateMarkdown(canonical);
     setSavedDocument(null);
     setRevision((current) => current + 1);
@@ -121,6 +137,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = null;
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
+    updateGuidedReferenceChoices(defaultGuidedReferenceChoices);
     updateKind(nextKind);
     updateMarkdown(canonical);
     setSavedDocument(null);
@@ -134,6 +152,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = null;
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
+    updateGuidedReferenceChoices(defaultGuidedReferenceChoices);
     updateMarkdown(converted);
     setSavedDocument(null);
     updateKind(nextKind);
@@ -141,6 +161,9 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   }, []);
   const setHumanStage = useCallback((stage: HumanJourneyStage) => {
     if (!maskDraftRef.current) updateHumanStage(stage);
+  }, []);
+  const setGuidedReferenceChoices = useCallback((choices: Partial<GuidedReferenceChoices>) => {
+    if (!maskDraftRef.current) updateGuidedReferenceChoices((current) => ({ ...current, ...choices }));
   }, []);
   const hydrateSavedDocument = useCallback((document: DocumentResponse) => {
     if (maskDraftRef.current) return;
@@ -150,6 +173,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = { ...document, markdown: canonical };
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
+    updateGuidedReferenceChoices(defaultGuidedReferenceChoices);
     updateKind(document.kind);
     updateMarkdown(canonical);
     setSavedDocument(savedDocumentRef.current);
@@ -185,19 +210,22 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     markdown: maskDraft ? profileStarter : markdown,
     savedDocument: maskDraft ? null : savedDocument,
     revision,
+    lineage,
     masked: maskDraft,
     humanStage: maskDraft ? "foundation" as const : humanStage,
+    guidedReferenceChoices: maskDraft ? defaultGuidedReferenceChoices : guidedReferenceChoices,
     localDownloadReceipt: maskDraft ? null : localDownloadReceipt,
     setMarkdown,
     replaceMarkdown,
     replaceDraft,
     setKind,
     setHumanStage,
+    setGuidedReferenceChoices,
     hydrateSavedDocument,
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [getDraftSnapshot, humanStage, hydrateSavedDocument, kind, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setHumanStage, setKind, setMarkdown]);
+  }), [getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }
