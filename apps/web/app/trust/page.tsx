@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 
 const localData = [
   "Everything you type into the guided builder or Markdown editor.",
+  "Any .md file you explicitly open; the browser reads it directly into memory.",
   "The preview generated from your current Markdown buffer.",
   "The filename and file contents created when you choose Download.",
 ] as const;
@@ -60,7 +61,7 @@ export default function TrustPage() {
           <ShieldCheck className="size-6 text-acid" aria-hidden />
           <h2 className="mt-5 text-2xl font-semibold text-white">No hidden persistence</h2>
           <p className="mt-3 text-sm leading-7 text-mist">
-            The draft provider uses in-memory React state. It does not write your content to localStorage, sessionStorage, IndexedDB, cookies, a server action, or an API route.
+            The draft provider uses in-memory React state. Opening a local .md file reads it directly in the browser. The site does not write your content to localStorage, sessionStorage, IndexedDB, cookies, a server action, or an API route.
           </p>
         </article>
 

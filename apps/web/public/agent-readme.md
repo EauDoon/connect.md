@@ -15,7 +15,7 @@ Never invent employers, dates, qualifications, skills, locations, achievements, 
 3. Identify missing or conflicting facts before drafting.
 4. Preserve factual meaning and mark uncertainty instead of guessing.
 5. Return one complete UTF-8 Markdown file with LF line endings.
-6. Ask the person to review the exact content before they download or share it.
+6. Ask the person to open the local `.md` file in Guided or Markdown Mode and review the exact content before they download or share it.
 
 ## Validator
 

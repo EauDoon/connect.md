@@ -6,6 +6,7 @@ The standalone Next.js 15 site deployed at
 It provides:
 
 - a guided profile and resume builder;
+- local reopening of an existing UTF-8 `.md` file;
 - a direct Markdown editor;
 - client-side validation and sanitized preview;
 - local .md download;

@@ -183,7 +183,7 @@ export function HumanBuilder() {
           <BufferedCommitRegistry.Provider value={registerBufferedFlush}>
             <div className="min-w-0 p-3 sm:p-6 lg:p-8">
               <motion.div key={activeStage} initial={reducedMotion ? false : { opacity: 0, y: 12 }} animate={reducedMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.22, ease: "easeOut" }}>
-                  {activeStage === "foundation" && <JourneyChapter stage="foundation" title="Start with the right document" description="Choose a profile or resume. To continue an existing file, paste its complete Markdown in direct mode.">
+                  {activeStage === "foundation" && <JourneyChapter stage="foundation" title="Start with the right document" description="Choose a profile or resume, or open an existing local .md file above.">
                     <div className="grid min-w-0 gap-3 sm:grid-cols-2" aria-label="Document type">
                       {documentOptions.map((option) => {
                         const Icon = option.icon;
@@ -197,7 +197,7 @@ export function HumanBuilder() {
                       })}
                     </div>
                     <aside aria-label="Agent draft paste guidance" className="mt-4 min-w-0 rounded-xl border border-acid/20 bg-acid/[.045] p-4">
-                      <p className="text-sm leading-6 text-mist">Have an existing or agent-produced draft? Paste the complete file in Markdown Mode, then return here for recognized-field editing. It stays in this browser session until you download it.</p>
+                      <p className="text-sm leading-6 text-mist">Have an existing or agent-produced draft? Open its local .md file above, or paste the complete Markdown in direct mode. It stays in this browser session until you download it.</p>
                       <Link href="/md" className="mt-3 inline-flex min-h-11 min-w-0 max-w-full items-center justify-center break-words whitespace-normal rounded-full border border-acid/30 px-4 text-center text-sm font-semibold text-acid transition hover:bg-acid/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid">Open Markdown Mode to paste the draft</Link>
                     </aside>
                     <ChapterNavigation stage="foundation" onNavigate={activateStage} />

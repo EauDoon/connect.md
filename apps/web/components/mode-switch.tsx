@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import React from "react";
 
 import { useDraft } from "@/components/draft-provider";
+import { LocalMarkdownFileOpen } from "@/components/local-markdown-file-open";
 import { cn } from "@/lib/utils";
 
 const editingModes = [
@@ -32,7 +33,10 @@ export function ModeSwitch({ mode, onBeforeNavigate }: { mode: "human" | "md"; o
           })}
         </nav>
       </div>
-      <p className="shrink-0 text-xs text-mist"><span className="font-semibold text-white">Canonical buffer connected</span><span aria-hidden> · </span><span>{draftSize.toLocaleString()} bytes</span></p>
+      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end">
+        <p className="shrink-0 text-xs text-mist"><span className="font-semibold text-white">Canonical buffer connected</span><span aria-hidden> · </span><span>{draftSize.toLocaleString()} bytes</span></p>
+        <LocalMarkdownFileOpen />
+      </div>
     </div>
   );
 }
