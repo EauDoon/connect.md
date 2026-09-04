@@ -169,6 +169,15 @@ test("a valid draft tracks whether its local download is current", async ({ page
   expect(updatedDownload.suggestedFilename()).toBe("your-handle.md");
   await expect(page.locator("#download-status")).toContainText("The current draft matches that local file; nothing was uploaded.");
 
+  await page.getByRole("link", { name: "Continue in Guided" }).click();
+  await page.getByRole("button", { name: /^01 Foundation\b/iu }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator('[aria-label="Document type"]').getByText("Resume", { exact: true }).click();
+  await page.getByRole("navigation", { name: /Editing mode/iu }).getByRole("link", { name: "Markdown" }).click();
+  await expect(page.getByRole("button", { name: "Download resume .md" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download updated resume .md" })).toHaveCount(0);
+  await expect(page.locator("#download-status")).toHaveCount(0);
+
   const invalidChooserPromise = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Open local .md" }).click();
   const invalidChooser = await invalidChooserPromise;
