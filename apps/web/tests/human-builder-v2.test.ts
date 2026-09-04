@@ -91,13 +91,13 @@ describe("Human Mode v2 accessibility surface", () => {
 
   it("keeps new-language and new-organization choices until their labels commit", () => {
     const source = humanModeSource();
-    expect(source).toContain('useState<HumanFields["languageProficiency"]>("")');
-    expect(source).toContain('useState<HumanFields["organizationRelationship"]>("current_employer")');
+    expect(source).toContain("guidedReferenceChoices");
+    expect(source).toContain("setGuidedReferenceChoices");
     expect(source).toContain("key={`structured-v2-${lineage}`}");
     expect(source).toContain("patch({ languages: commaValues(nextValue), languageProficiency })");
     expect(source).toContain("patch({ organizations: commaValues(nextValue), organizationRelationship })");
-    expect(source).toContain("setLanguageProficiency(event.target.value");
-    expect(source).toContain("setOrganizationRelationship(event.target.value");
+    expect(source).toContain("setGuidedReferenceChoices({ languageProficiency: event.target.value");
+    expect(source).toContain("setGuidedReferenceChoices({ organizationRelationship: event.target.value");
   });
 
   it("renders exactly one progressive chapter with explicit chapter navigation", () => {

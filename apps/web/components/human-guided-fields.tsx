@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import type { GuidedReferenceChoices } from "@/components/draft-provider";
 import {
   BufferedInput,
   BufferedTextarea,
@@ -114,7 +115,7 @@ export function GuidedEntriesEditor({ kind, value, disabled, onChange }: { kind:
   </fieldset>;
 }
 
-export function StructuredV2Fields({ fields, patch, disabled }: { fields: HumanFields; patch: (patchFields: Partial<HumanFields>) => void; disabled: boolean }) {
+export function StructuredV2Fields({ fields, guidedReferenceChoices, setGuidedReferenceChoices, patch, disabled }: { fields: HumanFields; guidedReferenceChoices: GuidedReferenceChoices; setGuidedReferenceChoices: (choices: Partial<GuidedReferenceChoices>) => void; patch: (patchFields: Partial<HumanFields>) => void; disabled: boolean }) {
   const workModes: Array<{ value: HumanFields["workModes"][number]; label: string }> = [
     { value: "on_site", label: "On-site" },
     { value: "hybrid", label: "Hybrid" },
@@ -125,8 +126,7 @@ export function StructuredV2Fields({ fields, patch, disabled }: { fields: HumanF
   };
   const hasOptionalSignals = fields.languages.length > 0 || fields.organizations.length > 0 || fields.workModes.length > 0 || fields.availabilityStatus !== "not_disclosed" || fields.representationStatus !== "not_disclosed" || fields.contactDisclosure !== "none";
   const [optionalSignalsOpen, setOptionalSignalsOpen] = useState(hasOptionalSignals);
-  const [languageProficiency, setLanguageProficiency] = useState<HumanFields["languageProficiency"]>("");
-  const [organizationRelationship, setOrganizationRelationship] = useState<HumanFields["organizationRelationship"]>("current_employer");
+  const { languageProficiency, organizationRelationship } = guidedReferenceChoices;
   useEffect(() => { if (hasOptionalSignals) setOptionalSignalsOpen(true); }, [hasOptionalSignals]);
 
   return <fieldset className="sm:col-span-2 space-y-4 rounded-2xl border border-acid/20 bg-acid/[.04] p-4">
@@ -167,7 +167,7 @@ export function StructuredV2Fields({ fields, patch, disabled }: { fields: HumanF
           </div>
           <div>
             <FieldLabel htmlFor="language-proficiency">Proficiency for new languages</FieldLabel>
-            <select id="language-proficiency" disabled={disabled} value={languageProficiency} onChange={(event) => setLanguageProficiency(event.target.value as HumanFields["languageProficiency"])} className={guidedSelectClass}>
+            <select id="language-proficiency" disabled={disabled} value={languageProficiency} onChange={(event) => setGuidedReferenceChoices({ languageProficiency: event.target.value as HumanFields["languageProficiency"] })} className={guidedSelectClass}>
               <option value="">Choose before adding a language</option>
               <option value="basic">Basic</option>
               <option value="conversational">Conversational</option>
@@ -181,7 +181,7 @@ export function StructuredV2Fields({ fields, patch, disabled }: { fields: HumanF
           </div>
           <div>
             <FieldLabel htmlFor="organization-relationship">New organization relationship</FieldLabel>
-            <select id="organization-relationship" disabled={disabled} value={organizationRelationship} onChange={(event) => setOrganizationRelationship(event.target.value as HumanFields["organizationRelationship"])} className={guidedSelectClass}>
+            <select id="organization-relationship" disabled={disabled} value={organizationRelationship} onChange={(event) => setGuidedReferenceChoices({ organizationRelationship: event.target.value as HumanFields["organizationRelationship"] })} className={guidedSelectClass}>
               <option value="current_employer">Current employer</option>
               <option value="past_employer">Past employer</option>
               <option value="founder">Founder</option>

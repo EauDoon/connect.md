@@ -62,7 +62,7 @@ function ChapterNavigation({ stage, onNavigate }: { stage: HumanJourneyStage; on
 }
 
 export function HumanBuilder() {
-  const { kind, lineage, markdown, savedDocument, humanStage: activeStage, setHumanStage, setKind, setMarkdown, replaceMarkdown } = useDraft();
+  const { guidedReferenceChoices, kind, lineage, markdown, savedDocument, humanStage: activeStage, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown, replaceMarkdown } = useDraft();
   const fields = useMemo(() => humanFieldsFromMarkdown(markdown, kind), [kind, markdown]);
   const issues = useMemo(() => validateDraft(markdown, kind), [kind, markdown]);
   const guidedEditIssue = useMemo(() => frontmatterParseIssue(markdown), [markdown]);
@@ -262,7 +262,7 @@ export function HumanBuilder() {
                         <BufferedInput id="skills" value={fields.skills.join(", ")} onCommit={(value) => patch({ skills: value.split(",").map((skill) => skill.trim()).filter(Boolean) })} placeholder="Strategy, Product, Design" maxLength={(SCHEMA_LIMITS.skills * SCHEMA_LIMITS.skill) + ((SCHEMA_LIMITS.skills - 1) * 2)} disabled={guidedEditsBlocked} describedBy="skills-help" />
                         <p id="skills-help" className="mt-1 text-xs text-mist/75">Separate skills with commas.</p>
                       </div>
-                      {fields.schemaVersion === 2 && <StructuredV2Fields key={`structured-v2-${lineage}`} fields={fields} patch={patch} disabled={guidedEditsBlocked} />}
+                      {fields.schemaVersion === 2 && <StructuredV2Fields key={`structured-v2-${lineage}`} fields={fields} guidedReferenceChoices={guidedReferenceChoices} setGuidedReferenceChoices={setGuidedReferenceChoices} patch={patch} disabled={guidedEditsBlocked} />}
                       <div className="sm:col-span-2">
                         <FieldLabel htmlFor="narrative">{kind === "profile" ? "About" : "Professional summary"}</FieldLabel>
                         <BufferedTextarea id="narrative" disabled={guidedEditsBlocked} value={fields.narrative} onCommit={(narrative) => patch({ narrative })} placeholder={kind === "profile" ? "The work you want people to understand." : "The through-line of your experience."} describedBy="narrative-help" />

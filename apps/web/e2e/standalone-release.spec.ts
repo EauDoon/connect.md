@@ -52,6 +52,16 @@ test("guided edits survive mode navigation and warn before a full reload", async
   await page.getByText("More professional signals", { exact: false }).click();
   await page.locator("#language-proficiency").selectOption("professional");
   await page.locator("#organization-relationship").selectOption("past_employer");
+  await page.getByRole("button", { name: "Review document" }).click();
+  await page.getByRole("button", { name: "Back to Shape" }).click();
+  await page.getByText("More professional signals", { exact: false }).click();
+  await expect(page.locator("#language-proficiency")).toHaveValue("professional");
+  await expect(page.locator("#organization-relationship")).toHaveValue("past_employer");
+  await page.getByRole("navigation", { name: /Editing mode/iu }).getByRole("link", { name: "Markdown" }).click();
+  await page.getByRole("link", { name: "Continue in Guided" }).click();
+  await page.getByText("More professional signals", { exact: false }).click();
+  await expect(page.locator("#language-proficiency")).toHaveValue("professional");
+  await expect(page.locator("#organization-relationship")).toHaveValue("past_employer");
 
   const replacementChooserPromise = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Open local .md" }).click();
