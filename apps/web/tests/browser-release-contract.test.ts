@@ -235,6 +235,15 @@ describe("production browser release gate", () => {
     expect(gate).toBeGreaterThan(install);
   });
 
+  it("keeps npm installation independent from the advisory service and bounds audit retries", () => {
+    const workflow = source(".github/workflows/ci.yml");
+
+    expect(workflow).toContain("- run: npm ci --no-audit");
+    expect(workflow).toContain('timeout 120 npm audit "$@"');
+    expect(workflow).toContain("audit_with_retry\n");
+    expect(workflow).toContain("audit_with_retry --omit=dev");
+  });
+
   it("binds the browser gate to the exact deterministic build-input receipt and Next BUILD_ID", () => {
     const buildScript = source("apps/web/scripts/build-production-e2e.mjs");
     const harness = harnessSources();
