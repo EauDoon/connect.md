@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { resumeStarter } from "../lib/markdown";
+import { profileStarter, resumeStarter } from "../lib/markdown";
 
 type AxeWindow = Window & {
   axe?: {
@@ -91,6 +91,28 @@ test("an existing local Markdown file reopens without an upload", async ({ page 
   await expect(page.getByRole("button", { name: "Download resume .md" })).toBeVisible();
   await expect(page.locator('aside[aria-label="Markdown status and preview"]')).toContainText("Ari Example");
   expect(nonGetRequests).toEqual([]);
+});
+
+test("sanitized HTML remains downloadable without reporting a clean preflight", async ({ page }) => {
+  await page.goto("/md");
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Open local .md" }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
+    name: "profile-with-html.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(profileStarter.replace("## Skills", "<script>alert('unsafe')</script>\n\n## Skills")),
+  });
+
+  await expect(page.getByText("Ready with 1 warning", { exact: true })).toBeVisible();
+  await expect(page.getByText("Unsafe HTML is removed in the preview and public renderer.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download profile .md" })).toBeEnabled();
+
+  await page.getByRole("link", { name: "Continue in Guided" }).click();
+  await page.getByRole("button", { name: "04 Download Validate and keep the file" }).click();
+  await expect(page.getByText("Ready with a warning", { exact: true })).toBeVisible();
+  await expect(page.getByText("You can download now. Review the warning below first.")).toBeVisible();
+  expect(await seriousAccessibilityViolations(page)).toEqual([]);
 });
 
 test("trust page states the exact browser-only boundary", async ({ page }) => {

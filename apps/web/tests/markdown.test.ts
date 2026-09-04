@@ -525,9 +525,10 @@ Legacy experience.
 
   it("does not advertise a server API as the standalone validator", () => {
     const issues = validateDraft(profileStarter, "profile");
-    expect(issues.map((issue) => issue.message)).toEqual([
-      "Client validation passed. Download locally; this site does not upload or publish."
-    ]);
+    expect(issues).toEqual([{
+      level: "success",
+      message: "Client validation passed. Download locally; this site does not upload or publish."
+    }]);
     const panel = readFileSync(new URL("../components/validation-panel.tsx", import.meta.url), "utf8");
     expect(panel).toContain("Ready to download");
     expect(panel).not.toMatch(/\bAPI\b/u);

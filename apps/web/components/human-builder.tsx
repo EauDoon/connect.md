@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, CheckCircle2, Compass, Eye, FileText, MapPin, RotateCcw, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, CircleAlert, Eye, FileText, MapPin, RotateCcw, ShieldAlert, Sparkles, TriangleAlert } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BufferedCommitRegistry, BufferedInput, BufferedTextarea, FieldLabel, type BufferedFlush, type BufferedFlushRegistry } from "@/components/human-buffered-fields";
@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/field";
 import { shouldConfirmDraftReplacement } from "@/lib/draft-replacement";
 import { HUMAN_JOURNEY, humanJourneyPosition, type HumanJourneyStage } from "@/lib/human-journey";
 import { frontmatterParseIssue, humanFieldsFromMarkdown, isEmptyDraft, patchHumanFields, starterFor, type DocumentKind, type HumanFields } from "@/lib/markdown";
-import { SCHEMA_LIMITS, hasValidationErrors, validateDraft } from "@/lib/validation";
+import { SCHEMA_LIMITS, hasValidationErrors, hasValidationWarnings, validateDraft } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
 const MarkdownPreview = dynamic(() => import("@/components/markdown-preview").then((module) => module.MarkdownPreview));
@@ -76,7 +76,29 @@ export function HumanBuilder() {
   const bufferedFlushersRef = useRef(new Set<BufferedFlush>());
   const pendingStageFocusRef = useRef<HumanJourneyStage | null>(null);
   const journeyPosition = humanJourneyPosition(activeStage);
-  const readyForDownload = !guidedEditsBlocked && !hasValidationErrors(issues);
+  const hasErrors = hasValidationErrors(issues);
+  const hasWarnings = hasValidationWarnings(issues);
+  const readyForDownload = !guidedEditsBlocked && !hasErrors;
+  const releaseStatus = !readyForDownload
+    ? {
+        className: "border-red-400/25 bg-red-400/[.08]",
+        icon: <CircleAlert className="mt-0.5 size-5 shrink-0 text-red-200" aria-hidden />,
+        title: "Download is blocked",
+        detail: "Resolve the validation errors below before downloading the file."
+      }
+    : hasWarnings
+      ? {
+          className: "border-amber-300/25 bg-amber-300/[.08]",
+          icon: <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-100" aria-hidden />,
+          title: "Ready with a warning",
+          detail: "You can download now. Review the warning below first."
+        }
+      : {
+          className: "border-acid/20 bg-acid/[.06]",
+          icon: <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-acid" aria-hidden />,
+          title: "Ready to download",
+          detail: "Preflight is clear. The file still exists only in this browser session."
+        };
   canonicalMarkdownRef.current = markdown;
 
   const registerBufferedFlush = useCallback<BufferedFlushRegistry>((flush) => {
@@ -182,7 +204,7 @@ export function HumanBuilder() {
           </div>
           <BufferedCommitRegistry.Provider value={registerBufferedFlush}>
             <div className="min-w-0 p-3 sm:p-6 lg:p-8">
-              <motion.div key={activeStage} initial={reducedMotion ? false : { opacity: 0, y: 12 }} animate={reducedMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.22, ease: "easeOut" }}>
+              <motion.div key={activeStage} initial={reducedMotion ? false : { y: 12 }} animate={reducedMotion ? undefined : { y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.22, ease: "easeOut" }}>
                   {activeStage === "foundation" && <JourneyChapter stage="foundation" title="Start with the right document" description="Choose a profile or resume, or open an existing local .md file above.">
                     <div className="grid min-w-0 gap-3 sm:grid-cols-2" aria-label="Document type">
                       {documentOptions.map((option) => {
@@ -268,9 +290,9 @@ export function HumanBuilder() {
                   </JourneyChapter>}
 
                   {activeStage === "release" && <JourneyChapter stage="release" title="Download the file you reviewed" description="Client-side validation explains what needs attention. Downloading is the only release action in this standalone site.">
-                    <div className={cn("mb-4 flex gap-3 rounded-xl border p-3", readyForDownload ? "border-acid/20 bg-acid/[.06]" : "border-amber-300/20 bg-amber-300/[.06]")}>
-                      {readyForDownload ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-acid" aria-hidden /> : <Compass className="mt-0.5 size-5 shrink-0 text-amber-100" aria-hidden />}
-                      <div><p className="text-sm font-semibold text-white">{readyForDownload ? "Ready to download" : "A few signals need attention"}</p><p className="mt-1 text-xs leading-5 text-mist">{readyForDownload ? "Preflight is clear. The file still exists only in this browser session." : "Resolve the validation list before downloading the file."}</p></div>
+                    <div className={cn("mb-4 flex gap-3 rounded-xl border p-3", releaseStatus.className)}>
+                      {releaseStatus.icon}
+                      <div><p className="text-sm font-semibold text-white">{releaseStatus.title}</p><p className="mt-1 text-xs leading-5 text-mist">{releaseStatus.detail}</p></div>
                     </div>
                     <div className="space-y-4">
                       <ValidationPanel issues={issues} />
