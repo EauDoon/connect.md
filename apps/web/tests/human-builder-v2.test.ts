@@ -123,8 +123,9 @@ describe("Human Mode v2 accessibility surface", () => {
     expect(scrollIndex).toBeGreaterThan(-1);
     expect(focusIndex).toBeGreaterThan(scrollIndex);
     expect(source.match(/heading\?\.focus\(\{ preventScroll: true \}\);/g)).toHaveLength(1);
-    expect(source).toContain("initial={reducedMotion ? false : { opacity: 0, y: 12 }}");
-    expect(source).toContain("animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}");
+    expect(source).toContain("initial={reducedMotion ? false : { y: 12 }}");
+    expect(source).toContain("animate={reducedMotion ? undefined : { y: 0 }}");
+    expect(source).not.toContain("key={activeStage} initial={reducedMotion ? false : { opacity:");
     expect(source).toContain('duration: reducedMotion ? 0 : 0.22');
   });
 

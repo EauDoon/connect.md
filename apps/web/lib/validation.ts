@@ -1,7 +1,7 @@
 import { MISSING_FRONTMATTER_ISSUE, type DocumentKind, frontmatterParseIssue, scanMarkdownHeadings, scanMarkdownHeadingSyntaxIssues, splitFrontmatter } from "@/lib/markdown";
 
 export type ValidationIssue = {
-  level: "error" | "warning";
+  level: "error" | "warning" | "success";
   message: string;
 };
 
@@ -427,10 +427,14 @@ export function validateDraft(markdown: string, kind: DocumentKind): ValidationI
   if (/<(?:script|iframe|object|embed)\b/i.test(body)) {
     issues.push({ level: "warning", message: "Unsafe HTML is removed in the preview and public renderer." });
   }
-  if (!issues.length) issues.push({ level: "warning", message: "Client validation passed. Download locally; this site does not upload or publish." });
+  if (!issues.length) issues.push({ level: "success", message: "Client validation passed. Download locally; this site does not upload or publish." });
   return issues;
 }
 
 export function hasValidationErrors(issues: ValidationIssue[]): boolean {
   return issues.some((issue) => issue.level === "error");
+}
+
+export function hasValidationWarnings(issues: ValidationIssue[]): boolean {
+  return issues.some((issue) => issue.level === "warning");
 }

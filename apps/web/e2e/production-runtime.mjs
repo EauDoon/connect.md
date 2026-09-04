@@ -30,7 +30,7 @@ const MONACO_COPY_SCRIPT = resolve(WEB_ROOT, "scripts", "copy-monaco-assets.mjs"
 const NEXT_EGRESS_GUARD = resolve(E2E_DIRECTORY, "next-server-egress-guard.cjs");
 const NEXT_EGRESS_AUDIT_PREFIX = "connectmd-next-egress-";
 const NEXT_EGRESS_AUDIT_FILE = "next-server-egress-audit.json";
-const EXPECTED_PLAYWRIGHT_TESTS = 10;
+const EXPECTED_PLAYWRIGHT_TESTS = 11;
 const PUBLIC_RELEASE_SPEC_PATH = "e2e/standalone-release.spec.ts";
 const MAX_PUBLIC_RELEASE_SPEC_LINE = 2_000;
 const MAX_PUBLIC_RELEASE_SPEC_COLUMN = 500;
@@ -679,7 +679,7 @@ export function validatePlaywrightJsonReceipt(raw) {
     !Array.isArray(receipt.errors) ||
     receipt.errors.length !== 0
   ) {
-    throw new Error("browser release Playwright receipt was not an exact nine-pass result");
+    throw new Error("browser release Playwright receipt was not an exact eleven-pass result");
   }
   return receipt;
 }
