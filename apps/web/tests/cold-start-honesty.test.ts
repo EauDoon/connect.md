@@ -209,6 +209,6 @@ describe("cold-start honesty", () => {
     expect(source).toContain("A <code");
     expect(source).toContain("file is portable plain text");
     expect(source).toContain("Nothing is uploaded");
-    expect(source).toContain("Your final artifact is the file—not an account.");
+    expect(source).toContain("Your final artifact is the file, not an account.");
   });
 });

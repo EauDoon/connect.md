@@ -109,6 +109,7 @@ test("retired backend routes fail closed", async ({ request }) => {
 
 test("public pages reflow and pass serious accessibility checks", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 800 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
   for (const path of ["/", "/human", "/md", "/trust"]) {
     await page.goto(path);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), path).toBe(true);
