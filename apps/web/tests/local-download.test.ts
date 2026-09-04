@@ -14,7 +14,7 @@ describe("local Markdown download", () => {
     expect(localDownloadFreshness(null, "profile", "# Ada\n")).toBe("none");
     expect(localDownloadFreshness(receipt, "profile", "# Ada\n")).toBe("current");
     expect(localDownloadFreshness(receipt, "profile", "# Ada Lovelace\n")).toBe("stale");
-    expect(localDownloadFreshness(receipt, "resume", "# Ada\n")).toBe("stale");
+    expect(localDownloadFreshness(receipt, "resume", "# Ada\n")).toBe("none");
   });
 
   it("creates a bounded filename from the canonical identifier", () => {

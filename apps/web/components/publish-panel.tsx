@@ -13,8 +13,8 @@ export function localDownloadFreshness(
   kind: DocumentKind,
   markdown: string,
 ) {
-  if (!receipt) return "none" as const;
-  return receipt.kind === kind && receipt.markdown === markdown ? "current" as const : "stale" as const;
+  if (!receipt || receipt.kind !== kind) return "none" as const;
+  return receipt.markdown === markdown ? "current" as const : "stale" as const;
 }
 
 export function markdownDownloadName(kind: DocumentKind, identifier: string) {
