@@ -18,7 +18,9 @@ describe("UI route destination source contracts", () => {
     const markdownModePageSource = readFileSync(new URL("../app/md/page.tsx", import.meta.url), "utf8");
 
     expect(markdownModePageSource).toContain('import { MarkdownEditor } from "@/components/markdown-editor";');
-    expect(markdownModePageSource).toContain('export const metadata = { title: "MD Mode" };');
+    expect(markdownModePageSource).toContain("export const metadata: Metadata = {");
+    expect(markdownModePageSource).toContain('title: "MD Mode"');
+    expect(markdownModePageSource).toContain('alternates: { canonical: "/md" }');
     expect(markdownModePageSource).toContain("return <MarkdownEditor />;");
   });
 
@@ -66,7 +68,9 @@ describe("UI route destination source contracts", () => {
   it("proves /human preserves Human Mode metadata and builder composition", () => {
     const humanModePageSource = readFileSync(new URL("../app/human/page.tsx", import.meta.url), "utf8");
 
-    expect(humanModePageSource).toContain('export const metadata = { title: "Human Mode" };');
+    expect(humanModePageSource).toContain("export const metadata: Metadata = {");
+    expect(humanModePageSource).toContain('title: "Human Mode"');
+    expect(humanModePageSource).toContain('alternates: { canonical: "/human" }');
     expect(humanModePageSource).toContain('import { HumanBuilder } from "@/components/human-builder";');
     expect(humanModePageSource).toContain("return <HumanBuilder />;");
   });

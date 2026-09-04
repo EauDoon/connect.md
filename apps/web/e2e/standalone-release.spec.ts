@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { resumeStarter } from "../lib/markdown";
+
 type AxeWindow = Window & {
   axe?: {
     run: (
@@ -67,6 +69,28 @@ test("a valid draft downloads as a local Markdown file", async ({ page }) => {
   await page.getByRole("button", { name: "Download profile .md" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("your-handle.md");
+});
+
+test("an existing local Markdown file reopens without an upload", async ({ page }) => {
+  await page.goto("/md");
+  const nonGetRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET") nonGetRequests.push(`${request.method()} ${request.url()}`);
+  });
+
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Open local .md" }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
+    name: "saved-resume.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(resumeStarter.replaceAll("Your Name", "Ari Example")),
+  });
+
+  await expect(page.locator("#local-markdown-file-status")).toContainText("Opened saved-resume.md locally as a resume. Nothing was uploaded.");
+  await expect(page.getByRole("button", { name: "Download resume .md" })).toBeVisible();
+  await expect(page.locator('aside[aria-label="Markdown status and preview"]')).toContainText("Ari Example");
+  expect(nonGetRequests).toEqual([]);
 });
 
 test("trust page states the exact browser-only boundary", async ({ page }) => {

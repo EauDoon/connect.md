@@ -13,6 +13,7 @@ workflow.
 ## What works
 
 - Guided profile and resume composition in Human Mode.
+- Local reopening of an existing UTF-8 `.md` file.
 - Direct Markdown editing with the existing schema validation.
 - Sanitized local preview.
 - Local .md download after validation.

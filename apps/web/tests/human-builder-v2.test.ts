@@ -163,7 +163,7 @@ describe("Human Mode v2 accessibility surface", () => {
     expect(calloutIndex).toBeLessThan(navigationIndex);
     expect(source).toContain('href="/md"');
     expect(source).toContain("Have an existing or agent-produced draft?");
-    expect(source).toContain("Paste the complete file in Markdown Mode, then return here for recognized-field editing.");
+    expect(source).toContain("Open its local .md file above, or paste the complete Markdown in direct mode.");
     expect(source).toContain("It stays in this browser session until you download it.");
     expect(source).toContain("Downloading is the only release action in this standalone site.");
     expect(source).toContain("nothing is uploaded");

@@ -7,4 +7,4 @@
 - Agent drafting runbook: /agent-readme.md
 - Privacy and data boundary: /trust
 
-Drafts remain in the current browser session and are downloaded locally. The site has no publishing API, account, database, messaging system, or agent credential.
+Existing `.md` files can be opened locally in either editor. Drafts remain in the current browser session and are downloaded locally. The site has no publishing API, account, database, messaging system, or agent credential.

@@ -17,6 +17,7 @@ type DraftState = {
   humanStage: HumanJourneyStage;
   setMarkdown: (markdown: string) => void;
   replaceMarkdown: (markdown: string) => void;
+  replaceDraft: (kind: DocumentKind, markdown: string) => void;
   setKind: (kind: DocumentKind) => void;
   setHumanStage: (stage: HumanJourneyStage) => void;
   hydrateSavedDocument: (document: DocumentResponse) => void;
@@ -102,6 +103,19 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setSavedDocument(null);
     setRevision((current) => current + 1);
   }, []);
+  const replaceDraft = useCallback((nextKind: DocumentKind, nextMarkdown: string) => {
+    if (maskDraftRef.current) return;
+    const canonical = normaliseMarkdown(nextMarkdown);
+    kindRef.current = nextKind;
+    markdownRef.current = canonical;
+    savedDocumentRef.current = null;
+    revisionRef.current += 1;
+    lineageRef.current += 1;
+    updateKind(nextKind);
+    updateMarkdown(canonical);
+    setSavedDocument(null);
+    setRevision((current) => current + 1);
+  }, []);
   const setKind = useCallback((nextKind: DocumentKind) => {
     if (maskDraftRef.current || nextKind === kindRef.current) return;
     const converted = switchDocumentKind(markdownRef.current, nextKind);
@@ -157,12 +171,13 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     humanStage: maskDraft ? "foundation" as const : humanStage,
     setMarkdown,
     replaceMarkdown,
+    replaceDraft,
     setKind,
     setHumanStage,
     hydrateSavedDocument,
     recordSavedDocument,
     getDraftSnapshot
-  }), [getDraftSnapshot, humanStage, hydrateSavedDocument, kind, markdown, maskDraft, recordSavedDocument, replaceMarkdown, revision, savedDocument, setHumanStage, setKind, setMarkdown]);
+  }), [getDraftSnapshot, humanStage, hydrateSavedDocument, kind, markdown, maskDraft, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }
