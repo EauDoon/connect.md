@@ -108,13 +108,13 @@ function assertSearchResultPrimaryTouchGeometryContract(sourceText: string): voi
   for (const marker of searchResultPrimaryTouchGeometryMarkers) expect(contract).toContain(marker);
 }
 
-function exactElevenPassPlaywrightReceipt() {
+function exactTwelvePassPlaywrightReceipt() {
   return {
     config: {},
     stats: {
       startTime: "2026-08-15T00:00:00.000Z",
       duration: 1,
-      expected: 11,
+      expected: 12,
       skipped: 0,
       unexpected: 0,
       flaky: 0,
@@ -122,7 +122,7 @@ function exactElevenPassPlaywrightReceipt() {
     errors: [],
     suites: [
       {
-        specs: Array.from({ length: 11 }, () => ({
+        specs: Array.from({ length: 12 }, () => ({
           ok: true,
           tests: [{ expectedStatus: "passed", status: "expected", results: [{ status: "passed", errors: [] }] }],
         })),
@@ -325,8 +325,8 @@ describe("production browser release gate", () => {
     );
   });
 
-  it("accepts only the exact eleven-pass Playwright JSON receipt", () => {
-    const receipt = exactElevenPassPlaywrightReceipt();
+  it("accepts only the exact twelve-pass Playwright JSON receipt", () => {
+    const receipt = exactTwelvePassPlaywrightReceipt();
     expect(() => validatePlaywrightJsonReceipt(JSON.stringify(receipt))).not.toThrow();
     expect(() =>
       validatePlaywrightJsonReceipt(
@@ -352,13 +352,13 @@ describe("production browser release gate", () => {
         }),
       ),
     ).toThrow();
-    const redistributed = exactElevenPassPlaywrightReceipt();
+    const redistributed = exactTwelvePassPlaywrightReceipt();
     redistributed.suites[0].specs[0].tests.push(
       redistributed.suites[0].specs[1].tests[0],
     );
     redistributed.suites[0].specs[1].tests = [];
     expect(() => validatePlaywrightJsonReceipt(JSON.stringify(redistributed))).toThrow();
-    const failedSpec = exactElevenPassPlaywrightReceipt();
+    const failedSpec = exactTwelvePassPlaywrightReceipt();
     failedSpec.suites[0].specs[0].ok = false;
     expect(() => validatePlaywrightJsonReceipt(JSON.stringify(failedSpec))).toThrow();
   });
@@ -367,13 +367,13 @@ describe("production browser release gate", () => {
     const passing = summarizePlaywrightResult({
       code: 0,
       signal: null,
-      stdout: JSON.stringify(exactElevenPassPlaywrightReceipt()),
+      stdout: JSON.stringify(exactTwelvePassPlaywrightReceipt()),
     });
-    expect(passing).toContain("expected=11");
+    expect(passing).toContain("expected=12");
     expect(passing).toContain("failed=0");
     expect(passing).toContain("skipped=0");
 
-    const failed = exactElevenPassPlaywrightReceipt();
+    const failed = exactTwelvePassPlaywrightReceipt();
     Object.assign(failed.suites[0].specs[2], {
       ok: false,
       title: "token=secret-should-not-appear",
@@ -416,7 +416,7 @@ describe("production browser release gate", () => {
     expect(diagnostic).not.toContain("secret");
     expect(diagnostic).not.toContain("token");
 
-    const untrustedLocation = exactElevenPassPlaywrightReceipt();
+    const untrustedLocation = exactTwelvePassPlaywrightReceipt();
     Object.assign(untrustedLocation.suites[0].specs[2], { ok: false });
     Object.assign(untrustedLocation.suites[0].specs[2].tests[0].results[0], {
       errorLocation: { file: "e2e/private.spec.ts", line: 10, column: 2 },
@@ -452,7 +452,7 @@ describe("production browser release gate", () => {
       summarizePlaywrightResult({
         code: 999,
         signal: "secret",
-        stdout: JSON.stringify(exactElevenPassPlaywrightReceipt()),
+        stdout: JSON.stringify(exactTwelvePassPlaywrightReceipt()),
       }),
     ).toContain("exit=unknown signal=present");
   });
@@ -531,7 +531,7 @@ describe("production browser release gate", () => {
     expect(harness).toContain("layout=");
     expect(harness).toContain('child.once("close"');
     expect(harness).not.toContain("result.stderr");
-    expect(harness).toContain("EXPECTED_PLAYWRIGHT_TESTS = 11");
+    expect(harness).toContain("EXPECTED_PLAYWRIGHT_TESTS = 12");
     expect(harness).toContain("stats.skipped !== 0");
     expect(harness).toContain("stats.unexpected !== 0");
     expect(harness).toContain("stats.flaky !== 0");
