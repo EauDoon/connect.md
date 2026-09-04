@@ -63,12 +63,42 @@ test("guided edits survive mode navigation and warn before a full reload", async
   await reload;
 });
 
-test("a valid draft downloads as a local Markdown file", async ({ page }) => {
+test("a valid draft tracks whether its local download is current", async ({ page }) => {
   await page.goto("/md");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download profile .md" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("your-handle.md");
+  await expect(page.locator("#download-status")).toContainText("The current draft matches that local file; nothing was uploaded.");
+
+  await page.getByRole("link", { name: "Continue in Guided" }).click();
+  await page.getByRole("button", { name: "04 Download Validate and keep the file" }).click();
+  await expect(page.locator("#download-status")).toContainText("The current draft matches that local file; nothing was uploaded.");
+  await page.getByRole("navigation", { name: /Editing mode/iu }).getByRole("link", { name: "Markdown" }).click();
+
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Open local .md" }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
+    name: "updated-profile.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(profileStarter.replaceAll("Your Name", "Ari Example")),
+  });
+
+  await expect(page.locator("#download-status")).toContainText("The current draft no longer matches the last downloaded file.");
+  const updatedDownloadButton = page.getByRole("button", { name: "Download updated profile .md" });
+  await expect(updatedDownloadButton).toBeVisible();
+
+  await page.setViewportSize({ width: 320, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await seriousAccessibilityViolations(page)).toEqual([]);
+
+  const updatedDownloadPromise = page.waitForEvent("download");
+  await updatedDownloadButton.focus();
+  await page.keyboard.press("Enter");
+  const updatedDownload = await updatedDownloadPromise;
+  expect(updatedDownload.suggestedFilename()).toBe("your-handle.md");
+  await expect(page.locator("#download-status")).toContainText("The current draft matches that local file; nothing was uploaded.");
 });
 
 test("an existing local Markdown file reopens without an upload", async ({ page }) => {

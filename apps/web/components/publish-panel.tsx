@@ -1,12 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Download, LockKeyhole } from "lucide-react";
+import { CheckCircle2, Download, LockKeyhole, TriangleAlert } from "lucide-react";
 
-import { useDraft } from "@/components/draft-provider";
+import { useDraft, type LocalDownloadReceipt } from "@/components/draft-provider";
 import { Button } from "@/components/ui/button";
 import { documentIdentifier, type DocumentKind } from "@/lib/markdown";
 import { hasValidationErrors, type ValidationIssue } from "@/lib/validation";
+
+export function localDownloadFreshness(
+  receipt: Pick<LocalDownloadReceipt, "kind" | "markdown"> | null,
+  kind: DocumentKind,
+  markdown: string,
+) {
+  if (!receipt) return "none" as const;
+  return receipt.kind === kind && receipt.markdown === markdown ? "current" as const : "stale" as const;
+}
 
 export function markdownDownloadName(kind: DocumentKind, identifier: string) {
   const safeIdentifier = identifier
@@ -35,15 +44,17 @@ export function downloadMarkdown(markdown: string, filename: string) {
 }
 
 export function PublishPanel({ issues }: { issues: ValidationIssue[] }) {
-  const { kind, markdown, masked } = useDraft();
-  const [message, setMessage] = useState("");
+  const { kind, localDownloadReceipt, markdown, masked, recordLocalDownload } = useDraft();
+  const [downloadAnnouncement, setDownloadAnnouncement] = useState(0);
   const blocked = masked || hasValidationErrors(issues);
+  const freshness = localDownloadFreshness(localDownloadReceipt, kind, markdown);
 
   function download() {
     if (blocked) return;
     const filename = markdownDownloadName(kind, documentIdentifier(markdown, kind));
     downloadMarkdown(markdown, filename);
-    setMessage(`${filename} downloaded. The draft was not uploaded.`);
+    recordLocalDownload(filename);
+    setDownloadAnnouncement((current) => current + 1);
   }
 
   return (
@@ -55,11 +66,12 @@ export function PublishPanel({ issues }: { issues: ValidationIssue[] }) {
           <p className="mt-1 text-sm leading-5 text-mist">
             Validation happens in this browser. Downloading creates a local Markdown file; it does not publish or upload anything.
           </p>
-          <Button className="mt-4 w-full sm:w-auto" onClick={download} disabled={blocked} aria-describedby={message ? "download-status" : undefined}>
-            <Download className="size-4" aria-hidden /> Download {kind} .md
+          <Button className="mt-4 w-full sm:w-auto" onClick={download} disabled={blocked} aria-describedby={freshness !== "none" ? "download-status" : undefined}>
+            <Download className="size-4" aria-hidden /> Download {freshness === "stale" ? "updated " : ""}{kind} .md
           </Button>
           {blocked && <p className="mt-3 text-xs leading-5 text-amber-100">Resolve the validation errors above before downloading.</p>}
-          {message && <p id="download-status" role="status" aria-live="polite" className="mt-3 text-sm text-acid">{message}</p>}
+          {freshness === "current" && <p key={`current-${downloadAnnouncement}`} id="download-status" role="status" aria-live="polite" className="mt-3 flex gap-2 text-sm leading-5 text-acid"><CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />{localDownloadReceipt?.filename} downloaded. The current draft matches that local file; nothing was uploaded.</p>}
+          {freshness === "stale" && <p id="download-status" role="status" aria-live="polite" className="mt-3 flex gap-2 text-sm leading-5 text-amber-100"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />The current draft no longer matches the last downloaded file. Download it again to keep that copy current.</p>}
           <p className="mt-3 text-xs leading-5 text-mist/75">The frontmatter visibility field is metadata only in this standalone site.</p>
         </div>
       </div>
