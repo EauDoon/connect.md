@@ -23,9 +23,9 @@ export function ValidationPanel({ issues }: { issues: ValidationIssue[] }) {
     <section aria-labelledby="validation-title" className="rounded-2xl border border-white/10 bg-black/20 p-4">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
         <h2 id="validation-title" className="min-w-0 text-sm font-semibold text-white">Validation</h2>
-        <span className={`min-w-0 break-words text-xs font-medium ${statusClassName}`}>{status}</span>
+        <span role="status" aria-live="polite" aria-atomic="true" className={`min-w-0 break-words text-xs font-medium ${statusClassName}`}>{status}</span>
       </div>
-      <ul className="mt-3 space-y-2" aria-live="polite">
+      <ul className="mt-3 space-y-2">
         {issues.map((issue, index) => (
           <li key={`${issue.level}-${index}`} className={`flex gap-2 text-sm leading-5 ${issue.level === "error" ? "text-red-200" : issue.level === "warning" ? "text-amber-100" : "text-mist"}`}>
             {issue.level === "error"

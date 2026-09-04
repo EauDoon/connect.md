@@ -1,8 +1,19 @@
-import { createElement } from "react";
+import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { PublishPanel } from "../components/publish-panel";
 import { ValidationPanel } from "../components/validation-panel";
+
+vi.mock("@/components/draft-provider", () => ({
+  useDraft: () => ({
+    kind: "profile",
+    localDownloadReceipt: null,
+    markdown: "invalid draft",
+    masked: false,
+    recordLocalDownload: vi.fn(),
+  }),
+}));
 
 describe("validation status semantics", () => {
   it("reserves the green ready state for a clean validation result", () => {
@@ -12,6 +23,8 @@ describe("validation status semantics", () => {
 
     expect(markup).toContain("Ready to download");
     expect(markup).toContain("text-acid");
+    expect(markup).toContain('<span role="status" aria-live="polite" aria-atomic="true"');
+    expect(markup.match(/aria-live="polite"/gu)).toHaveLength(1);
     expect(markup).not.toContain("Ready with");
   });
 
@@ -34,5 +47,16 @@ describe("validation status semantics", () => {
     expect(markup).toContain("2 blocking issues");
     expect(markup).toContain("text-red-200");
     expect(markup).not.toContain("Ready");
+  });
+
+  it("describes why a validation-blocked download is disabled", () => {
+    const markup = renderToStaticMarkup(createElement(PublishPanel, { issues: [
+      { level: "error", message: "name is required." },
+    ] }));
+
+    expect(markup).toContain('disabled=""');
+    expect(markup).toContain('aria-describedby="download-blocked"');
+    expect(markup).toContain('id="download-blocked"');
+    expect(markup).toContain("Resolve the validation errors above before downloading.");
   });
 });
