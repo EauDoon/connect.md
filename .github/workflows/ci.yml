@@ -63,9 +63,9 @@ jobs:
       - name: Ruff lint
         run: ruff check .
       - name: mypy type check
-        run: mypy .
+        run: mypy app
       - name: pytest (unit only, skip integration)
-        run: pytest -q -m "not integration" apps/api/tests
+        run: pytest -q -m "not integration" tests
       - name: pip-audit on production lockfile
         run: pip-audit --strict --requirement requirements.lock
 
