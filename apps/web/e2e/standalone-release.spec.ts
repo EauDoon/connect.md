@@ -141,6 +141,23 @@ test("a valid draft tracks whether its local download is current", async ({ page
   const updatedDownload = await updatedDownloadPromise;
   expect(updatedDownload.suggestedFilename()).toBe("your-handle.md");
   await expect(page.locator("#download-status")).toContainText("The current draft matches that local file; nothing was uploaded.");
+
+  const invalidChooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Open local .md" }).click();
+  const invalidChooser = await invalidChooserPromise;
+  page.once("dialog", (dialog) => dialog.accept());
+  await invalidChooser.setFiles({
+    name: "invalid-profile.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(profileStarter.replace("## About", "## Background")),
+  });
+  const blockedDownload = page.getByRole("button", { name: /Download(?: updated)? profile \.md/u });
+  await expect(blockedDownload).toBeDisabled();
+  await expect(blockedDownload).toHaveAttribute("aria-describedby", "download-blocked download-status");
+  await expect(page.locator("#download-blocked")).toContainText("Resolve the validation errors above before downloading.");
+  const validationRegion = page.getByRole("region", { name: "Validation" });
+  await expect(validationRegion.getByRole("status")).toContainText("blocking issue");
+  await expect(validationRegion.locator("ul[aria-live]")).toHaveCount(0);
 });
 
 test("an existing local Markdown file reopens without an upload", async ({ page }) => {
@@ -216,13 +233,18 @@ test("crawler metadata lists only working public pages", async ({ request }) => 
   expect(sitemap).not.toContain("/discover");
 });
 
-test("retired backend routes fail closed", async ({ request }) => {
+test("retired backend routes fail closed", async ({ page, request }) => {
   for (const path of ["/discover", "/workspace", "/jobs/example", "/posts/example"]) {
     const response = await request.get(path);
     expect(response.status(), path).toBe(404);
     expect(response.headers()["cache-control"], path).toBe("private, no-store, max-age=0");
     expect(response.headers()["x-robots-tag"], path).toBe("noindex, nofollow");
   }
+
+  const missingResponse = await page.goto("/definitely-not-a-connectmd-route");
+  expect(missingResponse?.status()).toBe(404);
+  await expect(page.getByRole("link", { name: "Build a local draft" })).toHaveAttribute("href", "/human");
+  await expect(page.locator('a[href="/discover"]')).toHaveCount(0);
 });
 
 test("public pages reflow and pass serious accessibility checks", async ({ page }) => {

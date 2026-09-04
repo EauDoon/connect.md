@@ -12,10 +12,11 @@ describe("global not-found recovery", () => {
 
     expect(markup).toContain("404 · Not found");
     expect(markup).toContain("This page is not available.");
-    expect(markup).toContain("It may have moved, been withdrawn, or never been published.");
-    expect(markup).toContain("Private and unpublished records are never exposed through this page.");
-    expect(markup).toContain('href="/discover"');
-    expect(markup).toContain("Explore public records");
+    expect(markup).toContain("The address may be outdated or incorrect.");
+    expect(markup).toContain("This standalone site has no public profile directory. Drafts stay in your browser.");
+    expect(markup).toContain('href="/human"');
+    expect(markup).toContain("Build a local draft");
+    expect(markup).not.toContain('href="/discover"');
     expect(markup).toContain('href="/"');
     expect(markup).toContain(">Home</a>");
     expect(markup.match(/min-h-11/gu)).toHaveLength(2);
