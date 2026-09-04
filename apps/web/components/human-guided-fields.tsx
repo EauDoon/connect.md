@@ -125,6 +125,8 @@ export function StructuredV2Fields({ fields, patch, disabled }: { fields: HumanF
   };
   const hasOptionalSignals = fields.languages.length > 0 || fields.organizations.length > 0 || fields.workModes.length > 0 || fields.availabilityStatus !== "not_disclosed" || fields.representationStatus !== "not_disclosed" || fields.contactDisclosure !== "none";
   const [optionalSignalsOpen, setOptionalSignalsOpen] = useState(hasOptionalSignals);
+  const [languageProficiency, setLanguageProficiency] = useState<HumanFields["languageProficiency"]>("");
+  const [organizationRelationship, setOrganizationRelationship] = useState<HumanFields["organizationRelationship"]>("current_employer");
   useEffect(() => { if (hasOptionalSignals) setOptionalSignalsOpen(true); }, [hasOptionalSignals]);
 
   return <fieldset className="sm:col-span-2 space-y-4 rounded-2xl border border-acid/20 bg-acid/[.04] p-4">
@@ -160,12 +162,12 @@ export function StructuredV2Fields({ fields, patch, disabled }: { fields: HumanF
         <GuidedV2Section id="v2-context" title="Languages and organizations" description="Choose a proficiency before adding a new language. Existing references remain unchanged until you edit their labels.">
           <div>
             <FieldLabel htmlFor="languages">Languages</FieldLabel>
-            <BufferedInput id="languages" value={fields.languages.join(", ")} onCommit={(nextValue) => patch({ languages: commaValues(nextValue) })} placeholder="English, Mandarin" maxLength={4_800} disabled={disabled} describedBy="languages-help" />
+            <BufferedInput id="languages" value={fields.languages.join(", ")} onCommit={(nextValue) => patch({ languages: commaValues(nextValue), languageProficiency })} placeholder="English, Mandarin" maxLength={4_800} disabled={disabled} describedBy="languages-help" />
             <p id="languages-help" className="mt-1 text-xs text-mist/75">Existing entries retain their IDs and proficiency. Choose a proficiency before adding new labels.</p>
           </div>
           <div>
             <FieldLabel htmlFor="language-proficiency">Proficiency for new languages</FieldLabel>
-            <select id="language-proficiency" disabled={disabled} value={fields.languageProficiency} onChange={(event) => patch({ languageProficiency: event.target.value as HumanFields["languageProficiency"] })} className={guidedSelectClass}>
+            <select id="language-proficiency" disabled={disabled} value={languageProficiency} onChange={(event) => setLanguageProficiency(event.target.value as HumanFields["languageProficiency"])} className={guidedSelectClass}>
               <option value="">Choose before adding a language</option>
               <option value="basic">Basic</option>
               <option value="conversational">Conversational</option>
@@ -175,11 +177,11 @@ export function StructuredV2Fields({ fields, patch, disabled }: { fields: HumanF
           </div>
           <div>
             <FieldLabel htmlFor="organizations">Organizations</FieldLabel>
-            <BufferedInput id="organizations" value={fields.organizations.join(", ")} onCommit={(nextValue) => patch({ organizations: commaValues(nextValue) })} placeholder="Example Company" maxLength={8_000} disabled={disabled} />
+            <BufferedInput id="organizations" value={fields.organizations.join(", ")} onCommit={(nextValue) => patch({ organizations: commaValues(nextValue), organizationRelationship })} placeholder="Example Company" maxLength={8_000} disabled={disabled} />
           </div>
           <div>
             <FieldLabel htmlFor="organization-relationship">New organization relationship</FieldLabel>
-            <select id="organization-relationship" disabled={disabled} value={fields.organizationRelationship} onChange={(event) => patch({ organizationRelationship: event.target.value as HumanFields["organizationRelationship"] })} className={guidedSelectClass}>
+            <select id="organization-relationship" disabled={disabled} value={organizationRelationship} onChange={(event) => setOrganizationRelationship(event.target.value as HumanFields["organizationRelationship"])} className={guidedSelectClass}>
               <option value="current_employer">Current employer</option>
               <option value="past_employer">Past employer</option>
               <option value="founder">Founder</option>

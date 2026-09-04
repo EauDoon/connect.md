@@ -13,6 +13,7 @@ type DraftState = {
   markdown: string;
   savedDocument: DocumentResponse | null;
   revision: number;
+  lineage: number;
   masked: boolean;
   humanStage: HumanJourneyStage;
   localDownloadReceipt: LocalDownloadReceipt | null;
@@ -47,6 +48,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const [markdown, updateMarkdown] = useState(profileStarter);
   const [savedDocument, setSavedDocument] = useState<DocumentResponse | null>(null);
   const [revision, setRevision] = useState(0);
+  const [lineage, setLineage] = useState(0);
   const [humanStage, updateHumanStage] = useState<HumanJourneyStage>("foundation");
   const [localDownloadReceipt, setLocalDownloadReceipt] = useState<LocalDownloadReceipt | null>(null);
   const [draftOwner, setDraftOwner] = useState<string | null>(null);
@@ -89,6 +91,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = null;
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
     updateHumanStage("foundation");
     setDraftOwner(resolvedSubject);
   }, [draftOwner, resolvedSubject]);
@@ -109,6 +112,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = null;
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
     updateMarkdown(canonical);
     setSavedDocument(null);
     setRevision((current) => current + 1);
@@ -121,6 +125,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = null;
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
     updateKind(nextKind);
     updateMarkdown(canonical);
     setSavedDocument(null);
@@ -134,6 +139,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = null;
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
     updateMarkdown(converted);
     setSavedDocument(null);
     updateKind(nextKind);
@@ -150,6 +156,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     savedDocumentRef.current = { ...document, markdown: canonical };
     revisionRef.current += 1;
     lineageRef.current += 1;
+    setLineage(lineageRef.current);
     updateKind(document.kind);
     updateMarkdown(canonical);
     setSavedDocument(savedDocumentRef.current);
@@ -185,6 +192,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     markdown: maskDraft ? profileStarter : markdown,
     savedDocument: maskDraft ? null : savedDocument,
     revision,
+    lineage,
     masked: maskDraft,
     humanStage: maskDraft ? "foundation" as const : humanStage,
     localDownloadReceipt: maskDraft ? null : localDownloadReceipt,
@@ -197,7 +205,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [getDraftSnapshot, humanStage, hydrateSavedDocument, kind, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setHumanStage, setKind, setMarkdown]);
+  }), [getDraftSnapshot, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }
