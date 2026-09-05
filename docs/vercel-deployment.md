@@ -55,3 +55,31 @@ Verify the promoted production origin:
 
 The live site never writes document content to a server. Its only durable
 artifact is the file the user explicitly downloads.
+
+## Network MVP database
+
+The network MVP (ADR 0002) requires one PostgreSQL database exposed to the
+app as `CONNECTMD_NETWORK_DATABASE_URL`. Two deployment states are valid:
+
+- **No database configured** (current production until the owner provisions
+  one): network routes answer 503 with `x-connectmd-network: unavailable`
+  and an explicit JSON reason; guest routes are unaffected.
+- **Database configured**: the URL is stored in the operator vault
+  (gringotts) as `apps/connectmd/network-database-url` and resolved at
+  deploy time. It is never committed, never printed, and never set in
+  browser-reachable configuration.
+
+Deploy with vault-resolved secrets:
+
+    deploy/with-network-secrets.sh -- vercel deploy --prod --skip-domain
+
+Apply migrations against the production database (run from a machine with
+network access to it):
+
+    gringotts run --env-file deploy/gringotts.env -- \
+      env CONNECTMD_NETWORK_DATABASE_URL="$CONNECTMD_NETWORK_DATABASE_URL" \
+      npm --prefix apps/web run network:migrate
+
+Rotate the database credential by updating the value in gringotts (a new
+version) and redeploying; revoke access by revoking the grant's token;
+restore by `gringotts restore` from a passphrase-encrypted backup.
