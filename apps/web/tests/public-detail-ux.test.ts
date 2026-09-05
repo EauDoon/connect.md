@@ -91,8 +91,9 @@ describe("public dynamic detail UX", () => {
     const agentPage = source("../app/agents/[handle]/page.tsx");
 
     expect(document).toContain("privateWorkspacesEnabled && linkedContactIntent");
-    expect(document).toContain('privateWorkspacesEnabled ? <><ProfilePostControls handle={document.identifier} /><ProfileConnectControl handle={document.identifier} /></> : <p');
-    expect(profilePage).toContain("privateWorkspacesEnabled={privateWorkspaceConfiguredFromEnvironment()}");
+    // The network MVP profile page replaces the retired private-detail wiring.
+    expect(profilePage).not.toContain("privateWorkspacesEnabled");
+    expect(profilePage).not.toContain("privateWorkspaceConfiguredFromEnvironment");
     expect(resumePage).toContain("privateWorkspacesEnabled={privateWorkspaceConfiguredFromEnvironment()}");
     expect(agentPage).toContain("const privateWorkspacesEnabled = privateWorkspaceConfiguredFromEnvironment();");
     expect(agentPage).toContain("const contactIntent = privateWorkspacesEnabled ? buildInboxContactReturnPath(identity.profileHandle) : null;");

@@ -13,23 +13,18 @@ function matches(pathname: string) {
 describe("standalone route boundary", () => {
   it("matches every retired backend-backed route and its subroutes", () => {
     for (const pathname of [
-      "/account",
       "/agent-directory",
       "/agents",
       "/agents/ari-agent",
       "/appeal-review",
       "/applications",
-      "/discover",
       "/employer",
       "/feed",
-      "/inbox",
       "/jobs/acme/engineer",
       "/messages/conversation-1",
       "/moderation",
       "/moderation-review",
-      "/network",
       "/organizations/acme",
-      "/p/ari-chen",
       "/posts/post-1",
       "/r/ari-resume",
       "/representatives",
@@ -39,12 +34,19 @@ describe("standalone route boundary", () => {
     ]) expect(matches(pathname), pathname).toBe(true);
   });
 
-  it("leaves only the standalone pages and static assets outside middleware", () => {
+  it("leaves the standalone pages, the network MVP routes, and static assets outside middleware", () => {
     for (const pathname of [
       "/",
       "/human",
       "/md",
       "/trust",
+      "/account",
+      "/network",
+      "/discover",
+      "/inbox",
+      "/conversations/9f0f2b7e-0000-4000-8000-000000000000",
+      "/p/ari-chen",
+      "/api/network/v1/session",
       "/agent-readme.md",
       "/llms.txt",
       "/robots.txt",
@@ -55,7 +57,7 @@ describe("standalone route boundary", () => {
   });
 
   it("returns the same bounded no-store 404 for every retired route", async () => {
-    for (const pathname of ["/discover", "/agents/ari-agent", "/workspace", "/jobs/acme/engineer"]) {
+    for (const pathname of ["/agents/ari-agent", "/workspace", "/jobs/acme/engineer", "/feed"]) {
       const response = await middleware(
         new NextRequest("https://connect.md" + pathname),
         {} as NextFetchEvent,
@@ -71,7 +73,7 @@ describe("standalone route boundary", () => {
   it("does not import auth, recruiting, API, or secret configuration", () => {
     const source = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
     expect(source).not.toMatch(/clerk|recruiting|API|process\.env|SECRET|fetch\(/iu);
-    expect(source).toContain('"/discover/:path*"');
     expect(source).toContain('"/workspace/:path*"');
+    expect(source).toContain("ADR 0002");
   });
 });

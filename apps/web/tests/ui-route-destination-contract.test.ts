@@ -75,13 +75,15 @@ describe("UI route destination source contracts", () => {
     expect(humanModePageSource).toContain("return <HumanBuilder />;");
   });
 
-  it("proves /p/{handle} fetches a cached profile and preserves notFound rendering", () => {
+  it("proves /p/{handle} renders only explicitly published profiles and fails closed", () => {
     const publicProfilePageSource = readFileSync(new URL("../app/p/[handle]/page.tsx", import.meta.url), "utf8");
 
-    expect(publicProfilePageSource).toContain("fetchPublicProfile");
-    expect(publicProfilePageSource).toContain("const getProfile = cache(fetchPublicProfile);");
-    expect(publicProfilePageSource).toContain("notFound();");
-    expect(publicProfilePageSource).toContain("<PublicDocumentPage document={document} agentIdentities={identities?.identities ?? []} agentIdentitiesUnavailable={identities === null} privateWorkspacesEnabled={privateWorkspaceConfiguredFromEnvironment()} />");
+    expect(publicProfilePageSource).toContain("getPublishedProfile");
+    expect(publicProfilePageSource).toContain("ProfileError");
+    expect(publicProfilePageSource).toContain("robots: { index: true, follow: true }");
+    expect(publicProfilePageSource).toContain('alternates: { canonical: `/p/${handle}` }');
+    expect(publicProfilePageSource).toContain("<MarkdownPreview markdown={profile.markdown} />");
+    expect(publicProfilePageSource).toContain("No published profile for");
   });
 
   it("proves /r/{slug} fetches a cached resume and preserves notFound rendering", () => {
@@ -102,13 +104,13 @@ describe("UI route destination source contracts", () => {
     expect(agentDirectoryPageSource).toContain("<AgentDirectory filters={filters} response={null} error={presentPublicReadError(error)} />");
   });
 
-  it("proves /inbox keeps private metadata, intent parsing, and outreach composition", () => {
+  it("proves /inbox keeps private metadata and renders the consent-first inbox", () => {
     const inboxPageSource = readFileSync(new URL("../app/inbox/page.tsx", import.meta.url), "utf8");
 
     expect(inboxPageSource).toContain('robots: { index: false, follow: false }');
-    expect(inboxPageSource).toContain("parseInboxContactProfileIntent");
-    expect(inboxPageSource).toContain("<OutreachInbox prefillProfileHandle={prefillProfileHandle} />");
-    expect(inboxPageSource).toContain('href="/network"');
+    expect(inboxPageSource).toContain('import { InboxPanel } from "@/components/network/inbox-panel";');
+    expect(inboxPageSource).toContain("<InboxPanel />");
+    expect(inboxPageSource).toContain("Every conversation starts from an accepted contact request");
   });
 
   it("proves /feed is private and renders the professional feed", () => {
@@ -129,14 +131,14 @@ describe("UI route destination source contracts", () => {
     expect(moderationPageSource).toContain("return <ModerationCaseManager />;");
   });
 
-  it("proves /discover gates recruiting sources and renders discovery", () => {
+  it("proves /discover lists explicitly published profiles only", () => {
     const discoverPageSource = readFileSync(new URL("../app/discover/page.tsx", import.meta.url), "utf8");
 
     expect(discoverPageSource).toContain('alternates: { canonical: "/discover" }');
     expect(discoverPageSource).toContain('export const dynamic = "force-dynamic";');
-    expect(discoverPageSource).toContain("const recruitingEnabled = recruitingReleaseEnabled();");
-    expect(discoverPageSource).toContain("<DiscoverHub");
-    expect(discoverPageSource).toContain("searchDirectory(emptySearchFilters)");
+    expect(discoverPageSource).toContain("listPublishedProfiles");
+    expect(discoverPageSource).toContain("Only explicitly published profiles appear here");
+    expect(discoverPageSource).toContain('data-testid="discover-list"');
   });
 
   it("proves /search maps filters to bounded success and error states", () => {
@@ -221,13 +223,13 @@ describe("UI route destination source contracts", () => {
     expect(messagesPageSource).toContain("conversationId={(await params).conversationId}");
   });
 
-  it("proves /network is private and renders the bounded network hub", () => {
+  it("proves /network is private and renders the profile dashboard", () => {
     const networkPageSource = readFileSync(new URL("../app/network/page.tsx", import.meta.url), "utf8");
 
-    expect(networkPageSource).toContain('title: "Private network"');
     expect(networkPageSource).toContain('robots: { index: false, follow: false }');
-    expect(networkPageSource).toContain('import { NetworkHub } from "@/components/network-hub";');
-    expect(networkPageSource).toContain("return <NetworkHub />;");
+    expect(networkPageSource).toContain('import { NetworkDashboard } from "@/components/network/network-dashboard";');
+    expect(networkPageSource).toContain("<NetworkDashboard handle={session.account.handle} />");
+    expect(networkPageSource).toContain("Your profile is private until you publish it");
   });
 
   it("proves /workspace is private and renders navigation without private records", () => {
@@ -239,13 +241,13 @@ describe("UI route destination source contracts", () => {
     expect(workspacePageSource).toContain("return <WorkspaceHub />;");
   });
 
-  it("proves /account is feature-gated and private", () => {
+  it("proves /account keeps the guest builder present and renders the auth panel", () => {
     const accountPageSource = readFileSync(new URL("../app/account/page.tsx", import.meta.url), "utf8");
 
-    expect(accountPageSource).toContain('title: "Account privacy"');
     expect(accountPageSource).toContain('robots: { index: false, follow: false }');
-    expect(accountPageSource).toContain("if (!accountLifecycleFeatureEnabled()) notFound();");
-    expect(accountPageSource).toContain("return <AccountPrivacyCenter />;");
+    expect(accountPageSource).toContain('import { AccountAuthPanel, AccountSignOut } from "@/components/network/account-auth-panel";');
+    expect(accountPageSource).toContain("<AccountAuthPanel />");
+    expect(accountPageSource).toContain("guest builder keeps working without an account");
   });
 
   it("proves /appeal-review is private and renders independent appeal review", () => {
@@ -264,15 +266,6 @@ describe("UI route destination source contracts", () => {
     expect(moderationReviewPageSource).toContain('robots: { index: false, follow: false }');
     expect(moderationReviewPageSource).toContain('import { ModerationCaseReviewQueue } from "@/components/moderation-case-review-queue";');
     expect(moderationReviewPageSource).toContain("return <ModerationCaseReviewQueue />;");
-  });
-
-  it("proves /p/{handle}/posts binds the public archive and notFound boundary", () => {
-    const profilePostsPageSource = readFileSync(new URL("../app/p/[handle]/posts/page.tsx", import.meta.url), "utf8");
-
-    expect(profilePostsPageSource).toContain('export const dynamic = "force-dynamic";');
-    expect(profilePostsPageSource).toContain("listProfilePostsOnServer(handle)");
-    expect(profilePostsPageSource).toContain("notFound();");
-    expect(profilePostsPageSource).toContain("<ProfilePostArchive handle={handle} initialPage={initialPage} />");
   });
 
   it("proves /verification-review is private and renders verification review", () => {

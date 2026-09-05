@@ -257,14 +257,6 @@ describe("professional post Markdown and API contracts", () => {
     await expect(listPublicPostsOnServer(4, "filtered-next")).resolves.toEqual({ items: [], nextCursor: "filtered-again" });
   });
 
-  it("does not downgrade an archive API failure into a fabricated empty public page", () => {
-    const page = readFileSync(new URL("../app/p/[handle]/posts/page.tsx", import.meta.url), "utf8");
-    expect(page).toContain('error instanceof ApiRequestError && error.code === "not_found"');
-    expect(page).toContain("notFound()");
-    expect(page).toContain("throw error");
-    expect(page).not.toContain("catch(() => null)");
-  });
-
   it("scopes component state by account, auth mode, and post before it can paint or dispatch", () => {
     const controls = readFileSync(new URL("../components/profile-post-controls.tsx", import.meta.url), "utf8");
     const archive = readFileSync(new URL("../components/profile-post-archive.tsx", import.meta.url), "utf8");

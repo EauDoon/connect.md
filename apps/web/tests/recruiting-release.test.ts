@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -154,21 +156,10 @@ describe("server-side recruiting release gate", () => {
     expect(mocks.fetchPublicJob).toHaveBeenCalled();
   });
 
-  it("does not dispatch recruiting discovery reads while disabled and restores them when enabled", async () => {
-    const { default: DiscoverPage } = await import("../app/discover/page");
-
-    delete process.env.CONNECTMD_RECRUITING_ENABLED;
-    await DiscoverPage();
-    expect(mocks.searchDirectory).toHaveBeenCalledTimes(1);
-    expect(mocks.listPublicAgentDirectory).toHaveBeenCalledTimes(1);
-    expect(mocks.listPublicPostsOnServer).toHaveBeenCalledTimes(1);
-    expect(mocks.listPublicOrganizations).not.toHaveBeenCalled();
-    expect(mocks.listPublicJobs).not.toHaveBeenCalled();
-
-    vi.clearAllMocks();
-    process.env.CONNECTMD_RECRUITING_ENABLED = "true";
-    await DiscoverPage();
-    expect(mocks.listPublicOrganizations).toHaveBeenCalledTimes(1);
-    expect(mocks.listPublicJobs).toHaveBeenCalledTimes(1);
+  it("keeps the new /discover page free of recruiting reads entirely", () => {
+    const page = readFileSync(new URL("../app/discover/page.tsx", import.meta.url), "utf8");
+    expect(page).not.toContain("searchDirectory");
+    expect(page).not.toContain("recruitingReleaseEnabled");
+    expect(page).toContain("listPublishedProfiles");
   });
 });
