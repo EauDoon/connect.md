@@ -1,5 +1,13 @@
-import { PublicRouteLoading } from "@/components/public-route-loading";
-
 export default function LoadingDiscover() {
-  return <PublicRouteLoading className="mx-auto max-w-7xl px-5 py-14 lg:px-8" label="Loading public discovery."><div className="h-4 w-28 rounded bg-white/10" /><div className="mt-5 h-20 max-w-4xl rounded-2xl bg-white/10" /><div className="mt-8 h-14 max-w-2xl rounded-2xl bg-white/10" /><div className="mt-10 grid gap-4 md:grid-cols-2"><div className="h-40 rounded-2xl bg-white/10" /><div className="h-40 rounded-2xl bg-white/10" /></div></PublicRouteLoading>;
+  return (
+    <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8" aria-busy="true" aria-label="Loading public discovery." role="status" aria-live="polite" aria-atomic="true">
+      <span className="sr-only">Loading public discovery.</span>
+      <div className="h-8 w-52 motion-safe:animate-pulse rounded-full bg-white/10" aria-hidden="true" />
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="h-24 motion-safe:animate-pulse rounded-2xl bg-white/[.06]" aria-hidden="true" />
+        ))}
+      </div>
+    </div>
+  );
 }

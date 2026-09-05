@@ -8,5 +8,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: absoluteSiteUrl("/human"), changeFrequency: "monthly", priority: 0.9 },
     { url: absoluteSiteUrl("/md"), changeFrequency: "monthly", priority: 0.8 },
     { url: absoluteSiteUrl("/trust"), changeFrequency: "monthly", priority: 0.7 },
+    { url: absoluteSiteUrl("/discover"), changeFrequency: "hourly", priority: 0.6 },
   ];
 }

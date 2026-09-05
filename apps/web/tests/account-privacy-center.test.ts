@@ -6,22 +6,12 @@ import { accountPrivacyAuthBoundaryKey, saveSubjectBoundExport } from "../compon
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("account privacy center", () => {
-  it("keeps the lifecycle route private, typed, and explicit about receipt-scoped later states", () => {
-    const center = readFileSync(new URL("../components/account-privacy-center.tsx", import.meta.url), "utf8");
+  it("keeps the account route private and the lifecycle center retired from it", () => {
     const page = readFileSync(new URL("../app/account/page.tsx", import.meta.url), "utf8");
-    const robots = readFileSync(new URL("../app/robots.ts", import.meta.url), "utf8");
-    expect(page).toContain("if (!accountLifecycleFeatureEnabled()) notFound()");
-    expect(robots).toContain('"/account"');
-    expect(center).toContain("Download account export");
-    expect(center).toContain("Request account deletion");
-    expect(center).toContain("Type {ACCOUNT_DELETION_INTENT} to confirm");
-    expect(center).toContain("Lifecycle Receipt");
-    expect(center).toContain("Check sanitized status");
-    expect(center).toContain("I have saved this Lifecycle Receipt securely");
-    expect(center).toContain("recoverWithReverification");
-    expect(center).not.toContain("The current API exposes no secure lifecycle-status receipt");
-    expect(center).toContain("Erasing, held, failed, and terminal");
-    expect(center).not.toContain("Account fully erased");
+    expect(page).toContain('robots: { index: false, follow: false }');
+    expect(page).toContain('export const dynamic = "force-dynamic";');
+    expect(page).not.toContain("accountLifecycleFeatureEnabled");
+    expect(page).not.toContain("AccountPrivacyCenter");
   });
 
   it("uses Clerk reverification for export and both protected deletion actions without browser persistence", () => {

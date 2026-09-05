@@ -74,12 +74,11 @@ describe("public Discover hub", () => {
     expect(discoverHubSource).toContain("inline-flex min-h-11 items-center font-semibold text-acid underline-offset-4");
   });
 
-  it("derives private workspace availability from the server-only environment gate", () => {
+  it("derives availability from the network database contract, not retired gates", () => {
     const page = readFileSync(new URL("../app/discover/page.tsx", import.meta.url), "utf8");
-
-    expect(page).toContain('import { privateWorkspaceConfiguredFromEnvironment } from "@/lib/private-workspace-config";');
-    expect(page).toContain("const privateWorkspacesEnabled = privateWorkspaceConfiguredFromEnvironment();");
-    expect(page).toContain("privateWorkspacesEnabled={privateWorkspacesEnabled}");
+    expect(page).toContain("networkDatabaseConfigured");
+    expect(page).not.toContain("privateWorkspaceConfiguredFromEnvironment");
+    expect(page).toContain('data-testid="discover-empty"');
   });
 
   it("points protocol cards at the split API origin without changing app navigation", async () => {

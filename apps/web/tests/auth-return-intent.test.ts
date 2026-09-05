@@ -72,28 +72,16 @@ describe("auth return intent", () => {
     expect(parseInboxContactProfileIntent(new URLSearchParams("profile=ari-chen&action=agent_outreach"))).toBeNull();
   });
 
-  it("keeps the auth controls explicit and does not persist or replay a mutation", () => {
-    const connect = readFileSync(new URL("../components/profile-connect-control.tsx", import.meta.url), "utf8");
-    const post = readFileSync(new URL("../components/profile-post-controls.tsx", import.meta.url), "utf8");
-    for (const source of [connect, post]) {
-      expect(source).toContain("SignInButton");
-      expect(source).toContain("forceRedirectUrl={returnPath}");
-      expect(source).toContain("signUpForceRedirectUrl={returnPath}");
-      expect(source).not.toMatch(/localStorage|sessionStorage|document\.cookie|window\.location/u);
-    }
-    const connectSignedOut = connect.slice(connect.indexOf("if (!isSignedIn"), connect.indexOf("const submit"));
-    const postSignedOut = post.slice(post.indexOf("if (!isSignedIn"), post.indexOf("return <Authenticated"));
-    expect(connectSignedOut).not.toMatch(/createConnectionRequest|followProfile|blockProfileContent/u);
-    expect(postSignedOut).not.toMatch(/createConnectionRequest|followProfile|blockProfileContent/u);
-    expect(connectSignedOut).toMatch(/<Link href="\/network" className="inline-flex min-h-11 items-center\b/u);
-    expect(postSignedOut).toMatch(/<Link href="\/feed" className="inline-flex min-h-11 items-center\b/u);
-
-    const inbox = readFileSync(new URL("../components/outreach-inbox.tsx", import.meta.url), "utf8");
-    const inboxPage = readFileSync(new URL("../app/inbox/page.tsx", import.meta.url), "utf8");
-    expect(inbox).toContain("buildInboxContactReturnPath");
-    expect(inbox).toContain("initialTarget");
-    expect(inbox).not.toMatch(/agent_outreach|sendAgentOutreach|setPurpose\([^)]*prefill|setBody\([^)]*prefill/u);
-    expect(inboxPage).toContain("parseInboxContactProfileIntent(serverSearchParams(await searchParams))");
-    expect(inboxPage).toContain("<OutreachInbox prefillProfileHandle={prefillProfileHandle} />");
+  it("keeps the network auth controls explicit and session-scoped without persisting drafts", () => {
+    const accountPageSource = readFileSync(new URL("../app/account/page.tsx", import.meta.url), "utf8");
+    const authPanelSource = readFileSync(new URL("../components/network/account-auth-panel.tsx", import.meta.url), "utf8");
+    // The account page is dynamic and renders the auth panel client-side.
+    expect(accountPageSource).toContain('export const dynamic = "force-dynamic";');
+    expect(accountPageSource).toContain("<AccountAuthPanel />");
+    // Auth mutations go to the versioned network API and never touch local drafts.
+    expect(authPanelSource).toContain("`/api/network/v1/accounts/${mode}`");
+    expect(authPanelSource).toContain('autoComplete={mode === "register" ? "new-password" : "current-password"}');
+    expect(authPanelSource).not.toContain("localStorage");
+    expect(authPanelSource).not.toContain("sessionStorage");
   });
 });

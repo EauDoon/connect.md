@@ -14,23 +14,21 @@ export default function middleware(_request: NextRequest, _event: NextFetchEvent
 }
 
 export const config = {
+  // Retired backend-era surfaces stay blocked. The new network surfaces
+  // (account, network, discover, inbox, conversations, p, and their route
+  // handlers) are deliberately absent from this list; see ADR 0002.
   matcher: [
-    "/account/:path*",
     "/agent-directory/:path*",
     "/agents/:path*",
     "/appeal-review/:path*",
     "/applications/:path*",
-    "/discover/:path*",
     "/employer/:path*",
     "/feed/:path*",
-    "/inbox/:path*",
     "/jobs/:path*",
     "/messages/:path*",
     "/moderation/:path*",
     "/moderation-review/:path*",
-    "/network/:path*",
     "/organizations/:path*",
-    "/p/:path*",
     "/posts/:path*",
     "/r/:path*",
     "/representatives/:path*",

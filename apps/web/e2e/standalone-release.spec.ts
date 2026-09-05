@@ -258,19 +258,22 @@ test("static agent documents describe the standalone workflow", async ({ request
   }
 });
 
-test("crawler metadata lists only working public pages", async ({ request }) => {
+test("crawler metadata lists the public pages including discovery", async ({ request }) => {
   const robots = await (await request.get("/robots.txt")).text();
   expect(robots).toContain("Allow: /human");
-  expect(robots).toContain("Disallow: /discover");
+  expect(robots).toContain("Allow: /discover");
+  expect(robots).toContain("Disallow: /account");
+  expect(robots).toContain("Disallow: /inbox");
+  expect(robots).toContain("Disallow: /network");
   expect(robots).toContain(`Sitemap: ${expectedSiteOrigin}/sitemap.xml`);
 
   const sitemap = await (await request.get("/sitemap.xml")).text();
-  for (const path of ["/", "/human", "/md", "/trust"]) expect(sitemap).toContain(`<loc>${expectedSiteOrigin}${path}</loc>`);
-  expect(sitemap).not.toContain("/discover");
+  for (const path of ["/", "/human", "/md", "/trust", "/discover"]) expect(sitemap).toContain(`<loc>${expectedSiteOrigin}${path}</loc>`);
+  expect(sitemap).not.toContain("/account");
 });
 
 test("retired backend routes fail closed", async ({ page, request }) => {
-  for (const path of ["/discover", "/workspace", "/jobs/example", "/posts/example"]) {
+  for (const path of ["/workspace", "/jobs/example", "/posts/example", "/messages/x", "/feed"]) {
     const response = await request.get(path);
     expect(response.status(), path).toBe(404);
     expect(response.headers()["cache-control"], path).toBe("private, no-store, max-age=0");
@@ -280,7 +283,6 @@ test("retired backend routes fail closed", async ({ page, request }) => {
   const missingResponse = await page.goto("/definitely-not-a-connectmd-route");
   expect(missingResponse?.status()).toBe(404);
   await expect(page.getByRole("link", { name: "Build a local draft" })).toHaveAttribute("href", "/human");
-  await expect(page.locator('a[href="/discover"]')).toHaveCount(0);
 });
 
 test("public pages reflow and pass serious accessibility checks", async ({ page }) => {

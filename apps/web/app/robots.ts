@@ -6,23 +6,25 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: ["/", "/human", "/md", "/trust", "/agent-readme.md", "/llms.txt"],
+      // Discovery and published profile pages are intentionally crawlable;
+      // everything account-scoped stays out of robots.
+      allow: ["/", "/human", "/md", "/trust", "/agent-readme.md", "/llms.txt", "/discover", "/p/"],
       disallow: [
         "/account",
+        "/network",
+        "/inbox",
+        "/conversations/",
+        "/api/",
         "/agents",
         "/agent-directory",
         "/appeal-review",
         "/applications",
-        "/discover",
         "/employer",
         "/feed",
-        "/inbox",
         "/jobs",
         "/messages/",
         "/moderation",
-        "/network",
         "/organizations",
-        "/p/",
         "/posts/",
         "/r/",
         "/representatives",
