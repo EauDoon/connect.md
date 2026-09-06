@@ -80,9 +80,9 @@ export function AgentHandoff({ agentReadmeUrl }: { agentReadmeUrl: string }) {
       <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[.22em] text-acid">Start here · give this to your agent</p>
-          <h1 id="agent-handoff-title" className="mt-2 text-xl font-semibold tracking-[-.025em] text-white sm:text-2xl">
-            Choose what you want done.
-          </h1>
+              <h2 id="agent-handoff-title" className="mt-2 text-xl font-semibold tracking-[-.025em] text-white sm:text-2xl">
+                Choose what you want done.
+              </h2>
           <p className="mt-1.5 text-xs leading-5 text-mist">Works with ChatGPT, Claude, OpenClaw, and other web-capable agents.</p>
         </div>
         <a

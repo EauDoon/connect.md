@@ -17,10 +17,12 @@ describe("standalone agent-first landing", () => {
   it("puts the agent handoff before the human workflow on narrow screens", () => {
     const handoffCall = '<AgentHandoff agentReadmeUrl={absoluteSiteUrl("/agent-readme.md")} />';
     expect(pageSource).toContain(handoffCall);
-    expect(pageSource).not.toContain("<h1");
+    // The page carries exactly one h1 (the hero); the agent handoff is a
+    // section heading (h2) so the accessibility tree never skips levels.
+    expect(pageSource).toContain("<h1");
     expect(pageSource).toContain('className="order-1 min-w-0 lg:order-2"');
     expect(pageSource).toContain('className="order-2 min-w-0 max-w-xl lg:order-1"');
-    expect(handoffSource).toContain('<h1 id="agent-handoff-title"');
+    expect(handoffSource).toContain('<h2 id="agent-handoff-title"');
   });
 
   it("offers bounded profile, resume, and maintenance instructions", () => {

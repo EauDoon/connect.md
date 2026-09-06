@@ -33,7 +33,8 @@ async function seriousAccessibilityViolations(page: Page) {
 test("landing is an agent-first standalone site", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/connect\.md/u);
-  await expect(page.getByRole("heading", { level: 1, name: "Choose what you want done." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Your work story. One portable file." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Choose what you want done." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Agent README" })).toHaveAttribute("href", `${expectedSiteOrigin}/agent-readme.md`);
   await expect(page.getByRole("link", { name: /sign in/iu })).toHaveCount(0);
 });

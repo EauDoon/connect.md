@@ -72,10 +72,10 @@ export default function HomePage() {
 
           <div className="order-2 min-w-0 max-w-xl lg:order-1">
             <p className="eyebrow">Private by default · built for Vercel</p>
-            <h2 className="mt-5 font-display text-5xl font-semibold leading-[.93] tracking-[-.06em] text-white sm:text-6xl lg:text-7xl">
+            <h1 className="mt-5 font-display text-5xl font-semibold leading-[.93] tracking-[-.06em] text-white sm:text-6xl lg:text-7xl">
               Your work story.
               <span className="block text-acid">One portable file.</span>
-            </h2>
+            </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-mist sm:text-lg sm:leading-8">
               Build a polished professional profile or resume in your browser, review the exact Markdown, and download it. No account, database, or upload required.
             </p>
