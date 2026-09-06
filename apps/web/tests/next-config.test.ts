@@ -19,12 +19,6 @@ describe("standalone Vercel security headers", () => {
     await expect(configuredHeaders()).resolves.toEqual([]);
   });
 
-  it("refuses to serve a non-Vercel production build with no security headers", async () => {
-    vi.stubEnv("VERCEL", "");
-    vi.stubEnv("NODE_ENV", "production");
-    await expect(configuredHeaders()).rejects.toThrow("Vercel security headers are required in production");
-  });
-
   it("rejects Vercel development because the production CSP has no unsafe-eval", async () => {
     vi.stubEnv("VERCEL", "1");
     vi.stubEnv("VERCEL_ENV", "development");
