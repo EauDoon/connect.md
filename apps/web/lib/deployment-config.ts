@@ -3,7 +3,16 @@ export type DeploymentEnvironment = Readonly<Record<string, string | undefined>>
 type ResponseHeader = { key: string; value: string };
 
 export function vercelSecurityHeaders(environment: DeploymentEnvironment = process.env): ResponseHeader[] {
-  if (environment.VERCEL !== "1") return [];
+  if (environment.VERCEL !== "1") {
+    // Failing loud in production prevents a self-hosted `next start` (or any
+    // non-Vercel target) from serving without CSP, HSTS, and friends. The
+    // connect.md release is Vercel-only, so a non-Vercel production build is
+    // a configuration error, not a supported deployment.
+    if (environment.NODE_ENV === "production") {
+      throw new Error("Vercel security headers are required in production. Set VERCEL=1 (and the matching VERCEL_ENV) for the target deployment, or unset NODE_ENV for local development.");
+    }
+    return [];
+  }
   if (environment.NODE_ENV === "development") {
     throw new Error("Vercel security headers require a production Next.js build. Use npm run dev with VERCEL unset for local development.");
   }
