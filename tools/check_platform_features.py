@@ -1696,7 +1696,7 @@ def _agent_web_helper_extraction_errors(root: Path) -> list[str]:
     }
     helper_names = (  # noqa: SIM905
         "listDelegations listOwnedDocumentOptions listOwnedDocumentPageForSubject "
-        "createDelegation setDelegationPaused revokeDelegation emergencyStopDelegations "
+        "createDelegation pauseDelegation revokeDelegation emergencyStopDelegations "
         "listDelegationAudit listAgentProposals listAgentProposalsForSubject "
         "decideAgentProposal loadProposalBaseMarkdown"
     ).split()
