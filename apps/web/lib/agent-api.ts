@@ -104,8 +104,9 @@ export async function createDelegation(draft: DelegationDraft, getToken: TokenGe
   }
 }
 
-export async function setDelegationPaused(id: string, paused: boolean, getToken: TokenGetter, isSubjectCurrent: SubjectGuard, idempotencyKey = newIdempotencyKey()) {
-  if (!paused) throw new Error("Paused grants cannot be resumed; create a fresh bounded grant instead.");
+export async function pauseDelegation(id: string, getToken: TokenGetter, isSubjectCurrent: SubjectGuard, idempotencyKey = newIdempotencyKey()) {
+  // A paused grant cannot be resumed — create a fresh bounded grant instead.
+  // The function takes no boolean because the only valid action is "pause".
   await revokeDelegation(id, getToken, isSubjectCurrent, idempotencyKey);
 }
 
