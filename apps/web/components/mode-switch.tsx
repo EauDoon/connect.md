@@ -7,6 +7,7 @@ import React from "react";
 
 import { useDraft } from "@/components/draft-provider";
 import { LocalMarkdownFileOpen } from "@/components/local-markdown-file-open";
+import { DraftCheckpoints } from "@/components/draft-checkpoints";
 import { cn } from "@/lib/utils";
 
 const editingModes = [
@@ -19,6 +20,7 @@ export function ModeSwitch({ mode, onBeforeNavigate }: { mode: "human" | "md"; o
   const reducedMotion = useReducedMotion();
   const draftSize = new TextEncoder().encode(markdown).length;
   return (
+    <>
     <div className="flex flex-col gap-3 border-b border-white/10 bg-[linear-gradient(105deg,rgba(215,255,95,.045),transparent_48%)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div className="min-w-0">
         <p className="text-[11px] font-bold uppercase tracking-[.14em] text-mist/75">One document · two control surfaces</p>
@@ -38,5 +40,7 @@ export function ModeSwitch({ mode, onBeforeNavigate }: { mode: "human" | "md"; o
         <LocalMarkdownFileOpen />
       </div>
     </div>
+    <DraftCheckpoints onBeforeAction={onBeforeNavigate} />
+    </>
   );
 }

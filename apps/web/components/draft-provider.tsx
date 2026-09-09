@@ -7,8 +7,13 @@ import { documentIdentifier, profileStarter, type DocumentKind, type HumanFields
 import { type DocumentResponse } from "@/lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject } from "@/lib/draft-security";
 import { type HumanJourneyStage } from "@/lib/human-journey";
+import { createCheckpoint, type DraftCheckpoint } from "@/lib/draft-checkpoints";
 
 type DraftState = {
+  checkpoints: DraftCheckpoint[];
+  saveCheckpoint: (label: string) => void;
+  restoreCheckpoint: (id: number) => void;
+  removeCheckpoint: (id: number) => void;
   kind: DocumentKind;
   markdown: string;
   savedDocument: DocumentResponse | null;
@@ -62,6 +67,9 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const [guidedReferenceChoices, updateGuidedReferenceChoices] = useState(defaultGuidedReferenceChoices);
   const [localDownloadReceipt, setLocalDownloadReceipt] = useState<LocalDownloadReceipt | null>(null);
   const [draftOwner, setDraftOwner] = useState<string | null>(null);
+  const [checkpoints, setCheckpoints] = useState<DraftCheckpoint[]>([]);
+  const checkpointsRef = useRef<DraftCheckpoint[]>([]);
+  const checkpointIdRef = useRef(0);
   const kindRef = useRef(kind);
   const markdownRef = useRef(markdown);
   const revisionRef = useRef(revision);
@@ -93,6 +101,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (!requiresDraftReset(draftOwner, resolvedSubject)) return;
+    checkpointsRef.current = [];
+    setCheckpoints([]);
     updateKind("profile");
     updateMarkdown(profileStarter);
     setSavedDocument(null);
@@ -207,7 +217,27 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     identifier: documentIdentifier(markdownRef.current, kindRef.current),
     savedDocument: savedDocumentRef.current
   }), []);
+  const saveCheckpoint = useCallback((label: string) => {
+    if (maskDraftRef.current) throw new Error("The current draft is unavailable.");
+    const checkpoint = createCheckpoint(checkpointsRef.current, { kind: kindRef.current, markdown: markdownRef.current }, label, ++checkpointIdRef.current);
+    checkpointsRef.current = [...checkpointsRef.current, checkpoint];
+    setCheckpoints(checkpointsRef.current);
+  }, []);
+  const restoreCheckpoint = useCallback((id: number) => {
+    if (maskDraftRef.current) return;
+    const checkpoint = checkpointsRef.current.find((entry) => entry.id === id);
+    if (checkpoint) replaceDraft(checkpoint.kind, checkpoint.markdown);
+  }, [replaceDraft]);
+  const removeCheckpoint = useCallback((id: number) => {
+    if (maskDraftRef.current) return;
+    checkpointsRef.current = checkpointsRef.current.filter((entry) => entry.id !== id);
+    setCheckpoints(checkpointsRef.current);
+  }, []);
   const value = useMemo(() => ({
+    checkpoints: maskDraft ? [] : checkpoints,
+    saveCheckpoint,
+    restoreCheckpoint,
+    removeCheckpoint,
     kind: maskDraft ? "profile" as const : kind,
     markdown: maskDraft ? profileStarter : markdown,
     savedDocument: maskDraft ? null : savedDocument,
@@ -227,7 +257,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
+  }), [checkpoints, saveCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }
