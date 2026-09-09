@@ -99,7 +99,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const maskDraft = draftOwner !== null && authBoundary !== draftOwner;
   const maskDraftRef = useRef(maskDraft);
   maskDraftRef.current = maskDraft;
-  const unsavedDraft = !maskDraft && (previousDraft !== null || checkpoints.length > 0 || (markdown !== (savedDocument?.markdown ?? starterFor(kind))
+  const previousSourceNeedsBackup = previousDraft !== null && previousDraft.markdown !== starterFor(previousDraft.kind);
+  const unsavedDraft = !maskDraft && (previousSourceNeedsBackup || checkpoints.length > 0 || (markdown !== (savedDocument?.markdown ?? starterFor(kind))
     && (localDownloadReceipt?.kind !== kind || localDownloadReceipt.markdown !== markdown)));
 
   useEffect(() => {

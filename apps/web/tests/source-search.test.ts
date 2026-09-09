@@ -16,5 +16,6 @@ describe("literal source editing", () => {
     expect(() => replaceSourceMatches("a".repeat(1001), "a", "b", "all")).toThrow("1,000");
     expect(() => replaceSourceMatches("a".repeat(500), "a", "é".repeat(256), "all")).toThrow("128 KiB");
     expect(() => replaceSourceMatches("abc", "a", "x", 8)).toThrow("match");
+    expect(() => replaceSourceMatches("😀".repeat(32768), "\ud83d", "AB", 0)).toThrow("128 KiB");
   });
 });

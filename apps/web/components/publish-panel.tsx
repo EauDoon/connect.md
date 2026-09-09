@@ -10,6 +10,7 @@ import { PrivacyReview } from "@/components/privacy-review";
 import { WritingReview } from "@/components/writing-review";
 import { PrintDocument } from "@/components/print-document";
 import { ReviewReport } from "@/components/review-report";
+import { DownloadComparison } from "@/components/download-comparison";
 import { documentIdentifier, type DocumentKind } from "@/lib/markdown";
 import { hasValidationErrors, type ValidationIssue } from "@/lib/validation";
 
@@ -97,6 +98,7 @@ export function PublishPanel({ issues }: { issues: ValidationIssue[] }) {
           {freshness === "stale" && <p id="download-status" role="status" aria-live="polite" className="mt-3 flex gap-2 text-sm leading-5 text-amber-100"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />The current draft no longer matches the last downloaded file. Download it again to keep that copy current.</p>}
           <p className="mt-3 text-xs leading-5 text-mist/75">The frontmatter visibility field is metadata only in this standalone site.</p>
           <CopyMarkdown />
+          <DownloadComparison />
           <PrivacyReview />
           <WritingReview />
           <PrintDocument disabled={blocked} />

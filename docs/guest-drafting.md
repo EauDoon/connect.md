@@ -10,7 +10,7 @@ To reopen it, choose the recovery JSON file, inspect its document type and check
 
 ## Undo a replacement
 
-After importing, resetting, changing document kind, or restoring a checkpoint, **Session recovery** offers one previous draft for undo, limited to 128 KiB. Undo replaces subsequent edits after confirmation, restores source and kind only, and detaches any saved-server association. Checkpoints remain unchanged. This previous source disappears on reload or account-boundary reset. Forget it deliberately when no longer needed; the browser keeps warning about this in-memory copy until then.
+After importing, resetting, changing document kind, or restoring a checkpoint, **Session recovery** offers one previous draft for undo, limited to 128 KiB. Undo replaces subsequent edits after confirmation, restores source and kind only, and detaches any saved-server association. Checkpoints remain unchanged. This previous source disappears on reload or account-boundary reset. Forget it deliberately when no longer needed; a previous source that differs from its reusable starter keeps the reload warning active.
 
 ## Checkpoint names
 
@@ -33,3 +33,7 @@ Line links in Sharing and Writing review open the same draft in Markdown Mode, s
 ## Focus the workspace
 
 In Markdown Mode, choose **Source only**, **Preview and checks**, or **Split view**. Source and preview always derive from the same draft. Layout and code/plain-editor preferences survive Guided/Markdown navigation within the page session; reload and account resets clear them. Following a review line returns to split view and focuses the plain editor so the requested source cannot remain hidden.
+
+## Compare an updated export
+
+After a Markdown download, **Changes since last Markdown download** compares the current bytes with the exact source used for that download request, including changes of document kind. The display is bounded to 80 lines and 12,000 characters per side; it is a changed-region comparison rather than a full multi-hunk diff. Only another Markdown download updates this baseline. Clipboard copies, checkpoint downloads, and recovery/review files do not move it. The app cannot verify that the browser actually saved a file on disk.

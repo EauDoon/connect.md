@@ -18,11 +18,15 @@ export function replaceSourceMatches(source: string, query: string, replacement:
   if (target === "all" && limited) throw new Error("More than 1,000 matches. Narrow the search before replacing all.");
   const chosen = target === "all" ? matches : [matches[target]];
   if (!chosen.length || chosen.some((offset) => offset === undefined)) throw new Error("Choose an available match before replacing.");
-  const nextBytes = new TextEncoder().encode(source).length + chosen.length * (new TextEncoder().encode(replacement).length - new TextEncoder().encode(query).length);
-  if (nextBytes > PROFILE_RESUME_MAX_UTF8_BYTES) throw new Error("Replacement would exceed the 128 KiB draft limit.");
+  const nextCodeUnits = source.length + chosen.length * (replacement.length - query.length);
+  if (nextCodeUnits > PROFILE_RESUME_MAX_UTF8_BYTES) throw new Error("Replacement would exceed the 128 KiB draft limit.");
   let cursor = 0;
   const parts: string[] = [];
   for (const offset of chosen) { parts.push(source.slice(cursor, offset), replacement); cursor = offset + query.length; }
   parts.push(source.slice(cursor));
-  return parts.join("");
+  const result = parts.join("");
+  // Search offsets use UTF-16. Recheck actual UTF-8 after replacements, including
+  // edits that split or join surrogate pairs at a match boundary.
+  if (new TextEncoder().encode(result).length > PROFILE_RESUME_MAX_UTF8_BYTES) throw new Error("Replacement would exceed the 128 KiB draft limit.");
+  return result;
 }
