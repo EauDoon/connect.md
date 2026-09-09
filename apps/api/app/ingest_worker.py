@@ -64,6 +64,7 @@ def _convert_job(input_path: str, suffix: str, output_path: str, maximum: int) -
             Path(input_path).read_bytes(),
             suffix,
             failure_reporter=_report_conversion_failure,
+            max_extracted_bytes=maximum,
         )
         if len(text.encode("utf-8")) > maximum:
             _atomic_json(
