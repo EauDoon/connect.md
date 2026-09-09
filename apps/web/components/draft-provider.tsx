@@ -46,7 +46,7 @@ type DraftState = {
   hydrateSavedDocument: (document: DocumentResponse) => void;
   recordSavedDocument: (document: DocumentResponse, rebasedMarkdown: string) => void;
   recordLocalDownload: (filename: string) => void;
-  getDraftSnapshot: () => { kind: DocumentKind; markdown: string; revision: number; lineage: number; identifier: string; savedDocument: DocumentResponse | null } | null;
+  getDraftSnapshot: () => { kind: DocumentKind; markdown: string; revision: number; lineage: number; checkpointGeneration: number; identifier: string; savedDocument: DocumentResponse | null } | null;
 };
 
 export type GuidedReferenceChoices = Pick<HumanFields, "languageProficiency" | "organizationRelationship">;
@@ -88,6 +88,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const [draftOwner, setDraftOwner] = useState<string | null>(null);
   const [checkpoints, setCheckpoints] = useState<DraftCheckpoint[]>([]);
   const checkpointsRef = useRef<DraftCheckpoint[]>([]);
+  const checkpointGenerationRef = useRef(0);
   const checkpointIdRef = useRef(0);
   const kindRef = useRef(kind);
   const markdownRef = useRef(markdown);
@@ -126,6 +127,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     updateEditorLayout("split");
     updateEditorInterface("code");
     checkpointsRef.current = [];
+    checkpointGenerationRef.current += 1;
     setCheckpoints([]);
     updateKind("profile");
     updateMarkdown(profileStarter);
@@ -267,6 +269,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     markdown: markdownRef.current,
     revision: revisionRef.current,
     lineage: lineageRef.current,
+    checkpointGeneration: checkpointGenerationRef.current,
     identifier: documentIdentifier(markdownRef.current, kindRef.current),
     savedDocument: savedDocumentRef.current
   }), []);
@@ -274,22 +277,28 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     if (maskDraftRef.current) throw new Error("The current draft is unavailable.");
     const checkpoint = createCheckpoint(checkpointsRef.current, { kind: kindRef.current, markdown: markdownRef.current }, label, ++checkpointIdRef.current);
     checkpointsRef.current = [...checkpointsRef.current, checkpoint];
+    checkpointGenerationRef.current += 1;
     setCheckpoints(checkpointsRef.current);
   }, []);
   const renameCheckpoint = useCallback((id: number, label: string) => {
     if (maskDraftRef.current) throw new Error("The current draft is unavailable.");
     const renamed = renameCheckpointEntry(checkpointsRef.current, id, label);
     checkpointsRef.current = renamed;
+    checkpointGenerationRef.current += 1;
     setCheckpoints(renamed);
   }, []);
   const restoreCheckpoint = useCallback((id: number) => {
     if (maskDraftRef.current) return;
     const checkpoint = checkpointsRef.current.find((entry) => entry.id === id);
-    if (checkpoint) replaceDraft(checkpoint.kind, checkpoint.markdown);
+    if (checkpoint) {
+      checkpointGenerationRef.current += 1;
+      replaceDraft(checkpoint.kind, checkpoint.markdown);
+    }
   }, [replaceDraft]);
   const removeCheckpoint = useCallback((id: number) => {
     if (maskDraftRef.current) return;
     checkpointsRef.current = checkpointsRef.current.filter((entry) => entry.id !== id);
+    checkpointGenerationRef.current += 1;
     setCheckpoints(checkpointsRef.current);
   }, []);
   const restoreRecovery = useCallback((bundle: RecoveryBundle) => {
@@ -297,6 +306,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     const restored = bundle.checkpoints.map((entry) => ({ ...entry, id: ++checkpointIdRef.current }));
     replaceDraft(bundle.draft.kind, bundle.draft.markdown);
     checkpointsRef.current = restored;
+    checkpointGenerationRef.current += 1;
     setCheckpoints(restored);
   }, [replaceDraft]);
   const value = useMemo(() => ({

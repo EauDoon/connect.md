@@ -108,6 +108,46 @@ test("recovery files restore unfinished work after reload and reject stale or in
   await page.getByRole("button", { name: "Restore recovery session", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "draft changed" })).toBeVisible();
   await expect(source).toHaveValue("# Newer work\n");
+  for (const phase of ["review", "read"] as const) {
+    for (const mutation of ["save", "rename", "remove"] as const) {
+      if (phase === "read") {
+        await page.evaluate(() => {
+          const original = File.prototype.arrayBuffer;
+          const state = window as unknown as { recoveryReadStarted: boolean; finishRecoveryRead: () => void };
+          state.recoveryReadStarted = false;
+          File.prototype.arrayBuffer = function () {
+            File.prototype.arrayBuffer = original;
+            state.recoveryReadStarted = true;
+            return new Promise<ArrayBuffer>((resolve, reject) => {
+              state.finishRecoveryRead = () => { original.call(this).then(resolve, reject); };
+            });
+          };
+        });
+      }
+      await input.setInputFiles(upload);
+      if (phase === "read") await expect.poll(() => page.evaluate(() => (window as unknown as { recoveryReadStarted: boolean }).recoveryReadStarted)).toBe(true);
+      else await expect(page.getByLabel("Recovery file review")).toBeVisible();
+      if (mutation === "save") {
+        await page.getByLabel("Checkpoint name", { exact: true }).fill(`Added during ${phase}`);
+        await page.getByRole("button", { name: "Keep checkpoint", exact: true }).click();
+      } else if (mutation === "rename") {
+        await page.getByRole("button", { name: `Rename Added during ${phase}`, exact: true }).click();
+        await page.getByLabel("New checkpoint name", { exact: true }).fill(`Renamed during ${phase}`);
+        await page.getByRole("button", { name: "Save checkpoint name", exact: true }).click();
+      } else {
+        page.once("dialog", (dialog) => dialog.accept());
+        await page.getByRole("button", { name: `Remove Renamed during ${phase}`, exact: true }).click();
+      }
+      if (phase === "read") await page.evaluate(() => (window as unknown as { finishRecoveryRead: () => void }).finishRecoveryRead());
+      await expect(page.getByLabel("Recovery file review")).toBeVisible();
+      await page.getByRole("button", { name: "Restore recovery session", exact: true }).click();
+      await expect(page.getByRole("alert").filter({ hasText: "checkpoints changed" })).toBeVisible();
+      await expect(page.getByLabel("Recovery file review")).toHaveCount(0);
+      await expect(source).toHaveValue("# Newer work\n");
+      await expect(page.getByText(`Session checkpoints (${mutation === "remove" ? 1 : 2}/5)`, { exact: true })).toBeVisible();
+      if (mutation !== "remove") await expect(page.getByRole("button", { name: `Rename ${mutation === "save" ? "Added" : "Renamed"} during ${phase}`, exact: true })).toBeVisible();
+    }
+  }
   page.once("dialog", (dialog) => dialog.accept());
   await page.reload();
   await page.getByText("Session recovery", { exact: true }).click();

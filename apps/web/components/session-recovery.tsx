@@ -10,7 +10,7 @@ export function SessionRecovery({ onBeforeAction }: { onBeforeAction?: () => voi
   const { checkpoints, getDraftSnapshot, restoreRecovery, previousDraft, undoReplacement, discardUndo, masked } = useDraft();
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
-  const [pending, setPending] = useState<{ bundle: RecoveryBundle; revision: number; lineage: number } | null>(null);
+  const [pending, setPending] = useState<{ bundle: RecoveryBundle; revision: number; lineage: number; checkpointGeneration: number } | null>(null);
   const request = useRef(0);
   return <details className="border-b border-white/10 px-4 py-4 sm:px-6">
     <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-white">Session recovery</summary>
@@ -54,7 +54,7 @@ export function SessionRecovery({ onBeforeAction }: { onBeforeAction?: () => voi
           const source = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
           const bundle = parseRecoveryBundle(source);
           if (ticket !== request.current) return;
-          setPending({ bundle, revision: snapshot.revision, lineage: snapshot.lineage });
+          setPending({ bundle, revision: snapshot.revision, lineage: snapshot.lineage, checkpointGeneration: snapshot.checkpointGeneration });
           setFailed(false);
           setMessage("Recovery file read locally. Review its contents below before replacing this session.");
         } catch (error) {
@@ -70,8 +70,9 @@ export function SessionRecovery({ onBeforeAction }: { onBeforeAction?: () => voi
         <Button variant="secondary" disabled={masked} onClick={() => {
           onBeforeAction?.();
           const current = getDraftSnapshot();
-          if (!current || current.revision !== pending.revision || current.lineage !== pending.lineage) {
-            setPending(null); setFailed(true); setMessage("The draft changed after opening this file. Open it again to review the replacement."); return;
+          if (!current || current.revision !== pending.revision || current.lineage !== pending.lineage || current.checkpointGeneration !== pending.checkpointGeneration) {
+            const reason = current && current.checkpointGeneration !== pending.checkpointGeneration ? "The checkpoints changed" : "The draft changed";
+            setPending(null); setFailed(true); setMessage(`${reason} after opening this file. Open it again to review the replacement.`); return;
           }
           if (!window.confirm("Replace the current draft and all session checkpoints with this recovery file? Download a recovery backup first if you need to keep this session.")) return;
           restoreRecovery(pending.bundle);
