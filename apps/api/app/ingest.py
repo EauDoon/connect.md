@@ -331,8 +331,17 @@ def _convert_binary(
             converted = MarkItDown().convert_local(str(local_path))
             text = getattr(converted, "text_content", "")
             if isinstance(text, str) and text.strip():
-                return text, "markitdown-local", warnings
-            warnings.append("MarkItDown returned no text; tried local fallback.")
+                if suffix == ".docx":
+                    from app.docx_text import docx_body_has_content
+
+                    has_content = docx_body_has_content(local_path)
+                else:
+                    has_content = True
+                if has_content:
+                    return text, "markitdown-local", warnings
+                warnings.append("MarkItDown returned only empty document structure; tried local fallback.")
+            else:
+                warnings.append("MarkItDown returned no text; tried local fallback.")
         except Exception as exc:  # Converter errors are surfaced as non-sensitive draft warnings.
             if failure_reporter is not None:
                 failure_reporter("markitdown", exc)

@@ -8,18 +8,36 @@ from pathlib import Path
 from docx import Document
 from docx.blkcntnr import BlockItemContainer
 from docx.document import Document as DocxDocument
+from docx.oxml.ns import qn
 from docx.table import Table
 
 
 def _join(parts: Iterator[str], separator: str, maximum: int) -> str:
     collected: list[str] = []
     used = 0
-    for part in parts:
-        used += len(part.encode("utf-8")) + (len(separator) if collected else 0)
-        if used > maximum:
-            raise ValueError("DOCX text exceeds the extracted-text limit")
-        collected.append(part)
-    return separator.join(collected)
+    pending = ""
+    pending_bytes = 0
+    for index, part in enumerate(parts):
+        chunk = (separator if index else "") + part
+        if not collected:
+            chunk = chunk.lstrip()
+        content = chunk.rstrip()
+        if content:
+            used += pending_bytes + len(content.encode("utf-8"))
+            if used > maximum:
+                raise ValueError("DOCX text exceeds the extracted-text limit")
+            collected.extend((pending, content))
+            pending = ""
+            pending_bytes = 0
+        trailing = chunk[len(content) :]
+        pending_bytes += len(trailing.encode("utf-8"))
+        # Trailing whitespace is discarded unless later content makes it internal.
+        # Remember overflow numerically without retaining an oversized whitespace buffer.
+        if pending_bytes <= maximum - used:
+            pending += trailing
+        else:
+            pending = ""
+    return "".join(collected)
 
 
 def _blocks(container: BlockItemContainer | DocxDocument, maximum: int) -> Iterator[str]:
@@ -33,10 +51,33 @@ def _blocks(container: BlockItemContainer | DocxDocument, maximum: int) -> Itera
                     if cell._tc not in seen:
                         seen.add(cell._tc)
                         cells.append(_join(_blocks(cell, maximum), " ", maximum))
-                if cells:
+                if any(cell.strip() for cell in cells):
                     yield _join(iter(cells), " | ", maximum)
         elif block.text.strip():
             yield block.text
+
+
+def docx_body_has_content(source: Path) -> bool:
+    """Distinguish an empty body from primary-converter table scaffolding.
+
+    Inspect source content, not Markdown punctuation. Keep primary-only content
+    such as hyperlinks, images, equations, symbols, and referenced notes eligible.
+    Header/footer text is handled by the layout-aware fallback when the body is empty.
+    """
+    document = Document(str(source))
+    text_tags = {qn("w:t"), qn("m:t")}
+    rich_tags = {
+        qn(name)
+        for name in (
+            "a:blip", "m:oMath", "w:footnoteReference", "w:endnoteReference",
+            "w:sym", "w:object", "w:altChunk", "w:noBreakHyphen", "w:softHyphen",
+        )
+    }
+    rich_tags.add("{urn:schemas-microsoft-com:vml}imagedata")
+    return any(
+        node.tag in rich_tags or (node.tag in text_tags and bool((node.text or "").strip()))
+        for node in document.element.body.iter()
+    )
 
 
 def _header_footer_blocks(document: DocxDocument, maximum: int, *, footers: bool) -> Iterator[str]:
