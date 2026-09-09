@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { loader } from "@monaco-editor/react";
 import { Code2, Eye, FileWarning, RotateCcw, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AsyncBoundaryMessage } from "@/components/async-boundary-message";
 import { useDraft } from "@/components/draft-provider";
@@ -14,6 +14,7 @@ import { PublishPanel } from "@/components/publish-panel";
 import { ValidationPanel } from "@/components/validation-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DocumentOutline } from "@/components/document-outline";
 import { isEmptyDraft, starterFor } from "@/lib/markdown";
 import { validateDraft } from "@/lib/validation";
 
@@ -29,6 +30,17 @@ export function MarkdownEditor() {
   const issues = useMemo(() => validateDraft(markdown, kind), [kind, markdown]);
   const emptyDraft = isEmptyDraft(markdown);
   const [plainEditor, setPlainEditor] = useState(false);
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const [selectionOffset, setSelectionOffset] = useState<number | null>(null);
+  useEffect(() => {
+    if (!plainEditor || selectionOffset === null || !sourceRef.current) return;
+    const source = sourceRef.current;
+    const lineEnd = markdown.indexOf("\n", selectionOffset);
+    source.focus();
+    source.setSelectionRange(selectionOffset, lineEnd < 0 ? markdown.length : lineEnd);
+    source.scrollTop = Math.max(0, (markdown.slice(0, selectionOffset).split("\n").length - 3) * 22);
+    setSelectionOffset(null);
+  }, [plainEditor, selectionOffset, markdown]);
 
   function resetToStarter() {
     const confirmed = window.confirm("Replace the current local draft with the starter template? This cannot be undone in this browser session.");
@@ -51,6 +63,7 @@ export function MarkdownEditor() {
         <ModeSwitch mode="md" />
         <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.16fr)_minmax(320px,.84fr)] lg:p-6">
           <section aria-labelledby="editor-title" className="min-w-0">
+            <DocumentOutline markdown={markdown} onSelect={(offset) => { setPlainEditor(true); setSelectionOffset(offset); }} />
             <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
               <h2 id="editor-title" className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white"><Code2 className="size-4 shrink-0 text-acid" aria-hidden /> Canonical Markdown</h2>
               <span className="min-w-0 break-words text-xs text-mist">UTF-8 · LF normalized</span>
@@ -62,7 +75,7 @@ export function MarkdownEditor() {
             </fieldset>
             <p id="editor-interface-help" className="mb-3 text-xs leading-5 text-mist">Both interfaces edit the same draft. Plain text works with standard browser controls and is available while the code editor loads.</p>
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0c0e12]">
-              {plainEditor ? <textarea aria-label="Canonical Markdown source" aria-describedby="editor-interface-help" value={markdown} onChange={(event) => setMarkdown(event.target.value)} spellCheck={false} autoCapitalize="off" autoCorrect="off" className="block h-[540px] w-full resize-y bg-transparent p-4 font-mono text-sm leading-[22px] text-white outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-acid" /> : <MonacoEditor
+              {plainEditor ? <textarea ref={sourceRef} aria-label="Canonical Markdown source" aria-describedby="editor-interface-help" value={markdown} onChange={(event) => setMarkdown(event.target.value)} spellCheck={false} autoCapitalize="off" autoCorrect="off" className="block h-[540px] w-full resize-y bg-transparent p-4 font-mono text-sm leading-[22px] text-white outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-acid" /> : <MonacoEditor
                 height="540px"
                 language="markdown"
                 theme="vs-dark"
