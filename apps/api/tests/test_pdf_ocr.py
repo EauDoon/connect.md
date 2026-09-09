@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import shutil
 import subprocess
 from pathlib import Path
@@ -122,6 +123,114 @@ def test_ocr_accepts_exact_page_and_utf8_limits(tmp_path, monkeypatch):
     result = ocr.extract_pdf_ocr(tmp_path / "source.pdf", maximum)
     assert len(result.encode("utf-8")) == maximum
     assert len(calls) == ocr.MAX_OCR_PAGES * 2
+
+
+@pytest.mark.parametrize(
+    "raw,maximum,pages,expected",
+    [
+        (b"abcd\n", 4, 1, "abcd"),
+        (b"abcd\n\n", 9, 2, "abcd\nabcd"),
+        (" \n\u2003é🙂\n\u3000".encode(), 6, 1, "é🙂"),
+        (b"a" + b" " * 20000, 1, 1, "a"),
+    ],
+    ids=["trailing-newline", "page-separators", "unicode", "long-trailing-whitespace"],
+)
+def test_native_whitespace_does_not_reject_exact_normalized_text_limits(
+    tmp_path, monkeypatch, raw, maximum, pages, expected
+):
+    fake_pdf(monkeypatch, pages)
+    fake_commands(monkeypatch, text=raw)
+    assert ocr.extract_pdf_ocr(tmp_path / "source.pdf", maximum) == expected
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("chunk_size", [1, 3, 8])
+@pytest.mark.parametrize("text", ["  é🙂\n", "A \t\n B  ", "\u2003A\u3000B\u3000", " \n\t "])
+def test_incremental_ocr_normalization_matches_strip_at_utf8_boundaries(
+    tmp_path, monkeypatch, chunk_size, text
+):
+    monkeypatch.setattr(ocr, "OCR_READ_CHUNK_BYTES", chunk_size)
+    output = tmp_path / "page.txt"
+    output.write_bytes(text.encode())
+    expected = text.strip()
+    assert ocr._read_ocr_text(output, len(expected.encode()), float("inf")) == expected
+
+
+@pytest.mark.parametrize("invalid", [b"\xff", b"\xc3", b"\xf0\x9f\x99"])
+def test_ocr_rejects_invalid_utf8_even_after_exact_text_and_discarded_whitespace(
+    tmp_path, monkeypatch, invalid
+):
+    fake_pdf(monkeypatch)
+    fake_commands(monkeypatch, text=b"A" + b" " * 20000 + invalid)
+    with pytest.raises(UnicodeDecodeError):
+        ocr.extract_pdf_ocr(tmp_path / "source.pdf", 1)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_ocr_retains_internal_whitespace_in_its_output_limit(tmp_path, monkeypatch):
+    fake_pdf(monkeypatch)
+    fake_commands(monkeypatch, text=b"A" + b" " * 20000 + b"B\n")
+    with pytest.raises(ValueError, match="extracted-text limit"):
+        ocr.extract_pdf_ocr(tmp_path / "source.pdf", 2)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("extra", [0, 1])
+def test_raw_native_output_keeps_a_separate_hard_byte_limit(tmp_path, monkeypatch, extra):
+    monkeypatch.setattr(ocr, "MAX_OCR_RAW_TEXT_BYTES", 32)
+    fake_pdf(monkeypatch)
+    fake_commands(monkeypatch, text=b"A" + b" " * (31 + extra))
+    if extra:
+        with pytest.raises(ValueError, match="raw output"):
+            ocr.extract_pdf_ocr(tmp_path / "source.pdf", 1)
+    else:
+        assert ocr.extract_pdf_ocr(tmp_path / "source.pdf", 1) == "A"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_ocr_reading_obeys_the_total_deadline_and_cleans_files(tmp_path, monkeypatch):
+    fake_pdf(monkeypatch)
+    fake_commands(monkeypatch, text=b"A\n")
+    times = iter([0, 1, 2, ocr.OCR_TIMEOUT_SECONDS + 1])
+    monkeypatch.setattr(ocr, "monotonic", lambda: next(times))
+    with pytest.raises(TimeoutError):
+        ocr.extract_pdf_ocr(tmp_path / "source.pdf", 1)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_blank_later_page_does_not_add_a_separator_after_filling_the_budget(tmp_path, monkeypatch):
+    fake_pdf(monkeypatch, pages=2)
+    calls = fake_commands(monkeypatch, text=b"A\n")
+    run = ocr.subprocess.run
+
+    def blank_second_page(args, **kwargs):
+        run(args, **kwargs)
+        if len(calls) == 4:
+            Path(args[2] + ".txt").write_bytes(b" \n\t")
+
+    monkeypatch.setattr(ocr.subprocess, "run", blank_second_page)
+    assert ocr.extract_pdf_ocr(tmp_path / "source.pdf", 1) == "A"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_raw_output_reader_never_requests_an_unbounded_read(monkeypatch):
+    monkeypatch.setattr(ocr, "MAX_OCR_RAW_TEXT_BYTES", 32)
+    monkeypatch.setattr(ocr, "OCR_READ_CHUNK_BYTES", 7)
+    read_sizes = []
+    returned_sizes = []
+
+    class RecordedStream(io.BytesIO):
+        def read(self, size=-1):
+            read_sizes.append(size)
+            result = super().read(size)
+            returned_sizes.append(len(result))
+            return result
+
+    output = SimpleNamespace(open=lambda _: RecordedStream(b"A" + b" " * 100))
+    with pytest.raises(ValueError, match="raw output"):
+        ocr._read_ocr_text(output, 1, float("inf"))
+    assert read_sizes == [7, 7, 7, 7, 5]
+    assert sum(returned_sizes) == 33
 
 
 def test_pdf_ocr_failure_returns_no_draft_or_sensitive_diagnostics(monkeypatch):

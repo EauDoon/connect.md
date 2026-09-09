@@ -29,7 +29,9 @@ def main() -> None:
         )
         image.save(source, "PDF", resolution=150)
         text, converter, _warnings = _convert_binary(
-            source.read_bytes(), ".pdf", max_extracted_bytes=1024
+            source.read_bytes(),
+            ".pdf",
+            max_extracted_bytes=len("Ada Lovelace".encode("utf-8")),
         )
         if converter != "tesseract-local" or "Ada Lovelace" not in text:
             raise RuntimeError(
