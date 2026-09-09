@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SourceSearch } from "@/components/source-search";
 import { DocumentOutline } from "@/components/document-outline";
+import { sourceLineRange } from "@/lib/source-line";
 import { isEmptyDraft, starterFor } from "@/lib/markdown";
 import { validateDraft } from "@/lib/validation";
 
@@ -27,7 +28,7 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 });
 
 export function MarkdownEditor() {
-  const { kind, markdown, replaceMarkdown, setMarkdown } = useDraft();
+  const { kind, markdown, replaceMarkdown, setMarkdown, sourceLineRequest, requestSourceLine } = useDraft();
   const issues = useMemo(() => validateDraft(markdown, kind), [kind, markdown]);
   const emptyDraft = isEmptyDraft(markdown);
   const [plainEditor, setPlainEditor] = useState(false);
@@ -44,6 +45,13 @@ export function MarkdownEditor() {
     setSelectionOffset(null);
     setSelectionEnd(null);
   }, [plainEditor, selectionOffset, selectionEnd, markdown]);
+
+  useEffect(() => {
+    if (sourceLineRequest === null) return;
+    const range = sourceLineRange(markdown, sourceLineRequest);
+    if (range) { setPlainEditor(true); setSelectionOffset(range.start); setSelectionEnd(range.end); }
+    requestSourceLine(null);
+  }, [sourceLineRequest, requestSourceLine, markdown]);
 
   function resetToStarter() {
     const confirmed = window.confirm("Replace the current local draft with the starter template? Session recovery keeps one previous draft up to 128 KiB for undo.");

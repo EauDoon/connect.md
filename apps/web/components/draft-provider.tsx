@@ -11,6 +11,8 @@ import { renameCheckpoint as renameCheckpointEntry, createCheckpoint, type Draft
 import { type RecoveryBundle } from "@/lib/session-recovery";
 
 type DraftState = {
+  sourceLineRequest: number | null;
+  requestSourceLine: (line: number | null) => void;
   previousDraft: { kind: DocumentKind; markdown: string } | null;
   undoReplacement: () => void;
   discardUndo: () => void;
@@ -64,6 +66,7 @@ export function draftAuthBoundaryKey(configured: boolean, isLoaded: boolean, sub
 
 export function DraftProvider({ children }: { children: ReactNode }) {
   const { configured, isLoaded, subject } = useConnectmdAuth();
+  const [sourceLineRequest, setSourceLineRequest] = useState<number | null>(null);
   const [previousDraft, setPreviousDraft] = useState<{ kind: DocumentKind; markdown: string } | null>(null);
   const previousDraftRef = useRef(previousDraft);
   const [kind, updateKind] = useState<DocumentKind>("profile");
@@ -110,6 +113,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     if (!requiresDraftReset(draftOwner, resolvedSubject)) return;
     previousDraftRef.current = null;
     setPreviousDraft(null);
+    setSourceLineRequest(null);
     checkpointsRef.current = [];
     setCheckpoints([]);
     updateKind("profile");
@@ -128,6 +132,9 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setDraftOwner(resolvedSubject);
   }, [draftOwner, resolvedSubject]);
 
+  const requestSourceLine = useCallback((line: number | null) => {
+    if (!maskDraftRef.current) setSourceLineRequest(line);
+  }, []);
   const rememberReplacement = useCallback(() => {
     const previous = new TextEncoder().encode(markdownRef.current).length <= PROFILE_RESUME_MAX_UTF8_BYTES
       ? { kind: kindRef.current, markdown: markdownRef.current } : null;
@@ -276,6 +283,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setCheckpoints(restored);
   }, [replaceDraft]);
   const value = useMemo(() => ({
+    sourceLineRequest: maskDraft ? null : sourceLineRequest,
+    requestSourceLine,
     previousDraft: maskDraft ? null : previousDraft,
     undoReplacement,
     discardUndo,
@@ -304,7 +313,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [previousDraft, undoReplacement, discardUndo, restoreRecovery, checkpoints, saveCheckpoint, renameCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
+  }), [sourceLineRequest, requestSourceLine, previousDraft, undoReplacement, discardUndo, restoreRecovery, checkpoints, saveCheckpoint, renameCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }

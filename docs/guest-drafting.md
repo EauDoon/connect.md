@@ -25,3 +25,7 @@ Markdown Mode offers case-sensitive literal search across the whole source, incl
 ## Name an export
 
 The download gate accepts an optional local filename and shows the sanitized `.md` name before downloading. This never changes frontmatter identifiers. Names use portable lowercase ASCII characters, with an 80-character stem and protection against reserved Windows device names. A failed browser download request leaves the source and the prior download receipt intact, with copy/recovery alternatives.
+
+## Act on review findings
+
+Line links in Sharing and Writing review open the same draft in Markdown Mode, select the corresponding source line, and focus the plain-text editor. The request stays in memory; document text is never put into URLs. Review checks remain advisory and do not redact, approve, or block source content.
