@@ -70,8 +70,8 @@ export function MarkdownEditor() {
             </div>
             <fieldset className="mb-3 flex flex-wrap gap-4 text-xs text-mist">
               <legend className="mb-2 font-semibold text-white">Editor interface</legend>
-              <label className="inline-flex min-h-8 items-center gap-2"><input type="radio" name="editor-interface" checked={!plainEditor} onChange={() => setPlainEditor(false)} />Code editor</label>
-              <label className="inline-flex min-h-8 items-center gap-2"><input type="radio" name="editor-interface" checked={plainEditor} onChange={() => setPlainEditor(true)} />Plain-text editor</label>
+              <label className="inline-flex min-h-11 items-center gap-2"><input type="radio" name="editor-interface" checked={!plainEditor} onChange={() => setPlainEditor(false)} />Code editor</label>
+              <label className="inline-flex min-h-11 items-center gap-2"><input type="radio" name="editor-interface" checked={plainEditor} onChange={() => setPlainEditor(true)} />Plain-text editor</label>
             </fieldset>
             <p id="editor-interface-help" className="mb-3 text-xs leading-5 text-mist">Both interfaces edit the same draft. Plain text works with standard browser controls and is available while the code editor loads.</p>
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0c0e12]">

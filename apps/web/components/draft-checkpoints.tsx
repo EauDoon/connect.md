@@ -15,7 +15,7 @@ export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => vo
   const [failed, setFailed] = useState(false);
 
   return <details className="border-b border-white/10 px-4 py-4 sm:px-6">
-    <summary className="cursor-pointer text-sm font-semibold text-white">Session checkpoints ({checkpoints.length}/5)</summary>
+    <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-white">Session checkpoints ({checkpoints.length}/5)</summary>
     <p className="mt-3 text-xs leading-5 text-mist">Keep named versions while trying edits. These copies stay only in memory, disappear on reload, and never replace a downloaded backup.</p>
     <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={(event) => {
       event.preventDefault();
@@ -30,7 +30,7 @@ export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => vo
       <label className="min-w-0 text-xs text-mist">Checkpoint name
         <input value={label} onChange={(event) => setLabel(event.target.value)} maxLength={60} required className="mt-1 block w-full rounded-lg border border-white/20 bg-black/20 p-2 text-sm text-white" />
       </label>
-      <Button variant="secondary" disabled={masked || checkpoints.length >= 5}>Keep checkpoint</Button>
+      <Button type="submit" variant="secondary" disabled={masked || checkpoints.length >= 5}>Keep checkpoint</Button>
     </form>
     {message && <p role={failed ? "alert" : "status"} className="mt-3 text-xs text-mist">{message}</p>}
     <ul className="mt-3 space-y-2">
