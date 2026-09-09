@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { loader } from "@monaco-editor/react";
 import { Code2, Eye, FileWarning, RotateCcw, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AsyncBoundaryMessage } from "@/components/async-boundary-message";
 import { useDraft } from "@/components/draft-provider";
@@ -28,10 +28,11 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 });
 
 export function MarkdownEditor() {
-  const { kind, markdown, replaceMarkdown, setMarkdown, sourceLineRequest, requestSourceLine } = useDraft();
+  const { kind, markdown, replaceMarkdown, setMarkdown, sourceLineRequest, requestSourceLine, editorLayout, setEditorLayout, editorInterface, setEditorInterface } = useDraft();
   const issues = useMemo(() => validateDraft(markdown, kind), [kind, markdown]);
   const emptyDraft = isEmptyDraft(markdown);
-  const [plainEditor, setPlainEditor] = useState(false);
+  const plainEditor = editorInterface === "plain";
+  const setPlainEditor = useCallback((plain: boolean) => setEditorInterface(plain ? "plain" : "code"), [setEditorInterface]);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const [selectionOffset, setSelectionOffset] = useState<number | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
@@ -49,9 +50,9 @@ export function MarkdownEditor() {
   useEffect(() => {
     if (sourceLineRequest === null) return;
     const range = sourceLineRange(markdown, sourceLineRequest);
-    if (range) { setPlainEditor(true); setSelectionOffset(range.start); setSelectionEnd(range.end); }
+    if (range) { setEditorLayout("split"); setPlainEditor(true); setSelectionOffset(range.start); setSelectionEnd(range.end); }
     requestSourceLine(null);
-  }, [sourceLineRequest, requestSourceLine, markdown]);
+  }, [sourceLineRequest, requestSourceLine, markdown, setPlainEditor, setEditorLayout]);
 
   function resetToStarter() {
     const confirmed = window.confirm("Replace the current local draft with the starter template? Session recovery keeps one previous draft up to 128 KiB for undo.");
@@ -72,8 +73,13 @@ export function MarkdownEditor() {
 
       <Card className="mt-8 overflow-hidden">
         <ModeSwitch mode="md" />
-        <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.16fr)_minmax(320px,.84fr)] lg:p-6">
-          <section aria-labelledby="editor-title" className="min-w-0">
+        <fieldset className="flex flex-wrap gap-4 border-b border-white/10 px-5 py-3 text-sm text-mist">
+          <legend className="px-2 font-semibold text-white">Workspace layout</legend>
+          {([ ["split", "Split view"], ["source", "Source only"], ["preview", "Preview and checks"] ] as const).map(([value, label]) => <label key={value} className="inline-flex min-h-11 items-center gap-2"><input type="radio" name="workspace-layout" value={value} checked={editorLayout === value} onChange={() => setEditorLayout(value)} />{label}</label>)}
+        </fieldset>
+        <div className={`grid gap-6 p-5 lg:p-6 ${editorLayout === "split" ? "lg:grid-cols-[minmax(0,1.16fr)_minmax(320px,.84fr)]" : "grid-cols-1"}`}>
+
+          <section hidden={editorLayout === "preview"} aria-labelledby="editor-title" className="min-w-0">
             <SourceSearch markdown={markdown} onChange={setMarkdown} onSelect={(start, end) => { setPlainEditor(true); setSelectionOffset(start); setSelectionEnd(end); }} />
             <DocumentOutline markdown={markdown} onSelect={(offset) => { setPlainEditor(true); setSelectionOffset(offset); }} />
             <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
@@ -108,7 +114,7 @@ export function MarkdownEditor() {
             <div className="mt-4 flex gap-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-mist"><FileWarning className="mt-0.5 size-4 shrink-0 text-acid" aria-hidden /> {emptyDraft ? "This buffer is empty, so download is blocked. Paste a complete Markdown file that starts with YAML frontmatter, or use Reset starter." : "The draft lives only in this browser session until you download it. A full reload or closed tab can discard it."}</div>
           </section>
 
-          <aside className="space-y-5 min-w-0" aria-label="Markdown status and preview">
+          <aside hidden={editorLayout === "source"} className="space-y-5 min-w-0" aria-label="Markdown status and preview">
             <ValidationPanel issues={issues} />
             <PublishPanel issues={issues} />
             <section aria-labelledby="preview-title">

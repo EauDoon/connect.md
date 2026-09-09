@@ -29,3 +29,7 @@ The download gate accepts an optional local filename and shows the sanitized `.m
 ## Act on review findings
 
 Line links in Sharing and Writing review open the same draft in Markdown Mode, select the corresponding source line, and focus the plain-text editor. The request stays in memory; document text is never put into URLs. Review checks remain advisory and do not redact, approve, or block source content.
+
+## Focus the workspace
+
+In Markdown Mode, choose **Source only**, **Preview and checks**, or **Split view**. Source and preview always derive from the same draft. Layout and code/plain-editor preferences survive Guided/Markdown navigation within the page session; reload and account resets clear them. Following a review line returns to split view and focuses the plain editor so the requested source cannot remain hidden.

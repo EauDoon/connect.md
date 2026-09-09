@@ -164,6 +164,7 @@ describe("dual-mode canonical draft continuity", () => {
 
     function MarkdownSurface() {
       const draft = useDraft();
+      currentDraft = draft;
       checkpointLabels = draft.checkpoints.map((entry) => entry.label);
       observed = { surface: "markdown", instance: 0, adjacent: "clean", markdown: draft.markdown, masked: draft.masked, stage: draft.humanStage, downloadFilename: draft.localDownloadReceipt?.filename ?? "" };
       return null;
@@ -189,9 +190,12 @@ describe("dual-mode canonical draft continuity", () => {
         saveCheckpoint("Alpha revision");
       });
       expect(observed).toMatchObject({ surface: "human", adjacent: "alpha-owned-filename.pdf", markdown: "# Alpha private Markdown\n", stage: "review", downloadFilename: "alpha.md" });
+      await act(async () => { currentDraft.setEditorLayout("preview"); currentDraft.setEditorInterface("plain"); });
 
       await act(async () => { root.render(renderSurface("markdown")); });
       expect(checkpointLabels).toEqual(["Alpha revision"]);
+      expect(currentDraft!.editorLayout).toBe("preview");
+      expect(currentDraft!.editorInterface).toBe("plain");
       expect(observed).toMatchObject({ surface: "markdown", markdown: "# Alpha private Markdown\n", stage: "review", downloadFilename: "alpha.md" });
       await act(async () => { root.render(renderSurface("human")); });
       await act(async () => { setAdjacent("alpha-owned-provenance"); });

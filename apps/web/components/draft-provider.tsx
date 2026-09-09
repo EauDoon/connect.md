@@ -10,7 +10,13 @@ import { type HumanJourneyStage } from "@/lib/human-journey";
 import { renameCheckpoint as renameCheckpointEntry, createCheckpoint, type DraftCheckpoint } from "@/lib/draft-checkpoints";
 import { type RecoveryBundle } from "@/lib/session-recovery";
 
+type EditorLayout = "split" | "source" | "preview";
+type EditorInterface = "code" | "plain";
 type DraftState = {
+  editorLayout: EditorLayout;
+  editorInterface: EditorInterface;
+  setEditorLayout: (layout: EditorLayout) => void;
+  setEditorInterface: (value: EditorInterface) => void;
   sourceLineRequest: number | null;
   requestSourceLine: (line: number | null) => void;
   previousDraft: { kind: DocumentKind; markdown: string } | null;
@@ -66,6 +72,8 @@ export function draftAuthBoundaryKey(configured: boolean, isLoaded: boolean, sub
 
 export function DraftProvider({ children }: { children: ReactNode }) {
   const { configured, isLoaded, subject } = useConnectmdAuth();
+  const [editorLayout, updateEditorLayout] = useState<EditorLayout>("split");
+  const [editorInterface, updateEditorInterface] = useState<EditorInterface>("code");
   const [sourceLineRequest, setSourceLineRequest] = useState<number | null>(null);
   const [previousDraft, setPreviousDraft] = useState<{ kind: DocumentKind; markdown: string } | null>(null);
   const previousDraftRef = useRef(previousDraft);
@@ -114,6 +122,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     previousDraftRef.current = null;
     setPreviousDraft(null);
     setSourceLineRequest(null);
+    updateEditorLayout("split");
+    updateEditorInterface("code");
     checkpointsRef.current = [];
     setCheckpoints([]);
     updateKind("profile");
@@ -132,6 +142,12 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setDraftOwner(resolvedSubject);
   }, [draftOwner, resolvedSubject]);
 
+  const setEditorLayout = useCallback((layout: EditorLayout) => {
+    if (!maskDraftRef.current) updateEditorLayout(layout);
+  }, []);
+  const setEditorInterface = useCallback((value: EditorInterface) => {
+    if (!maskDraftRef.current) updateEditorInterface(value);
+  }, []);
   const requestSourceLine = useCallback((line: number | null) => {
     if (!maskDraftRef.current) setSourceLineRequest(line);
   }, []);
@@ -283,6 +299,10 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setCheckpoints(restored);
   }, [replaceDraft]);
   const value = useMemo(() => ({
+    editorLayout: maskDraft ? "split" as const : editorLayout,
+    editorInterface: maskDraft ? "code" as const : editorInterface,
+    setEditorLayout,
+    setEditorInterface,
     sourceLineRequest: maskDraft ? null : sourceLineRequest,
     requestSourceLine,
     previousDraft: maskDraft ? null : previousDraft,
@@ -313,7 +333,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [sourceLineRequest, requestSourceLine, previousDraft, undoReplacement, discardUndo, restoreRecovery, checkpoints, saveCheckpoint, renameCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
+  }), [editorLayout, editorInterface, setEditorLayout, setEditorInterface, sourceLineRequest, requestSourceLine, previousDraft, undoReplacement, discardUndo, restoreRecovery, checkpoints, saveCheckpoint, renameCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }
