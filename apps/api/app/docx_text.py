@@ -25,16 +25,17 @@ def _join(parts: Iterator[str], separator: str, maximum: int) -> str:
 def _blocks(container: BlockItemContainer | DocxDocument, maximum: int) -> Iterator[str]:
     for block in container.iter_inner_content():
         if isinstance(block, Table):
+            # Horizontal and vertical merge aliases share a node across the table.
+            seen: set[object] = set()
             for row in block.rows:
-                # Merged cells share their XML node and must appear only once.
-                seen: set[object] = set()
                 cells = []
                 for cell in row.cells:
                     if cell._tc not in seen:
                         seen.add(cell._tc)
                         cells.append(_join(_blocks(cell, maximum), " ", maximum))
-                yield _join(iter(cells), " | ", maximum)
-        else:
+                if cells:
+                    yield _join(iter(cells), " | ", maximum)
+        elif block.text.strip():
             yield block.text
 
 

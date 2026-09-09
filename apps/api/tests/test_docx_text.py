@@ -96,3 +96,45 @@ def test_docx_xml_does_not_resolve_external_entities(tmp_path):
                     xml.encode() if member.filename == "word/document.xml" else original.read(member),
                 )
     assert "SYNTHETIC_ENTITY_SENTINEL" not in extract_docx_text(source, 1024)
+
+
+@pytest.mark.parametrize("rows,columns", [(1, 3), (3, 1), (3, 3)])
+def test_merged_cells_appear_once_across_the_entire_table(tmp_path, rows, columns):
+    document = Document()
+    table = document.add_table(rows=rows, cols=columns)
+    table.cell(0, 0).merge(table.cell(rows - 1, columns - 1)).text = "é"
+    document.add_paragraph("Tail")
+    source = tmp_path / "merged.docx"
+    document.save(source)
+    expected = "é\nTail"
+    assert extract_docx_text(source, len(expected.encode())) == expected
+    with pytest.raises(ValueError, match="limit"):
+        extract_docx_text(source, len(expected.encode()) - 1)
+
+
+def test_nested_vertical_merges_and_empty_blocks_do_not_consume_the_text_limit(tmp_path):
+    document = Document()
+    outer = document.add_table(rows=3, cols=2)
+    cell = outer.cell(0, 0).merge(outer.cell(2, 1))
+    cell.text = "Outer"
+    nested = cell.add_table(rows=3, cols=1)
+    nested.cell(0, 0).merge(nested.cell(2, 0)).text = "Inner"
+    cell.add_paragraph("   ")
+    document.add_paragraph("")
+    source = tmp_path / "nested.docx"
+    document.save(source)
+    expected = "Outer Inner"
+    assert extract_docx_text(source, len(expected.encode())) == expected
+
+
+def test_vertically_merged_cell_does_not_hide_other_rows_or_other_tables(tmp_path):
+    document = Document()
+    for _ in range(2):
+        table = document.add_table(rows=2, cols=2)
+        table.cell(0, 0).merge(table.cell(1, 0)).text = "Shared"
+        table.cell(0, 1).text = "First"
+        table.cell(1, 1).text = "Second"
+    source = tmp_path / "tables.docx"
+    document.save(source)
+    expected = "Shared | First\nSecond\nShared | First\nSecond"
+    assert extract_docx_text(source, len(expected.encode())) == expected
