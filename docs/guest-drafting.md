@@ -17,3 +17,7 @@ After importing, resetting, changing document kind, or restoring a checkpoint, *
 Use **Rename** beside a checkpoint to update its name while retaining its exact source, type, order, and comparison selection. Names must remain distinct (case-insensitively), with 1 to 60 characters. Cancellation and validation errors preserve the old name.
 
 Use **Download source** beside a checkpoint to keep its exact captured Markdown without restoring it or changing the current draft. A checkpoint may contain invalid work in progress; this action is a source backup, not the validated document export. It does not mark the current draft as downloaded.
+
+## Find and replace
+
+Markdown Mode offers case-sensitive literal search across the whole source, including frontmatter. Previous/Next select exact text in the plain editor. Replace one match or confirm replacement of all matches. A 128 KiB source limit, 256-character query limit, 1,000-match cap, and precomputed output-size bound prevent partial or oversized bulk edits. Keep a checkpoint before bulk replacement.

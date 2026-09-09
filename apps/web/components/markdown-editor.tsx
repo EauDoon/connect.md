@@ -14,6 +14,7 @@ import { PublishPanel } from "@/components/publish-panel";
 import { ValidationPanel } from "@/components/validation-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SourceSearch } from "@/components/source-search";
 import { DocumentOutline } from "@/components/document-outline";
 import { isEmptyDraft, starterFor } from "@/lib/markdown";
 import { validateDraft } from "@/lib/validation";
@@ -32,15 +33,17 @@ export function MarkdownEditor() {
   const [plainEditor, setPlainEditor] = useState(false);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const [selectionOffset, setSelectionOffset] = useState<number | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   useEffect(() => {
     if (!plainEditor || selectionOffset === null || !sourceRef.current) return;
     const source = sourceRef.current;
     const lineEnd = markdown.indexOf("\n", selectionOffset);
     source.focus();
-    source.setSelectionRange(selectionOffset, lineEnd < 0 ? markdown.length : lineEnd);
+    source.setSelectionRange(selectionOffset, selectionEnd ?? (lineEnd < 0 ? markdown.length : lineEnd));
     source.scrollTop = Math.max(0, (markdown.slice(0, selectionOffset).split("\n").length - 3) * 22);
     setSelectionOffset(null);
-  }, [plainEditor, selectionOffset, markdown]);
+    setSelectionEnd(null);
+  }, [plainEditor, selectionOffset, selectionEnd, markdown]);
 
   function resetToStarter() {
     const confirmed = window.confirm("Replace the current local draft with the starter template? Session recovery keeps one previous draft up to 128 KiB for undo.");
@@ -63,6 +66,7 @@ export function MarkdownEditor() {
         <ModeSwitch mode="md" />
         <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.16fr)_minmax(320px,.84fr)] lg:p-6">
           <section aria-labelledby="editor-title" className="min-w-0">
+            <SourceSearch markdown={markdown} onChange={setMarkdown} onSelect={(start, end) => { setPlainEditor(true); setSelectionOffset(start); setSelectionEnd(end); }} />
             <DocumentOutline markdown={markdown} onSelect={(offset) => { setPlainEditor(true); setSelectionOffset(offset); }} />
             <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
               <h2 id="editor-title" className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white"><Code2 className="size-4 shrink-0 text-acid" aria-hidden /> Canonical Markdown</h2>
