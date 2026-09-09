@@ -27,7 +27,7 @@ test("print preview contains sanitized body and restores editor focus", async ({
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Your Name");
   await expect(dialog).not.toContainText("schema_version");
-  await page.screenshot({ path: test.info().outputPath("print-preview.png"), fullPage: true });
+  await dialog.screenshot({ path: test.info().outputPath("print-preview.png") });
   await page.emulateMedia({ media: "print" });
   await expect(page.getByRole("navigation", { name: "Primary navigation", exact: true })).not.toBeVisible();
   await expect(dialog.locator(".markdown-prose")).toBeVisible();
@@ -145,5 +145,6 @@ test("expanded drafting tools reflow at 320 pixels and pass serious accessibilit
     return result.violations.filter(({ impact }) => impact === "serious" || impact === "critical");
   });
   expect(violations).toEqual([]);
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0, 0); });
   await page.screenshot({ path: test.info().outputPath("drafting-tools-mobile.png"), fullPage: true });
 });
