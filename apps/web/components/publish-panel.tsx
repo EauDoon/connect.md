@@ -7,6 +7,7 @@ import { useDraft, type LocalDownloadReceipt } from "@/components/draft-provider
 import { Button } from "@/components/ui/button";
 import { CopyMarkdown } from "@/components/copy-markdown";
 import { PrivacyReview } from "@/components/privacy-review";
+import { WritingReview } from "@/components/writing-review";
 import { documentIdentifier, type DocumentKind } from "@/lib/markdown";
 import { hasValidationErrors, type ValidationIssue } from "@/lib/validation";
 
@@ -78,6 +79,7 @@ export function PublishPanel({ issues }: { issues: ValidationIssue[] }) {
           <p className="mt-3 text-xs leading-5 text-mist/75">The frontmatter visibility field is metadata only in this standalone site.</p>
           <CopyMarkdown />
           <PrivacyReview />
+          <WritingReview />
         </div>
       </div>
     </section>
