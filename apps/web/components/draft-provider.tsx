@@ -7,7 +7,7 @@ import { PROFILE_RESUME_MAX_UTF8_BYTES, documentIdentifier, profileStarter, type
 import { type DocumentResponse } from "@/lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject } from "@/lib/draft-security";
 import { type HumanJourneyStage } from "@/lib/human-journey";
-import { createCheckpoint, type DraftCheckpoint } from "@/lib/draft-checkpoints";
+import { renameCheckpoint as renameCheckpointEntry, createCheckpoint, type DraftCheckpoint } from "@/lib/draft-checkpoints";
 import { type RecoveryBundle } from "@/lib/session-recovery";
 
 type DraftState = {
@@ -17,6 +17,7 @@ type DraftState = {
   restoreRecovery: (bundle: RecoveryBundle) => void;
   checkpoints: DraftCheckpoint[];
   saveCheckpoint: (label: string) => void;
+  renameCheckpoint: (id: number, label: string) => void;
   restoreCheckpoint: (id: number) => void;
   removeCheckpoint: (id: number) => void;
   kind: DocumentKind;
@@ -251,6 +252,12 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     checkpointsRef.current = [...checkpointsRef.current, checkpoint];
     setCheckpoints(checkpointsRef.current);
   }, []);
+  const renameCheckpoint = useCallback((id: number, label: string) => {
+    if (maskDraftRef.current) throw new Error("The current draft is unavailable.");
+    const renamed = renameCheckpointEntry(checkpointsRef.current, id, label);
+    checkpointsRef.current = renamed;
+    setCheckpoints(renamed);
+  }, []);
   const restoreCheckpoint = useCallback((id: number) => {
     if (maskDraftRef.current) return;
     const checkpoint = checkpointsRef.current.find((entry) => entry.id === id);
@@ -275,6 +282,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     restoreRecovery,
     checkpoints: maskDraft ? [] : checkpoints,
     saveCheckpoint,
+    renameCheckpoint,
     restoreCheckpoint,
     removeCheckpoint,
     kind: maskDraft ? "profile" as const : kind,
@@ -296,7 +304,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [previousDraft, undoReplacement, discardUndo, restoreRecovery, checkpoints, saveCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
+  }), [previousDraft, undoReplacement, discardUndo, restoreRecovery, checkpoints, saveCheckpoint, renameCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }

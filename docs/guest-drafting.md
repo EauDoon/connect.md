@@ -11,3 +11,7 @@ To reopen it, choose the recovery JSON file, inspect its document type and check
 ## Undo a replacement
 
 After importing, resetting, changing document kind, or restoring a checkpoint, **Session recovery** offers one previous draft for undo, limited to 128 KiB. Undo replaces subsequent edits after confirmation, restores source and kind only, and detaches any saved-server association. Checkpoints remain unchanged. This previous source disappears on reload or account-boundary reset. Forget it deliberately when no longer needed; the browser keeps warning about this in-memory copy until then.
+
+## Checkpoint names
+
+Use **Rename** beside a checkpoint to update its name while retaining its exact source, type, order, and comparison selection. Names must remain distinct (case-insensitively), with 1 to 60 characters. Cancellation and validation errors preserve the old name.

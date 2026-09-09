@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { compareDrafts } from "@/lib/draft-comparison";
 
 export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => void }) {
-  const { checkpoints, saveCheckpoint, restoreCheckpoint, removeCheckpoint, masked, markdown, kind } = useDraft();
+  const { checkpoints, saveCheckpoint, renameCheckpoint, restoreCheckpoint, removeCheckpoint, masked, markdown, kind } = useDraft();
   const [comparisonId, setComparisonId] = useState<number | null>(null);
   const selected = checkpoints.find((entry) => entry.id === comparisonId);
   const comparison = selected ? compareDrafts(selected.markdown, markdown) : null;
+  const [renaming, setRenaming] = useState<number | null>(null);
+  const [newLabel, setNewLabel] = useState("");
   const [label, setLabel] = useState("");
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
@@ -36,6 +38,7 @@ export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => vo
     <ul className="mt-3 space-y-2">
       {checkpoints.map((checkpoint) => <li key={checkpoint.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 p-3">
         <span className="min-w-0 flex-1 break-words text-sm text-white">{checkpoint.label} <span className="text-xs text-mist">({checkpoint.kind})</span></span>
+        <Button id={`rename-checkpoint-${checkpoint.id}`} variant="ghost" disabled={masked} aria-label={`Rename ${checkpoint.label}`} onClick={() => { setRenaming(checkpoint.id); setNewLabel(checkpoint.label); }}>Rename</Button>
         <Button variant="ghost" disabled={masked} onClick={() => { onBeforeAction?.(); setComparisonId(checkpoint.id); }} aria-label={`Compare ${checkpoint.label}`}>Compare</Button>
         <Button variant="secondary" disabled={masked} onClick={() => {
           onBeforeAction?.();
@@ -50,6 +53,17 @@ export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => vo
           setFailed(false);
           setMessage(`Removed ${checkpoint.label}. The current draft was kept.`);
         }} aria-label={`Remove ${checkpoint.label}`}>Remove</Button>
+        {renaming === checkpoint.id && <form className="flex w-full flex-wrap items-end gap-3" onSubmit={(event) => {
+          event.preventDefault();
+          try {
+            renameCheckpoint(checkpoint.id, newLabel); setFailed(false); setMessage("Checkpoint renamed. Its source was kept.");
+            setRenaming(null); requestAnimationFrame(() => document.getElementById(`rename-checkpoint-${checkpoint.id}`)?.focus());
+          } catch (error) { setFailed(true); setMessage(error instanceof Error ? error.message : "Could not rename checkpoint."); }
+        }}>
+          <label className="min-w-0 text-xs text-mist">New checkpoint name<input className="mt-1 block w-full rounded-lg border border-white/20 bg-black/20 p-2 text-sm text-white" value={newLabel} onChange={(event) => setNewLabel(event.target.value)} maxLength={60} required /></label>
+          <Button type="submit" variant="secondary">Save checkpoint name</Button>
+          <Button variant="ghost" onClick={() => { setRenaming(null); requestAnimationFrame(() => document.getElementById(`rename-checkpoint-${checkpoint.id}`)?.focus()); }}>Cancel rename</Button>
+        </form>}
       </li>)}
     </ul>
     {selected && comparison && <section aria-label="Checkpoint comparison" className="mt-4 min-w-0 rounded-xl border border-white/10 p-3 text-xs leading-5 text-mist">
