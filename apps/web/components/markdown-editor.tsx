@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { loader } from "@monaco-editor/react";
 import { Code2, Eye, FileWarning, RotateCcw, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { AsyncBoundaryMessage } from "@/components/async-boundary-message";
 import { useDraft } from "@/components/draft-provider";
@@ -28,6 +28,7 @@ export function MarkdownEditor() {
   const { kind, markdown, replaceMarkdown, setMarkdown } = useDraft();
   const issues = useMemo(() => validateDraft(markdown, kind), [kind, markdown]);
   const emptyDraft = isEmptyDraft(markdown);
+  const [plainEditor, setPlainEditor] = useState(false);
 
   function resetToStarter() {
     const confirmed = window.confirm("Replace the current local draft with the starter template? This cannot be undone in this browser session.");
@@ -54,8 +55,14 @@ export function MarkdownEditor() {
               <h2 id="editor-title" className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white"><Code2 className="size-4 shrink-0 text-acid" aria-hidden /> Canonical Markdown</h2>
               <span className="min-w-0 break-words text-xs text-mist">UTF-8 · LF normalized</span>
             </div>
+            <fieldset className="mb-3 flex flex-wrap gap-4 text-xs text-mist">
+              <legend className="mb-2 font-semibold text-white">Editor interface</legend>
+              <label className="inline-flex min-h-8 items-center gap-2"><input type="radio" name="editor-interface" checked={!plainEditor} onChange={() => setPlainEditor(false)} />Code editor</label>
+              <label className="inline-flex min-h-8 items-center gap-2"><input type="radio" name="editor-interface" checked={plainEditor} onChange={() => setPlainEditor(true)} />Plain-text editor</label>
+            </fieldset>
+            <p id="editor-interface-help" className="mb-3 text-xs leading-5 text-mist">Both interfaces edit the same draft. Plain text works with standard browser controls and is available while the code editor loads.</p>
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0c0e12]">
-              <MonacoEditor
+              {plainEditor ? <textarea aria-label="Canonical Markdown source" aria-describedby="editor-interface-help" value={markdown} onChange={(event) => setMarkdown(event.target.value)} spellCheck={false} autoCapitalize="off" autoCorrect="off" className="block h-[540px] w-full resize-y bg-transparent p-4 font-mono text-sm leading-[22px] text-white outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-acid" /> : <MonacoEditor
                 height="540px"
                 language="markdown"
                 theme="vs-dark"
@@ -71,7 +78,7 @@ export function MarkdownEditor() {
                   accessibilitySupport: "on",
                   tabSize: 2
                 }}
-              />
+              />}
             </div>
             <div className="mt-4 flex gap-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-mist"><FileWarning className="mt-0.5 size-4 shrink-0 text-acid" aria-hidden /> {emptyDraft ? "This buffer is empty, so download is blocked. Paste a complete Markdown file that starts with YAML frontmatter, or use Reset starter." : "The draft lives only in this browser session until you download it. A full reload or closed tab can discard it."}</div>
           </section>
