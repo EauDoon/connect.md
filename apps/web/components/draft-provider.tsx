@@ -8,8 +8,10 @@ import { type DocumentResponse } from "@/lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject } from "@/lib/draft-security";
 import { type HumanJourneyStage } from "@/lib/human-journey";
 import { createCheckpoint, type DraftCheckpoint } from "@/lib/draft-checkpoints";
+import { type RecoveryBundle } from "@/lib/session-recovery";
 
 type DraftState = {
+  restoreRecovery: (bundle: RecoveryBundle) => void;
   checkpoints: DraftCheckpoint[];
   saveCheckpoint: (label: string) => void;
   restoreCheckpoint: (id: number) => void;
@@ -232,7 +234,15 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     checkpointsRef.current = checkpointsRef.current.filter((entry) => entry.id !== id);
     setCheckpoints(checkpointsRef.current);
   }, []);
+  const restoreRecovery = useCallback((bundle: RecoveryBundle) => {
+    if (maskDraftRef.current) return;
+    const restored = bundle.checkpoints.map((entry) => ({ ...entry, id: ++checkpointIdRef.current }));
+    replaceDraft(bundle.draft.kind, bundle.draft.markdown);
+    checkpointsRef.current = restored;
+    setCheckpoints(restored);
+  }, [replaceDraft]);
   const value = useMemo(() => ({
+    restoreRecovery,
     checkpoints: maskDraft ? [] : checkpoints,
     saveCheckpoint,
     restoreCheckpoint,
@@ -256,7 +266,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [checkpoints, saveCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
+  }), [restoreRecovery, checkpoints, saveCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }
