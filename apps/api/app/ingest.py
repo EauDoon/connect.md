@@ -318,6 +318,7 @@ def _convert_binary(
     suffix: str,
     *,
     failure_reporter: Callable[[str, BaseException], None] | None = None,
+    max_extracted_bytes: int = 8 * 1024 * 1024,
 ) -> tuple[str, str, list[str]]:
     """Use only server-created local files; never pass a user path/URL to converters."""
     warnings: list[str] = []
@@ -331,28 +332,29 @@ def _convert_binary(
             text = getattr(converted, "text_content", "")
             if isinstance(text, str) and text.strip():
                 return text, "markitdown-local", warnings
-            warnings.append("MarkItDown returned no text; tried layout-aware fallback.")
+            warnings.append("MarkItDown returned no text; tried local fallback.")
         except Exception as exc:  # Converter errors are surfaced as non-sensitive draft warnings.
             if failure_reporter is not None:
                 failure_reporter("markitdown", exc)
             warnings.append(f"MarkItDown conversion was unavailable: {type(exc).__name__}.")
         try:
-            from unstructured.partition.auto import partition
-
             if suffix == ".pdf":
-                # MarkItDown already handled text PDFs. The fallback is therefore
-                # explicitly local OCR and never downloads a layout model.
-                elements = partition(filename=str(local_path), strategy="ocr_only")
+                from app.pdf_ocr import extract_pdf_ocr
+
+                text = extract_pdf_ocr(local_path, max_extracted_bytes)
+                converter = "tesseract-local"
             else:
-                elements = partition(filename=str(local_path))
-            text = "\n".join(str(element) for element in elements).strip()
+                from app.docx_text import extract_docx_text
+
+                text = extract_docx_text(local_path, max_extracted_bytes)
+                converter = "python-docx-local"
             if text:
-                return text, "unstructured-local", warnings
-            warnings.append("Layout-aware conversion returned no text.")
+                return text, converter, warnings
+            warnings.append("Local fallback conversion returned no text.")
         except Exception as exc:
             if failure_reporter is not None:
-                failure_reporter("unstructured", exc)
-            warnings.append(f"Layout-aware conversion was unavailable: {type(exc).__name__}.")
+                failure_reporter("pdf-ocr" if suffix == ".pdf" else "python-docx", exc)
+            warnings.append(f"Local fallback conversion was unavailable: {type(exc).__name__}.")
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail={
