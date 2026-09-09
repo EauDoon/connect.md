@@ -104,7 +104,7 @@ def test_converter_failure_traceback_is_worker_only_and_redacted(
     output_path = tmp_path / "result.json"
     input_path.write_bytes(b"%PDF-test")
 
-    def fail_conversion(_contents, _suffix, *, failure_reporter):
+    def fail_conversion(_contents, _suffix, *, failure_reporter, max_extracted_bytes):
         try:
             raise RuntimeError(private_detail)
         except RuntimeError as exc:

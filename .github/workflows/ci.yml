@@ -65,6 +65,15 @@ jobs:
         run: pytest -q -m "not integration" tests
       - name: pip-audit on production lockfile
         run: python -m pip_audit -r requirements.lock
+      - name: Build pinned API image and verify offline native ingestion
+        working-directory: .
+        timeout-minutes: 15
+        run: |
+          docker build --file apps/api/Dockerfile --tag connectmd-api-native:ci .
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=128m \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/tools/check_native_ingest.py,target=/checks/check_native_ingest.py,readonly" \
+            connectmd-api-native:ci python /checks/check_native_ingest.py
 
   frontend:
     name: Frontend checks

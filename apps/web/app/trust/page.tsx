@@ -20,12 +20,13 @@ const localData = [
   "Any .md file you explicitly open; the browser reads it directly into memory.",
   "The preview generated from your current Markdown buffer.",
   "The filename and file contents created when you choose Download.",
+  "Up to five named checkpoints kept in memory until the tab reloads or closes.",
 ] as const;
 
 const publicData = [
   "The site interface, styles, JavaScript, and self-hosted editor assets.",
   "The public agent drafting runbook and concise llms.txt site map.",
-  "No personal profile, resume, account, message, or uploaded source data.",
+  "The guest builder never adds your current draft to a public directory.",
 ] as const;
 
 export default function TrustPage() {
@@ -38,7 +39,7 @@ export default function TrustPage() {
             Your draft stays in your browser.
           </h1>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-mist">
-            This Vercel deployment is a standalone drafting site. It has no account, publishing API, database, file-upload service, messaging system, or analytics code.
+            This page describes the guest drafting workflow at /human and /md. That workflow has no account, publishing API, database, file-upload service, messaging system, or analytics code. Optional network routes are separate and depend on deployment configuration; these guest guarantees do not describe an account or profile deliberately submitted to those services.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/human" className="inline-flex min-h-11 items-center rounded-full bg-acid px-5 text-sm font-bold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid">
@@ -61,7 +62,8 @@ export default function TrustPage() {
           <ShieldCheck className="size-6 text-acid" aria-hidden />
           <h2 className="mt-5 text-2xl font-semibold text-white">No hidden persistence</h2>
           <p className="mt-3 text-sm leading-7 text-mist">
-            The draft provider uses in-memory React state. Opening a local .md file reads it directly in the browser. The site does not write your content to localStorage, sessionStorage, IndexedDB, cookies, a server action, or an API route.
+            The guest draft provider uses in-memory React state. Opening a local .md file reads it directly in the browser. The guest builder does not write your content to localStorage, sessionStorage, IndexedDB, cookies, a server action, or an API route.
+            {" "}Choosing Copy Markdown writes the draft to your system clipboard. Other applications or clipboard synchronization may access it according to your device settings.
           </p>
         </article>
 
@@ -77,7 +79,7 @@ export default function TrustPage() {
           <RefreshCcw className="size-6 text-acid" aria-hidden />
           <h2 className="mt-5 text-2xl font-semibold text-white">Save before leaving</h2>
           <p className="mt-3 text-sm leading-7 text-mist">
-            Moving between the guided and Markdown views keeps the current buffer. A full reload, browser crash, or closed tab can erase it, so download the file before leaving.
+            Moving between the guided and Markdown views keeps the current buffer and session checkpoints. A full reload, browser crash, or closed tab can erase all of them, so download the source file before leaving. A clipboard copy, printout, or review report is not an editable Markdown backup.
           </p>
         </article>
       </section>

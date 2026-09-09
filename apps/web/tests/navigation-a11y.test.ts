@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { bindEscapeToCloseMobileNavigation, closeMobileNavigationAndRestoreFocus } from "../lib/mobile-navigation";
 
-vi.mock("@/components/draft-provider", () => ({ useDraft: () => ({ markdown: "# Draft" }) }));
+vi.mock("@/components/draft-provider", () => ({ useDraft: () => ({ markdown: "# Draft", checkpoints: [] }) }));
 
 describe("navigation accessibility", () => {
   it("prevents explicit application touch targets from shrinking below 44 pixels", () => {

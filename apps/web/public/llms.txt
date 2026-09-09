@@ -7,4 +7,6 @@
 - Agent drafting runbook: /agent-readme.md
 - Privacy and data boundary: /trust
 
-Existing `.md` files can be opened locally in either editor. Drafts remain in the current browser session and are downloaded locally. The site has no publishing API, account, database, messaging system, or agent credential.
+Existing `.md` files can be opened or pasted locally in either editor. Drafts and up to five named checkpoints remain in the current browser session and are downloaded locally. The guest drafting workflow has no publishing API, account, database, messaging system, or agent credential. Optional network routes are separate and require deployment configuration.
+
+Local tools include checkpoint comparison, a plain-text editor, a source outline, advisory writing/sharing checks, sanitized printing, and exact-source review reports. Copy Markdown explicitly writes to the system clipboard. None of those actions replaces downloading the editable source file.
