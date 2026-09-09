@@ -21,3 +21,7 @@ Use **Download source** beside a checkpoint to keep its exact captured Markdown 
 ## Find and replace
 
 Markdown Mode offers case-sensitive literal search across the whole source, including frontmatter. Previous/Next select exact text in the plain editor. Replace one match or confirm replacement of all matches. A 128 KiB source limit, 256-character query limit, 1,000-match cap, and precomputed output-size bound prevent partial or oversized bulk edits. Keep a checkpoint before bulk replacement.
+
+## Name an export
+
+The download gate accepts an optional local filename and shows the sanitized `.md` name before downloading. This never changes frontmatter identifiers. Names use portable lowercase ASCII characters, with an 80-character stem and protection against reserved Windows device names. A failed browser download request leaves the source and the prior download receipt intact, with copy/recovery alternatives.

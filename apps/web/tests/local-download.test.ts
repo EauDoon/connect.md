@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { downloadMarkdown, localDownloadFreshness, markdownDownloadName } from "../components/publish-panel";
+import { downloadMarkdown, localDownloadFreshness, markdownDownloadName, preferredMarkdownName } from "../components/publish-panel";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -21,6 +21,21 @@ describe("local Markdown download", () => {
     expect(markdownDownloadName("profile", " Ada / Lovelace ")).toBe("ada-lovelace.md");
     expect(markdownDownloadName("resume", "../../")).toBe("connectmd-resume.md");
     expect(markdownDownloadName("profile", "ari--chen")).toBe("ari--chen.md");
+  });
+  it("lets authors name a local export without changing the document identity", () => {
+    expect(preferredMarkdownName("profile", "original-id", " Revision Two.md ")).toBe("revision-two.md");
+    expect(preferredMarkdownName("profile", "original-id", "")).toBe("original-id.md");
+    expect(preferredMarkdownName("resume", "original-id", "../../CON.md")).toBe("connectmd-con.md");
+    expect(preferredMarkdownName("profile", "original-id", "a".repeat(500))).toHaveLength(83);
+  });
+  it("cleans up a failed download without pretending the browser saved it", () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:failed");
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const anchor = { style: {}, click: () => { throw new Error("blocked"); }, remove: vi.fn() };
+    vi.stubGlobal("document", { body: { append: vi.fn() }, createElement: () => anchor });
+    expect(() => downloadMarkdown("# Kept\n", "kept.md")).toThrow("blocked");
+    expect(anchor.remove).toHaveBeenCalledOnce();
+    expect(revoke).toHaveBeenCalledWith("blob:failed");
   });
 
   it("clicks one local download and always releases the temporary URL", () => {
