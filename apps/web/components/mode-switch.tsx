@@ -8,6 +8,7 @@ import React from "react";
 import { useDraft } from "@/components/draft-provider";
 import { LocalMarkdownFileOpen } from "@/components/local-markdown-file-open";
 import { DraftCheckpoints } from "@/components/draft-checkpoints";
+import { PasteMarkdown } from "@/components/paste-markdown";
 import { cn } from "@/lib/utils";
 
 const editingModes = [
@@ -41,6 +42,7 @@ export function ModeSwitch({ mode, onBeforeNavigate }: { mode: "human" | "md"; o
       </div>
     </div>
     <DraftCheckpoints onBeforeAction={onBeforeNavigate} />
+    <PasteMarkdown onBeforeAction={onBeforeNavigate} />
     </>
   );
 }

@@ -34,6 +34,9 @@ export function decodeLocalMarkdownFile(buffer: ArrayBuffer) {
 }
 
 export function parseLocalMarkdownDraft(source: string): LocalMarkdownDraft {
+  const sizeIssue = localMarkdownFileSizeIssue(new TextEncoder().encode(source).length);
+  if (sizeIssue) throw new Error(sizeIssue);
+  if (source.includes("\0")) throw new Error("The draft contains a NUL character. Paste or open a plain-text Markdown document.");
   const parseIssue = frontmatterParseIssue(source);
   if (parseIssue) throw new Error(parseIssue);
 
