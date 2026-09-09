@@ -43,7 +43,7 @@ export function MarkdownEditor() {
   }, [plainEditor, selectionOffset, markdown]);
 
   function resetToStarter() {
-    const confirmed = window.confirm("Replace the current local draft with the starter template? This cannot be undone in this browser session.");
+    const confirmed = window.confirm("Replace the current local draft with the starter template? Session recovery keeps one previous draft up to 128 KiB for undo.");
     if (confirmed) replaceMarkdown(starterFor(kind));
   }
 

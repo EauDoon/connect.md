@@ -3,7 +3,7 @@
 import React, { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useConnectmdAuth } from "@/components/auth-provider";
-import { documentIdentifier, profileStarter, type DocumentKind, type HumanFields, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
+import { PROFILE_RESUME_MAX_UTF8_BYTES, documentIdentifier, profileStarter, type DocumentKind, type HumanFields, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
 import { type DocumentResponse } from "@/lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject } from "@/lib/draft-security";
 import { type HumanJourneyStage } from "@/lib/human-journey";
@@ -11,6 +11,9 @@ import { createCheckpoint, type DraftCheckpoint } from "@/lib/draft-checkpoints"
 import { type RecoveryBundle } from "@/lib/session-recovery";
 
 type DraftState = {
+  previousDraft: { kind: DocumentKind; markdown: string } | null;
+  undoReplacement: () => void;
+  discardUndo: () => void;
   restoreRecovery: (bundle: RecoveryBundle) => void;
   checkpoints: DraftCheckpoint[];
   saveCheckpoint: (label: string) => void;
@@ -60,6 +63,8 @@ export function draftAuthBoundaryKey(configured: boolean, isLoaded: boolean, sub
 
 export function DraftProvider({ children }: { children: ReactNode }) {
   const { configured, isLoaded, subject } = useConnectmdAuth();
+  const [previousDraft, setPreviousDraft] = useState<{ kind: DocumentKind; markdown: string } | null>(null);
+  const previousDraftRef = useRef(previousDraft);
   const [kind, updateKind] = useState<DocumentKind>("profile");
   const [markdown, updateMarkdown] = useState(profileStarter);
   const [savedDocument, setSavedDocument] = useState<DocumentResponse | null>(null);
@@ -82,7 +87,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const maskDraft = draftOwner !== null && authBoundary !== draftOwner;
   const maskDraftRef = useRef(maskDraft);
   maskDraftRef.current = maskDraft;
-  const unsavedDraft = !maskDraft && (checkpoints.length > 0 || (markdown !== (savedDocument?.markdown ?? starterFor(kind))
+  const unsavedDraft = !maskDraft && (previousDraft !== null || checkpoints.length > 0 || (markdown !== (savedDocument?.markdown ?? starterFor(kind))
     && (localDownloadReceipt?.kind !== kind || localDownloadReceipt.markdown !== markdown)));
 
   useEffect(() => {
@@ -102,6 +107,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (!requiresDraftReset(draftOwner, resolvedSubject)) return;
+    previousDraftRef.current = null;
+    setPreviousDraft(null);
     checkpointsRef.current = [];
     setCheckpoints([]);
     updateKind("profile");
@@ -120,6 +127,17 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setDraftOwner(resolvedSubject);
   }, [draftOwner, resolvedSubject]);
 
+  const rememberReplacement = useCallback(() => {
+    const previous = new TextEncoder().encode(markdownRef.current).length <= PROFILE_RESUME_MAX_UTF8_BYTES
+      ? { kind: kindRef.current, markdown: markdownRef.current } : null;
+    previousDraftRef.current = previous;
+    setPreviousDraft(previous);
+  }, []);
+  const discardUndo = useCallback(() => {
+    if (maskDraftRef.current) return;
+    previousDraftRef.current = null;
+    setPreviousDraft(null);
+  }, []);
   const setMarkdown = useCallback((next: string) => {
     if (!maskDraftRef.current) {
       const canonical = normaliseMarkdown(next);
@@ -131,6 +149,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   }, []);
   const replaceMarkdown = useCallback((next: string) => {
     if (maskDraftRef.current) return;
+    rememberReplacement();
     const canonical = normaliseMarkdown(next);
     markdownRef.current = canonical;
     savedDocumentRef.current = null;
@@ -141,9 +160,10 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     updateMarkdown(canonical);
     setSavedDocument(null);
     setRevision((current) => current + 1);
-  }, []);
+  }, [rememberReplacement]);
   const replaceDraft = useCallback((nextKind: DocumentKind, nextMarkdown: string) => {
     if (maskDraftRef.current) return;
+    rememberReplacement();
     const canonical = normaliseMarkdown(nextMarkdown);
     kindRef.current = nextKind;
     markdownRef.current = canonical;
@@ -156,9 +176,16 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     updateMarkdown(canonical);
     setSavedDocument(null);
     setRevision((current) => current + 1);
-  }, []);
+  }, [rememberReplacement]);
+  const undoReplacement = useCallback(() => {
+    if (maskDraftRef.current || !previousDraftRef.current) return;
+    const previous = previousDraftRef.current;
+    replaceDraft(previous.kind, previous.markdown);
+    discardUndo();
+  }, [discardUndo, replaceDraft]);
   const setKind = useCallback((nextKind: DocumentKind) => {
     if (maskDraftRef.current || nextKind === kindRef.current) return;
+    rememberReplacement();
     const converted = switchDocumentKind(markdownRef.current, nextKind);
     kindRef.current = nextKind;
     markdownRef.current = converted;
@@ -171,7 +198,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setSavedDocument(null);
     updateKind(nextKind);
     setRevision((current) => current + 1);
-  }, []);
+  }, [rememberReplacement]);
   const setHumanStage = useCallback((stage: HumanJourneyStage) => {
     if (!maskDraftRef.current) updateHumanStage(stage);
   }, []);
@@ -242,6 +269,9 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setCheckpoints(restored);
   }, [replaceDraft]);
   const value = useMemo(() => ({
+    previousDraft: maskDraft ? null : previousDraft,
+    undoReplacement,
+    discardUndo,
     restoreRecovery,
     checkpoints: maskDraft ? [] : checkpoints,
     saveCheckpoint,
@@ -266,7 +296,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [restoreRecovery, checkpoints, saveCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
+  }), [previousDraft, undoReplacement, discardUndo, restoreRecovery, checkpoints, saveCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }

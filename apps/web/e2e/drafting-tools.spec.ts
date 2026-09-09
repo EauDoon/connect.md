@@ -63,6 +63,9 @@ test("checkpoints compare, survive mode navigation, restore, and require deliber
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Remove Before editing", exact: true }).click();
   await expect(page.getByText("Session checkpoints (0/5)", { exact: true })).toBeVisible();
+  await page.getByText("Session recovery", { exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Forget previous draft", exact: true }).click();
   expect(await page.evaluate(() => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(false);
 });
 

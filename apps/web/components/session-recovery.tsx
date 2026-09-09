@@ -7,7 +7,7 @@ import { downloadMarkdown } from "@/components/publish-panel";
 import { encodeRecoveryBundle, parseRecoveryBundle, RECOVERY_MAX_BYTES, type RecoveryBundle } from "@/lib/session-recovery";
 
 export function SessionRecovery({ onBeforeAction }: { onBeforeAction?: () => void }) {
-  const { checkpoints, getDraftSnapshot, restoreRecovery, masked } = useDraft();
+  const { checkpoints, getDraftSnapshot, restoreRecovery, previousDraft, undoReplacement, discardUndo, masked } = useDraft();
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
   const [pending, setPending] = useState<{ bundle: RecoveryBundle; revision: number; lineage: number } | null>(null);
@@ -15,6 +15,19 @@ export function SessionRecovery({ onBeforeAction }: { onBeforeAction?: () => voi
   return <details className="border-b border-white/10 px-4 py-4 sm:px-6">
     <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-white">Session recovery</summary>
     <p className="mt-2 text-xs leading-5 text-mist">Keep a local recovery file with the current draft and named checkpoints, including unfinished or invalid Markdown. It contains document text: store it privately. Nothing is saved automatically or uploaded.</p>
+    {previousDraft && <div className="mt-3 text-xs leading-5 text-mist">
+      <p>The source from before the latest replacement is still in memory. Undo restores that source only, not a previous checkpoint collection or server association.</p>
+      <div className="mt-2 flex flex-wrap gap-3">
+        <Button variant="secondary" onClick={() => {
+          onBeforeAction?.();
+          if (!window.confirm("Undo the latest draft replacement? Edits made since that replacement will be replaced too.")) return;
+          undoReplacement(); setFailed(false); setMessage("Previous draft restored. Checkpoints were kept.");
+        }}>Undo draft replacement</Button>
+        <Button variant="ghost" onClick={() => {
+          if (window.confirm("Forget the previous draft source? The current draft and checkpoints will stay.")) discardUndo();
+        }}>Forget previous draft</Button>
+      </div>
+    </div>}
     <Button className="mt-3" variant="secondary" disabled={masked} onClick={() => {
       onBeforeAction?.();
       try {

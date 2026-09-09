@@ -145,9 +145,11 @@ describe("dual-mode canonical draft continuity", () => {
     let recordLocalDownload: (filename: string) => void = () => undefined;
     let saveCheckpoint: (label: string) => void = () => undefined;
     let checkpointLabels: string[] = [];
+    let currentDraft: ReturnType<typeof useDraft>;
 
     function HumanSurface() {
       const draft = useDraft();
+      currentDraft = draft;
       const [instance] = useState(() => ++mountSequence);
       const [adjacent, updateAdjacent] = useState("clean");
       observed = { surface: "human", instance, adjacent, markdown: draft.markdown, masked: draft.masked, stage: draft.humanStage, downloadFilename: draft.localDownloadReceipt?.filename ?? "" };
@@ -171,6 +173,14 @@ describe("dual-mode canonical draft continuity", () => {
 
     try {
       await act(async () => { root.render(renderSurface("human")); });
+      await act(async () => { currentDraft.setMarkdown("# Before replacement"); });
+      await act(async () => { currentDraft.replaceDraft("resume", "# Imported"); });
+      expect(currentDraft!.previousDraft?.markdown).toBe("# Before replacement\n");
+      await act(async () => { currentDraft.undoReplacement(); });
+      expect(currentDraft!.markdown).toBe("# Before replacement\n");
+      expect(currentDraft!.kind).toBe("profile");
+      expect(currentDraft!.previousDraft).toBeNull();
+      await act(async () => { currentDraft.replaceMarkdown("# Reset"); });
       await act(async () => {
         setMarkdown("# Alpha private Markdown");
         setHumanStage("review");
@@ -193,6 +203,7 @@ describe("dual-mode canonical draft continuity", () => {
       expect(observed).toMatchObject({ adjacent: "clean", masked: true, stage: "foundation", downloadFilename: "" });
       expect(observed.markdown).not.toContain("Alpha private");
       expect(checkpointLabels).toEqual([]);
+      expect(currentDraft!.previousDraft).toBeNull();
       expect(observed.adjacent).not.toContain("alpha-owned");
 
       const loadingInstance = observed.instance;
