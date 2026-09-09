@@ -39,6 +39,30 @@ def _blocks(container: BlockItemContainer | DocxDocument, maximum: int) -> Itera
             yield block.text
 
 
+def _header_footer_blocks(document: DocxDocument, maximum: int, *, footers: bool) -> Iterator[str]:
+    effective: dict[int, BlockItemContainer] = {}
+    seen: set[object] = set()
+    for section in document.sections:
+        variants = (
+            (section.footer, section.first_page_footer, section.even_page_footer)
+            if footers
+            else (section.header, section.first_page_header, section.even_page_header)
+        )
+        enabled = (
+            True,
+            section.different_first_page_header_footer,
+            document.settings.odd_and_even_pages_header_footer,
+        )
+        for index, (variant, active) in enumerate(zip(variants, enabled, strict=True)):
+            # Inactive definitions can still be inherited by a later active section.
+            if not variant.is_linked_to_previous:
+                effective[index] = variant
+            definition = effective.get(index)
+            if active and definition is not None and definition.part not in seen:
+                seen.add(definition.part)
+                yield from _blocks(definition, maximum)
+
+
 def extract_docx_text(source: Path, maximum: int) -> str:
     document = Document(str(source))
     parts: list[str] = []
@@ -53,16 +77,10 @@ def extract_docx_text(source: Path, maximum: int) -> str:
                 raise ValueError("DOCX text exceeds the extracted-text limit")
             parts.append(text)
 
-    for section in document.sections:
-        for header in (section.header, section.first_page_header, section.even_page_header):
-            if not header.is_linked_to_previous:
-                for text in _blocks(header, maximum):
-                    add(text)
+    for text in _header_footer_blocks(document, maximum, footers=False):
+        add(text)
     for text in _blocks(document, maximum):
         add(text)
-    for section in document.sections:
-        for footer in (section.footer, section.first_page_footer, section.even_page_footer):
-            if not footer.is_linked_to_previous:
-                for text in _blocks(footer, maximum):
-                    add(text)
+    for text in _header_footer_blocks(document, maximum, footers=True):
+        add(text)
     return "\n".join(parts)
