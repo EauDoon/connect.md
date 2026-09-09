@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CopyMarkdown } from "@/components/copy-markdown";
 import { PrivacyReview } from "@/components/privacy-review";
 import { WritingReview } from "@/components/writing-review";
+import { PrintDocument } from "@/components/print-document";
 import { documentIdentifier, type DocumentKind } from "@/lib/markdown";
 import { hasValidationErrors, type ValidationIssue } from "@/lib/validation";
 
@@ -80,6 +81,7 @@ export function PublishPanel({ issues }: { issues: ValidationIssue[] }) {
           <CopyMarkdown />
           <PrivacyReview />
           <WritingReview />
+          <PrintDocument disabled={blocked} />
         </div>
       </div>
     </section>

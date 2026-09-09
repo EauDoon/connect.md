@@ -98,3 +98,15 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+@media print {
+  body:has(> .draft-print-dialog[open]) { background: white; color: black; }
+  body:has(> .draft-print-dialog[open]) > :not(.draft-print-dialog) { display: none !important; }
+  .draft-print-dialog[open] { position: static; display: block; width: auto; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; box-shadow: none; overflow: visible; }
+  .draft-print-dialog::backdrop, .draft-print-controls { display: none !important; }
+  .draft-print-dialog .markdown-prose { color: black; font-size: 11pt; }
+  .draft-print-dialog :is(h1, h2, h3, h4, h5, h6) { break-after: avoid; color: black; }
+  .draft-print-dialog :is(pre, blockquote, li) { break-inside: avoid; }
+  .draft-print-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .draft-print-dialog a { color: black; }
+}
