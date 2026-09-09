@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useDraft } from "@/components/draft-provider";
 import { Button } from "@/components/ui/button";
+import { downloadMarkdown, markdownDownloadName } from "@/components/publish-panel";
 import { compareDrafts } from "@/lib/draft-comparison";
 
 export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => void }) {
@@ -38,6 +39,12 @@ export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => vo
     <ul className="mt-3 space-y-2">
       {checkpoints.map((checkpoint) => <li key={checkpoint.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 p-3">
         <span className="min-w-0 flex-1 break-words text-sm text-white">{checkpoint.label} <span className="text-xs text-mist">({checkpoint.kind})</span></span>
+        <Button variant="ghost" disabled={masked} aria-label={`Download checkpoint ${checkpoint.label}`} onClick={() => {
+          try {
+            downloadMarkdown(checkpoint.markdown, markdownDownloadName(checkpoint.kind, `checkpoint-${checkpoint.label}`));
+            setFailed(false); setMessage(`Checkpoint ${checkpoint.label} download requested. This is a source backup, not a validation result. The current draft was kept.`);
+          } catch { setFailed(true); setMessage("Checkpoint download could not start. Keep this tab open and try session recovery."); }
+        }}>Download source</Button>
         <Button id={`rename-checkpoint-${checkpoint.id}`} variant="ghost" disabled={masked} aria-label={`Rename ${checkpoint.label}`} onClick={() => { setRenaming(checkpoint.id); setNewLabel(checkpoint.label); }}>Rename</Button>
         <Button variant="ghost" disabled={masked} onClick={() => { onBeforeAction?.(); setComparisonId(checkpoint.id); }} aria-label={`Compare ${checkpoint.label}`}>Compare</Button>
         <Button variant="secondary" disabled={masked} onClick={() => {

@@ -46,6 +46,14 @@ test("checkpoints compare, survive mode navigation, restore, and require deliber
   await expect(page.getByRole("status").filter({ hasText: "Checkpoint kept" })).toBeVisible();
   await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
   await page.getByRole("textbox", { name: "Canonical Markdown source" }).fill(profileStarter.replaceAll("Your Name", "Avery Example"));
+  const checkpointDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download checkpoint Before editing", exact: true }).click();
+  const checkpointFile = await checkpointDownload;
+  const checkpointStream = await checkpointFile.createReadStream();
+  const checkpointChunks: Buffer[] = [];
+  for await (const chunk of checkpointStream!) checkpointChunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(checkpointChunks).toString("utf8")).toBe(profileStarter);
+  await expect(page.getByRole("textbox", { name: "Canonical Markdown source" })).toHaveValue(profileStarter.replaceAll("Your Name", "Avery Example"));
   await page.getByRole("button", { name: "Compare Before editing", exact: true }).click();
   await expect(page.getByLabel("Checkpoint comparison")).toContainText("Avery Example");
   await page.getByRole("link", { name: "Continue in Guided" }).click();
