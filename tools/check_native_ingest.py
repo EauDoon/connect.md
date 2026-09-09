@@ -6,8 +6,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from app.ingest import _convert_binary
 from PIL import Image, ImageDraw, ImageFont
+
+from app.ingest import _convert_binary
 
 
 def main() -> None:
