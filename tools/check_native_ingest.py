@@ -31,7 +31,7 @@ def main() -> None:
         text, converter, _warnings = _convert_binary(
             source.read_bytes(),
             ".pdf",
-            max_extracted_bytes=len("Ada Lovelace".encode("utf-8")),
+            max_extracted_bytes=len(b"Ada Lovelace"),
         )
         if converter != "tesseract-local" or "Ada Lovelace" not in text:
             raise RuntimeError(
