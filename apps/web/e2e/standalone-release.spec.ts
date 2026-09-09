@@ -245,7 +245,7 @@ test("trust page states the exact browser-only boundary", async ({ page }) => {
   await page.goto("/trust");
   await expect(page.getByRole("heading", { level: 1, name: "Your draft stays in your browser." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "No hidden persistence" })).toBeVisible();
-  await expect(page.getByText("It has no account, publishing API, database, file-upload service, messaging system, or analytics code.")).toBeVisible();
+  await expect(page.getByText(/That workflow has no account, publishing API, database, file-upload service, messaging system, or analytics code\./)).toBeVisible();
 });
 
 test("static agent documents describe the standalone workflow", async ({ request }) => {

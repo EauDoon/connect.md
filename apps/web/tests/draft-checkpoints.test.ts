@@ -15,4 +15,8 @@ describe("session checkpoints", () => {
   it("rejects empty and overlong names", () => {
     for (const label of ["  ", "a".repeat(61)]) expect(() => createCheckpoint([], draft, label, 1)).toThrow("1 to 60");
   });
+  it("requires distinguishable names for deliberate restoration", () => {
+    const first = createCheckpoint([], draft, "First version", 1);
+    expect(() => createCheckpoint([first], draft, " FIRST VERSION ", 2)).toThrow("distinct name");
+  });
 });

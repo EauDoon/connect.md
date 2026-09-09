@@ -28,7 +28,8 @@ configured or operational. The guest workflow does not depend on those services.
 - Local import of complete pasted profile or resume Markdown.
 - A plain-text editor alternative and a clickable source outline.
 - Draft length, advisory writing suggestions, and sensitive-sharing pattern checks.
-- Exact Markdown copy to the system clipboard, with explicit failure feedback.
+- Markdown copy to the system clipboard, with explicit failure feedback and a
+  reminder that the operating system may normalize line endings.
 - Sanitized print preview, excluding frontmatter and editor controls.
 - Local review reports with a SHA-256 fingerprint of the exact draft bytes.
 
