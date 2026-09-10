@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCheckpoint } from "../lib/draft-checkpoints";
+import { createCheckpoint, renameCheckpoint } from "../lib/draft-checkpoints";
 
 describe("session checkpoints", () => {
   const draft = { kind: "profile" as const, markdown: "# An exact draft\n" };
@@ -18,5 +18,14 @@ describe("session checkpoints", () => {
   it("requires distinguishable names for deliberate restoration", () => {
     const first = createCheckpoint([], draft, "First version", 1);
     expect(() => createCheckpoint([first], draft, " FIRST VERSION ", 2)).toThrow("distinct name");
+  });
+  it("renames without replacing content, ids, or neighboring checkpoints", () => {
+    const first = createCheckpoint([], draft, "First", 1);
+    const second = createCheckpoint([first], draft, "Second", 2);
+    const renamed = renameCheckpoint([first, second], 1, " New name ");
+    expect(renamed).toEqual([{ ...first, label: "New name" }, second]);
+    expect(first.label).toBe("First");
+    expect(() => renameCheckpoint([first, second], 1, "SECOND")).toThrow("distinct");
+    expect(() => renameCheckpoint([first], 99, "Lost")).toThrow("available");
   });
 });

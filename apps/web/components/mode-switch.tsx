@@ -9,6 +9,7 @@ import { useDraft } from "@/components/draft-provider";
 import { LocalMarkdownFileOpen } from "@/components/local-markdown-file-open";
 import { DraftCheckpoints } from "@/components/draft-checkpoints";
 import { PasteMarkdown } from "@/components/paste-markdown";
+import { SessionRecovery } from "@/components/session-recovery";
 import { cn } from "@/lib/utils";
 
 const editingModes = [
@@ -43,6 +44,7 @@ export function ModeSwitch({ mode, onBeforeNavigate }: { mode: "human" | "md"; o
     </div>
     <DraftCheckpoints onBeforeAction={onBeforeNavigate} />
     <PasteMarkdown onBeforeAction={onBeforeNavigate} />
+    <SessionRecovery onBeforeAction={onBeforeNavigate} />
     </>
   );
 }

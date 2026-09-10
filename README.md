@@ -32,6 +32,11 @@ configured or operational. The guest workflow does not depend on those services.
   reminder that the operating system may normalize line endings.
 - Sanitized print preview, excluding frontmatter and editor controls.
 - Local review reports with a SHA-256 fingerprint of the exact draft bytes.
+- Downloadable recovery sessions for unfinished source and checkpoints, with reviewed restoration.
+- Replacement undo, checkpoint rename/source download, and literal source find/replace.
+- Review-to-source navigation, focused editor layouts, custom export names, and comparison with the last Markdown download.
+
+See [Guest drafting tools](docs/guest-drafting.md) for recovery limits and the complete local workflow.
 
 Draft state lives only in React memory. Switching between /human and /md
 preserves it during the current page session. After an edit, the browser warns

@@ -46,9 +46,19 @@ test("checkpoints compare, survive mode navigation, restore, and require deliber
   await expect(page.getByRole("status").filter({ hasText: "Checkpoint kept" })).toBeVisible();
   await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
   await page.getByRole("textbox", { name: "Canonical Markdown source" }).fill(profileStarter.replaceAll("Your Name", "Avery Example"));
+  const checkpointDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download checkpoint Before editing", exact: true }).click();
+  const checkpointFile = await checkpointDownload;
+  const checkpointStream = await checkpointFile.createReadStream();
+  const checkpointChunks: Buffer[] = [];
+  for await (const chunk of checkpointStream!) checkpointChunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(checkpointChunks).toString("utf8")).toBe(profileStarter);
+  await expect(page.getByRole("textbox", { name: "Canonical Markdown source" })).toHaveValue(profileStarter.replaceAll("Your Name", "Avery Example"));
   await page.getByRole("button", { name: "Compare Before editing", exact: true }).click();
   await expect(page.getByLabel("Checkpoint comparison")).toContainText("Avery Example");
   await page.getByRole("link", { name: "Continue in Guided" }).click();
+  await expect(page).toHaveURL(/\/human$/u);
+  await expect(page.getByRole("heading", { name: "Make your work read like a signal." })).toBeVisible();
   await page.getByText("Session checkpoints (1/5)", { exact: true }).click();
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "Restore Before editing", exact: true }).click();
@@ -63,7 +73,181 @@ test("checkpoints compare, survive mode navigation, restore, and require deliber
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Remove Before editing", exact: true }).click();
   await expect(page.getByText("Session checkpoints (0/5)", { exact: true })).toBeVisible();
+  await page.getByText("Session recovery", { exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Forget previous draft", exact: true }).click();
   expect(await page.evaluate(() => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(false);
+});
+
+test("recovery files restore unfinished work after reload and reject stale or invalid replacement", async ({ page }) => {
+  const writes: string[] = [];
+  page.on("request", (request) => { if (request.method() !== "GET") writes.push(request.url()); });
+  await page.goto("/md");
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  const source = page.getByRole("textbox", { name: "Canonical Markdown source" });
+  await source.fill("# Unfinished\n");
+  await page.getByText("Session checkpoints (0/5)", { exact: true }).click();
+  await page.getByLabel("Checkpoint name", { exact: true }).fill("Unfinished");
+  await page.getByRole("button", { name: "Keep checkpoint", exact: true }).click();
+  await page.getByText("Session recovery", { exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download session recovery", exact: true }).click();
+  const file = await downloaded;
+  const chunks: Buffer[] = [];
+  for await (const chunk of (await file.createReadStream())!) chunks.push(Buffer.from(chunk));
+  const buffer = Buffer.concat(chunks);
+  expect(JSON.parse(buffer.toString()).draft.markdown).toBe("# Unfinished\n");
+  const upload = { name: "session.recovery.json", mimeType: "application/json", buffer };
+  const input = page.getByLabel("Open a recovery file", { exact: true });
+  await input.setInputFiles({ ...upload, buffer: Buffer.from("null") });
+  await expect(page.getByRole("alert").filter({ hasText: "Invalid recovery" })).toBeVisible();
+  await expect(source).toHaveValue("# Unfinished\n");
+  await input.setInputFiles(upload);
+  await expect(page.getByLabel("Recovery file review")).toBeVisible();
+  await source.fill("# Newer work\n");
+  await page.getByRole("button", { name: "Restore recovery session", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "draft changed" })).toBeVisible();
+  await expect(source).toHaveValue("# Newer work\n");
+  for (const phase of ["review", "read"] as const) {
+    for (const mutation of ["save", "rename", "remove", "restore"] as const) {
+      await source.fill("# Newer work\n");
+      if (phase === "read") {
+        await page.evaluate(() => {
+          const original = File.prototype.arrayBuffer;
+          const state = window as unknown as { recoveryReadStarted: boolean; finishRecoveryRead: () => void };
+          state.recoveryReadStarted = false;
+          File.prototype.arrayBuffer = function () {
+            File.prototype.arrayBuffer = original;
+            state.recoveryReadStarted = true;
+            return new Promise<ArrayBuffer>((resolve, reject) => {
+              state.finishRecoveryRead = () => { original.call(this).then(resolve, reject); };
+            });
+          };
+        });
+      }
+      await input.setInputFiles(upload);
+      if (phase === "read") await expect.poll(() => page.evaluate(() => (window as unknown as { recoveryReadStarted: boolean }).recoveryReadStarted)).toBe(true);
+      else await expect(page.getByLabel("Recovery file review")).toBeVisible();
+      if (mutation === "save") {
+        await page.getByLabel("Checkpoint name", { exact: true }).fill(`Added during ${phase}`);
+        await page.getByRole("button", { name: "Keep checkpoint", exact: true }).click();
+      } else if (mutation === "rename") {
+        await page.getByRole("button", { name: `Rename Added during ${phase}`, exact: true }).click();
+        await page.getByLabel("New checkpoint name", { exact: true }).fill(`Renamed during ${phase}`);
+        await page.getByRole("button", { name: "Save checkpoint name", exact: true }).click();
+      } else if (mutation === "remove") {
+        page.once("dialog", (dialog) => dialog.accept());
+        await page.getByRole("button", { name: `Remove Renamed during ${phase}`, exact: true }).click();
+      } else {
+        page.once("dialog", (dialog) => dialog.accept());
+        await page.getByRole("button", { name: "Restore Unfinished", exact: true }).click();
+      }
+      if (phase === "read") await page.evaluate(() => (window as unknown as { finishRecoveryRead: () => void }).finishRecoveryRead());
+      await expect(page.getByLabel("Recovery file review")).toBeVisible();
+      await page.getByRole("button", { name: "Restore recovery session", exact: true }).click();
+      await expect(page.getByRole("alert").filter({ hasText: mutation === "restore" ? "draft changed" : "checkpoints changed" })).toBeVisible();
+      await expect(page.getByLabel("Recovery file review")).toHaveCount(0);
+      await expect(source).toHaveValue(mutation === "restore" ? "# Unfinished\n" : "# Newer work\n");
+      await expect(page.getByText(`Session checkpoints (${mutation === "remove" || mutation === "restore" ? 1 : 2}/5)`, { exact: true })).toBeVisible();
+      if (mutation === "save" || mutation === "rename") await expect(page.getByRole("button", { name: `Rename ${mutation === "save" ? "Added" : "Renamed"} during ${phase}`, exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Restore Unfinished", exact: true })).toBeVisible();
+    }
+  }
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await page.getByText("Session recovery", { exact: true }).click();
+  await input.setInputFiles(upload);
+  await expect(page.getByLabel("Recovery file review")).toBeVisible();
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Restore recovery session", exact: true }).click();
+  await expect(page.getByText("Session checkpoints (0/5)", { exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Restore recovery session", exact: true }).click();
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  await expect(source).toHaveValue("# Unfinished\n");
+  await expect(page.getByText("Session checkpoints (1/5)", { exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Reset starter", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Undo draft replacement", exact: true }).click();
+  await expect(source).toHaveValue("# Unfinished\n");
+  expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
+  expect(writes).toEqual([]);
+});
+
+test("authors rename checkpoints, replace literal source, choose filenames and compare exported bytes", async ({ page }) => {
+  await page.goto("/md");
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  const source = page.getByRole("textbox", { name: "Canonical Markdown source" });
+  await source.fill(profileStarter.replaceAll("Your Name", "Casey Example"));
+  await page.getByText("Session checkpoints (0/5)", { exact: true }).click();
+  await page.getByLabel("Checkpoint name", { exact: true }).fill("Original");
+  await page.getByRole("button", { name: "Keep checkpoint", exact: true }).click();
+  await page.getByRole("button", { name: "Rename Original", exact: true }).click();
+  await page.getByLabel("New checkpoint name", { exact: true }).fill("Reviewed");
+  await page.getByRole("button", { name: "Save checkpoint name", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Rename Reviewed", exact: true })).toBeFocused();
+  await page.getByText("Find and replace source text", { exact: true }).click();
+  await page.getByLabel("Find text", { exact: true }).fill("Casey");
+  await page.getByRole("button", { name: "Next match", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(source).toBeFocused();
+  expect(await source.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd))).toBe("Casey");
+  await page.getByLabel("Replace with", { exact: true }).fill("Avery");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Replace all matches", exact: true }).click();
+  await expect(source).toHaveValue(profileStarter.replaceAll("Your Name", "Casey Example"));
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Replace all matches", exact: true }).click();
+  await expect(source).toHaveValue(profileStarter.replaceAll("Your Name", "Avery Example"));
+  await page.getByRole("radio", { name: "Preview and checks", exact: true }).check();
+  await expect(source).not.toBeVisible();
+  await page.getByLabel("Local filename (optional)", { exact: true }).fill("Recruiter copy.md");
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download profile .md", exact: true }).click();
+  const file = await downloaded;
+  expect(file.suggestedFilename()).toBe("recruiter-copy.md");
+  const chunks: Buffer[] = [];
+  for await (const chunk of (await file.createReadStream())!) chunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(chunks).toString()).toBe(profileStarter.replaceAll("Your Name", "Avery Example"));
+  await page.getByRole("radio", { name: "Source only", exact: true }).check();
+  await source.fill(profileStarter.replaceAll("Your Name", "Jordan Example"));
+  await page.getByRole("radio", { name: "Split view", exact: true }).check();
+  await page.getByText("Changes since last Markdown download", { exact: true }).click();
+  await expect(page.getByLabel("Last download comparison")).toContainText("Avery Example");
+  await expect(page.getByLabel("Last download comparison")).toContainText("Jordan Example");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0, 0); });
+  await page.screenshot({ path: test.info().outputPath("revised-authoring-desktop.png"), fullPage: true });
+});
+
+test("review links return from Guided to exact source and layouts remain usable on mobile", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/md");
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  const draft = profileStarter + "\nContact: person@example.invalid\n";
+  await page.getByRole("textbox", { name: "Canonical Markdown source" }).fill(draft);
+  await page.getByRole("radio", { name: "Preview and checks", exact: true }).check();
+  await page.getByRole("link", { name: "Continue in Guided", exact: true }).click();
+  await expect(page).toHaveURL(/\/human$/u);
+  await page.getByRole("button", { name: "04 Download Validate and keep the file", exact: true }).click();
+  await page.getByText(/^Sharing review \(/u).click();
+  const line = draft.trimEnd().split("\n").length;
+  await page.getByRole("link", { name: `Edit line ${line} in Markdown`, exact: true }).click();
+  await expect(page).toHaveURL(/\/md$/u);
+  const source = page.getByRole("textbox", { name: "Canonical Markdown source" });
+  await expect(source).toBeFocused();
+  expect(await source.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd))).toBe("Contact: person@example.invalid");
+  await expect(page.getByRole("radio", { name: "Split view", exact: true })).toBeChecked();
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByText("Session recovery", { exact: true }).click();
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0, 0); });
+  await page.screenshot({ path: test.info().outputPath("revised-authoring-mobile.png"), fullPage: true });
 });
 
 test("pasted imports fail closed and detect resume kind without uploading", async ({ page }) => {

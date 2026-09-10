@@ -3,15 +3,29 @@
 import React, { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useConnectmdAuth } from "@/components/auth-provider";
-import { documentIdentifier, profileStarter, type DocumentKind, type HumanFields, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
+import { PROFILE_RESUME_MAX_UTF8_BYTES, documentIdentifier, profileStarter, type DocumentKind, type HumanFields, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
 import { type DocumentResponse } from "@/lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject } from "@/lib/draft-security";
 import { type HumanJourneyStage } from "@/lib/human-journey";
-import { createCheckpoint, type DraftCheckpoint } from "@/lib/draft-checkpoints";
+import { renameCheckpoint as renameCheckpointEntry, createCheckpoint, type DraftCheckpoint } from "@/lib/draft-checkpoints";
+import { type RecoveryBundle } from "@/lib/session-recovery";
 
+type EditorLayout = "split" | "source" | "preview";
+type EditorInterface = "code" | "plain";
 type DraftState = {
+  editorLayout: EditorLayout;
+  editorInterface: EditorInterface;
+  setEditorLayout: (layout: EditorLayout) => void;
+  setEditorInterface: (value: EditorInterface) => void;
+  sourceLineRequest: number | null;
+  requestSourceLine: (line: number | null) => void;
+  previousDraft: { kind: DocumentKind; markdown: string } | null;
+  undoReplacement: () => void;
+  discardUndo: () => void;
+  restoreRecovery: (bundle: RecoveryBundle) => void;
   checkpoints: DraftCheckpoint[];
   saveCheckpoint: (label: string) => void;
+  renameCheckpoint: (id: number, label: string) => void;
   restoreCheckpoint: (id: number) => void;
   removeCheckpoint: (id: number) => void;
   kind: DocumentKind;
@@ -32,7 +46,7 @@ type DraftState = {
   hydrateSavedDocument: (document: DocumentResponse) => void;
   recordSavedDocument: (document: DocumentResponse, rebasedMarkdown: string) => void;
   recordLocalDownload: (filename: string) => void;
-  getDraftSnapshot: () => { kind: DocumentKind; markdown: string; revision: number; lineage: number; identifier: string; savedDocument: DocumentResponse | null } | null;
+  getDraftSnapshot: () => { kind: DocumentKind; markdown: string; revision: number; lineage: number; checkpointGeneration: number; identifier: string; savedDocument: DocumentResponse | null } | null;
 };
 
 export type GuidedReferenceChoices = Pick<HumanFields, "languageProficiency" | "organizationRelationship">;
@@ -58,6 +72,11 @@ export function draftAuthBoundaryKey(configured: boolean, isLoaded: boolean, sub
 
 export function DraftProvider({ children }: { children: ReactNode }) {
   const { configured, isLoaded, subject } = useConnectmdAuth();
+  const [editorLayout, updateEditorLayout] = useState<EditorLayout>("split");
+  const [editorInterface, updateEditorInterface] = useState<EditorInterface>("code");
+  const [sourceLineRequest, setSourceLineRequest] = useState<number | null>(null);
+  const [previousDraft, setPreviousDraft] = useState<{ kind: DocumentKind; markdown: string } | null>(null);
+  const previousDraftRef = useRef(previousDraft);
   const [kind, updateKind] = useState<DocumentKind>("profile");
   const [markdown, updateMarkdown] = useState(profileStarter);
   const [savedDocument, setSavedDocument] = useState<DocumentResponse | null>(null);
@@ -69,6 +88,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const [draftOwner, setDraftOwner] = useState<string | null>(null);
   const [checkpoints, setCheckpoints] = useState<DraftCheckpoint[]>([]);
   const checkpointsRef = useRef<DraftCheckpoint[]>([]);
+  const checkpointGenerationRef = useRef(0);
   const checkpointIdRef = useRef(0);
   const kindRef = useRef(kind);
   const markdownRef = useRef(markdown);
@@ -80,7 +100,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const maskDraft = draftOwner !== null && authBoundary !== draftOwner;
   const maskDraftRef = useRef(maskDraft);
   maskDraftRef.current = maskDraft;
-  const unsavedDraft = !maskDraft && (checkpoints.length > 0 || (markdown !== (savedDocument?.markdown ?? starterFor(kind))
+  const previousSourceNeedsBackup = previousDraft !== null && previousDraft.markdown !== starterFor(previousDraft.kind);
+  const unsavedDraft = !maskDraft && (previousSourceNeedsBackup || checkpoints.length > 0 || (markdown !== (savedDocument?.markdown ?? starterFor(kind))
     && (localDownloadReceipt?.kind !== kind || localDownloadReceipt.markdown !== markdown)));
 
   useEffect(() => {
@@ -100,7 +121,13 @@ export function DraftProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (!requiresDraftReset(draftOwner, resolvedSubject)) return;
+    previousDraftRef.current = null;
+    setPreviousDraft(null);
+    setSourceLineRequest(null);
+    updateEditorLayout("split");
+    updateEditorInterface("code");
     checkpointsRef.current = [];
+    checkpointGenerationRef.current += 1;
     setCheckpoints([]);
     updateKind("profile");
     updateMarkdown(profileStarter);
@@ -118,6 +145,26 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setDraftOwner(resolvedSubject);
   }, [draftOwner, resolvedSubject]);
 
+  const setEditorLayout = useCallback((layout: EditorLayout) => {
+    if (!maskDraftRef.current) updateEditorLayout(layout);
+  }, []);
+  const setEditorInterface = useCallback((value: EditorInterface) => {
+    if (!maskDraftRef.current) updateEditorInterface(value);
+  }, []);
+  const requestSourceLine = useCallback((line: number | null) => {
+    if (!maskDraftRef.current) setSourceLineRequest(line);
+  }, []);
+  const rememberReplacement = useCallback(() => {
+    const previous = new TextEncoder().encode(markdownRef.current).length <= PROFILE_RESUME_MAX_UTF8_BYTES
+      ? { kind: kindRef.current, markdown: markdownRef.current } : null;
+    previousDraftRef.current = previous;
+    setPreviousDraft(previous);
+  }, []);
+  const discardUndo = useCallback(() => {
+    if (maskDraftRef.current) return;
+    previousDraftRef.current = null;
+    setPreviousDraft(null);
+  }, []);
   const setMarkdown = useCallback((next: string) => {
     if (!maskDraftRef.current) {
       const canonical = normaliseMarkdown(next);
@@ -129,6 +176,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   }, []);
   const replaceMarkdown = useCallback((next: string) => {
     if (maskDraftRef.current) return;
+    rememberReplacement();
     const canonical = normaliseMarkdown(next);
     markdownRef.current = canonical;
     savedDocumentRef.current = null;
@@ -139,9 +187,10 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     updateMarkdown(canonical);
     setSavedDocument(null);
     setRevision((current) => current + 1);
-  }, []);
+  }, [rememberReplacement]);
   const replaceDraft = useCallback((nextKind: DocumentKind, nextMarkdown: string) => {
     if (maskDraftRef.current) return;
+    rememberReplacement();
     const canonical = normaliseMarkdown(nextMarkdown);
     kindRef.current = nextKind;
     markdownRef.current = canonical;
@@ -154,9 +203,16 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     updateMarkdown(canonical);
     setSavedDocument(null);
     setRevision((current) => current + 1);
-  }, []);
+  }, [rememberReplacement]);
+  const undoReplacement = useCallback(() => {
+    if (maskDraftRef.current || !previousDraftRef.current) return;
+    const previous = previousDraftRef.current;
+    replaceDraft(previous.kind, previous.markdown);
+    discardUndo();
+  }, [discardUndo, replaceDraft]);
   const setKind = useCallback((nextKind: DocumentKind) => {
     if (maskDraftRef.current || nextKind === kindRef.current) return;
+    rememberReplacement();
     const converted = switchDocumentKind(markdownRef.current, nextKind);
     kindRef.current = nextKind;
     markdownRef.current = converted;
@@ -169,7 +225,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     setSavedDocument(null);
     updateKind(nextKind);
     setRevision((current) => current + 1);
-  }, []);
+  }, [rememberReplacement]);
   const setHumanStage = useCallback((stage: HumanJourneyStage) => {
     if (!maskDraftRef.current) updateHumanStage(stage);
   }, []);
@@ -213,6 +269,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     markdown: markdownRef.current,
     revision: revisionRef.current,
     lineage: lineageRef.current,
+    checkpointGeneration: checkpointGenerationRef.current,
     identifier: documentIdentifier(markdownRef.current, kindRef.current),
     savedDocument: savedDocumentRef.current
   }), []);
@@ -220,7 +277,15 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     if (maskDraftRef.current) throw new Error("The current draft is unavailable.");
     const checkpoint = createCheckpoint(checkpointsRef.current, { kind: kindRef.current, markdown: markdownRef.current }, label, ++checkpointIdRef.current);
     checkpointsRef.current = [...checkpointsRef.current, checkpoint];
+    checkpointGenerationRef.current += 1;
     setCheckpoints(checkpointsRef.current);
+  }, []);
+  const renameCheckpoint = useCallback((id: number, label: string) => {
+    if (maskDraftRef.current) throw new Error("The current draft is unavailable.");
+    const renamed = renameCheckpointEntry(checkpointsRef.current, id, label);
+    checkpointsRef.current = renamed;
+    checkpointGenerationRef.current += 1;
+    setCheckpoints(renamed);
   }, []);
   const restoreCheckpoint = useCallback((id: number) => {
     if (maskDraftRef.current) return;
@@ -230,11 +295,31 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const removeCheckpoint = useCallback((id: number) => {
     if (maskDraftRef.current) return;
     checkpointsRef.current = checkpointsRef.current.filter((entry) => entry.id !== id);
+    checkpointGenerationRef.current += 1;
     setCheckpoints(checkpointsRef.current);
   }, []);
+  const restoreRecovery = useCallback((bundle: RecoveryBundle) => {
+    if (maskDraftRef.current) return;
+    const restored = bundle.checkpoints.map((entry) => ({ ...entry, id: ++checkpointIdRef.current }));
+    replaceDraft(bundle.draft.kind, bundle.draft.markdown);
+    checkpointsRef.current = restored;
+    checkpointGenerationRef.current += 1;
+    setCheckpoints(restored);
+  }, [replaceDraft]);
   const value = useMemo(() => ({
+    editorLayout: maskDraft ? "split" as const : editorLayout,
+    editorInterface: maskDraft ? "code" as const : editorInterface,
+    setEditorLayout,
+    setEditorInterface,
+    sourceLineRequest: maskDraft ? null : sourceLineRequest,
+    requestSourceLine,
+    previousDraft: maskDraft ? null : previousDraft,
+    undoReplacement,
+    discardUndo,
+    restoreRecovery,
     checkpoints: maskDraft ? [] : checkpoints,
     saveCheckpoint,
+    renameCheckpoint,
     restoreCheckpoint,
     removeCheckpoint,
     kind: maskDraft ? "profile" as const : kind,
@@ -256,7 +341,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     recordSavedDocument,
     recordLocalDownload,
     getDraftSnapshot
-  }), [checkpoints, saveCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
+  }), [editorLayout, editorInterface, setEditorLayout, setEditorInterface, sourceLineRequest, requestSourceLine, previousDraft, undoReplacement, discardUndo, restoreRecovery, checkpoints, saveCheckpoint, renameCheckpoint, restoreCheckpoint, removeCheckpoint, getDraftSnapshot, guidedReferenceChoices, humanStage, hydrateSavedDocument, kind, lineage, localDownloadReceipt, markdown, maskDraft, recordLocalDownload, recordSavedDocument, replaceDraft, replaceMarkdown, revision, savedDocument, setGuidedReferenceChoices, setHumanStage, setKind, setMarkdown]);
 
   return <DraftContext.Provider key={authBoundary} value={value}>{children}</DraftContext.Provider>;
 }
