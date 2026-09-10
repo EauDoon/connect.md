@@ -290,10 +290,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const restoreCheckpoint = useCallback((id: number) => {
     if (maskDraftRef.current) return;
     const checkpoint = checkpointsRef.current.find((entry) => entry.id === id);
-    if (checkpoint) {
-      checkpointGenerationRef.current += 1;
-      replaceDraft(checkpoint.kind, checkpoint.markdown);
-    }
+    if (checkpoint) replaceDraft(checkpoint.kind, checkpoint.markdown);
   }, [replaceDraft]);
   const removeCheckpoint = useCallback((id: number) => {
     if (maskDraftRef.current) return;

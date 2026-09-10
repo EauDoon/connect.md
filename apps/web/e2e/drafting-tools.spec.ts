@@ -109,7 +109,8 @@ test("recovery files restore unfinished work after reload and reject stale or in
   await expect(page.getByRole("alert").filter({ hasText: "draft changed" })).toBeVisible();
   await expect(source).toHaveValue("# Newer work\n");
   for (const phase of ["review", "read"] as const) {
-    for (const mutation of ["save", "rename", "remove"] as const) {
+    for (const mutation of ["save", "rename", "remove", "restore"] as const) {
+      await source.fill("# Newer work\n");
       if (phase === "read") {
         await page.evaluate(() => {
           const original = File.prototype.arrayBuffer;
@@ -134,18 +135,22 @@ test("recovery files restore unfinished work after reload and reject stale or in
         await page.getByRole("button", { name: `Rename Added during ${phase}`, exact: true }).click();
         await page.getByLabel("New checkpoint name", { exact: true }).fill(`Renamed during ${phase}`);
         await page.getByRole("button", { name: "Save checkpoint name", exact: true }).click();
-      } else {
+      } else if (mutation === "remove") {
         page.once("dialog", (dialog) => dialog.accept());
         await page.getByRole("button", { name: `Remove Renamed during ${phase}`, exact: true }).click();
+      } else {
+        page.once("dialog", (dialog) => dialog.accept());
+        await page.getByRole("button", { name: "Restore Unfinished", exact: true }).click();
       }
       if (phase === "read") await page.evaluate(() => (window as unknown as { finishRecoveryRead: () => void }).finishRecoveryRead());
       await expect(page.getByLabel("Recovery file review")).toBeVisible();
       await page.getByRole("button", { name: "Restore recovery session", exact: true }).click();
-      await expect(page.getByRole("alert").filter({ hasText: "checkpoints changed" })).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: mutation === "restore" ? "draft changed" : "checkpoints changed" })).toBeVisible();
       await expect(page.getByLabel("Recovery file review")).toHaveCount(0);
-      await expect(source).toHaveValue("# Newer work\n");
-      await expect(page.getByText(`Session checkpoints (${mutation === "remove" ? 1 : 2}/5)`, { exact: true })).toBeVisible();
-      if (mutation !== "remove") await expect(page.getByRole("button", { name: `Rename ${mutation === "save" ? "Added" : "Renamed"} during ${phase}`, exact: true })).toBeVisible();
+      await expect(source).toHaveValue(mutation === "restore" ? "# Unfinished\n" : "# Newer work\n");
+      await expect(page.getByText(`Session checkpoints (${mutation === "remove" || mutation === "restore" ? 1 : 2}/5)`, { exact: true })).toBeVisible();
+      if (mutation === "save" || mutation === "rename") await expect(page.getByRole("button", { name: `Rename ${mutation === "save" ? "Added" : "Renamed"} during ${phase}`, exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Restore Unfinished", exact: true })).toBeVisible();
     }
   }
   page.once("dialog", (dialog) => dialog.accept());
