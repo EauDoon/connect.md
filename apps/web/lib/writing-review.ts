@@ -12,7 +12,13 @@ export function reviewWriting(markdown: string) {
     if (/\b(?:TODO|TBD|Your Name|Your professional headline|Unspecified skill|Unspecified occupation)\b/iu.test(line)) add("placeholder", index + 1, "Replace starter or unfinished wording with facts you can support, or remove it.");
     if (/\[(?:click here|here|link)\]\(/iu.test(line)) add("link-label", index + 1, "Give this link a descriptive label so readers know its destination.");
   }
+  const headingLabels = new Set<string>();
   for (const [index, heading] of metrics.headings.entries()) {
+    const previous = metrics.headings[index - 1];
+    if (previous && heading.level > previous.level + 1) add("heading-level", heading.line, "This heading skips a level. Consider a consistent hierarchy for readers and assistive navigation.");
+    const label = heading.text.trim().toLocaleLowerCase("en-US");
+    if (headingLabels.has(label)) add("repeated-heading", heading.line, "This heading label appears earlier. Consider a more specific label if these sections serve different purposes.");
+    headingLabels.add(label);
     const next = metrics.headings[index + 1];
     const lineEnd = source.indexOf("\n", heading.start);
     const content = source.slice(lineEnd < 0 ? source.length : lineEnd, next?.start ?? source.length).trim();
@@ -32,6 +38,14 @@ export function reviewWriting(markdown: string) {
     const marker = line.match(/^\s{0,3}(`{3,}|~{3,})/u)?.[1];
     if (marker) { flush(); if (!fence) fence = marker; else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null; continue; }
     if (fence) continue;
+    // ponytail: simple inline links only; use a syntax tree if reference links need review.
+    for (const match of line.matchAll(/(?<!!)\[[^\]\n]+\]\(([^\s)]*)\)/gu)) {
+      const destination = match[1];
+      if (!destination) add("empty-link", bodyLine + index, "This inline link has no destination. Supply an address or remove the link markup.");
+      else if (destination.startsWith("#")) add("fragment-link", bodyLine + index, "Heading fragment links are not wired in this local preview. Check navigation in the destination Markdown reader.");
+      else if (/^[a-z][a-z0-9+.-]*:/iu.test(destination) && !/^(?:https?:|mailto:|tel:)/iu.test(destination)) add("link-scheme", bodyLine + index, "This inline link uses an unsupported destination scheme. Prefer an HTTPS address that readers can open.");
+      else if (!/^(?:https?:|mailto:|tel:)/iu.test(destination)) add("relative-link", bodyLine + index, "This inline link is relative or local. It may stop working when this Markdown file is shared on its own.");
+    }
     if (!line.trim() || /^#{1,6}\s/u.test(line)) { flush(); continue; }
     const bullet = line.match(/^\s*[-*+]\s+(.+)$/u)?.[1].trim().toLocaleLowerCase("en-US");
     if (bullet) {

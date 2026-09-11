@@ -15,3 +15,13 @@ describe("advisory writing review", () => {
     expect(reviewWriting("TODO\n".repeat(30)).findings).toHaveLength(20);
   });
 });
+
+it("finds skipped heading levels and repeated heading labels outside code", () => {
+  const findings = reviewWriting("# Name\ntext\n### Work\ntext\n## Work\ntext\n```\n#### Hidden\n```\n").findings;
+  expect(findings.map(({ code, line }) => [code, line])).toEqual([["heading-level", 3], ["repeated-heading", 5]]);
+});
+
+it("reviews portable inline link destinations without following them", () => {
+  const source = "# Name\n[Empty]()\n[File](./resume.pdf)\n[Heading](#work)\n[Action](javascript:alert)\n[Site](https://example.invalid)\n[Email](mailto:person@example.invalid)\n```\n[Code](file:test)\n```\n";
+  expect(reviewWriting(source).findings.map(({ code, line }) => [code, line])).toEqual([["empty-link", 2], ["relative-link", 3], ["fragment-link", 4], ["link-scheme", 5]]);
+});

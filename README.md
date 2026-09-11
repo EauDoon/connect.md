@@ -35,6 +35,9 @@ configured or operational. The guest workflow does not depend on those services.
 - Downloadable recovery sessions for unfinished source and checkpoints, with reviewed restoration.
 - Replacement undo, checkpoint rename/source download, and literal source find/replace.
 - Review-to-source navigation, focused editor layouts, custom export names, and comparison with the last Markdown download.
+- Case/word/body search filters with reviewed, undoable replacements.
+- Filtered outlines, direct source-line navigation, and reviewed section excerpts.
+- Heading and link portability review, plus unfinished Markdown source backups.
 
 See [Guest drafting tools](docs/guest-drafting.md) for recovery limits and the complete local workflow.
 

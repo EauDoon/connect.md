@@ -20,7 +20,7 @@ Use **Download source** beside a checkpoint to keep its exact captured Markdown 
 
 ## Find and replace
 
-Markdown Mode offers case-sensitive literal search across the whole source, including frontmatter. Previous/Next select exact text in the plain editor. Replace one match or confirm replacement of all matches. A 128 KiB source limit, 256-character query limit, 1,000-match cap, and precomputed output-size bound prevent partial or oversized bulk edits. Keep a checkpoint before bulk replacement.
+Markdown Mode offers literal search with optional case, whole-word, and body-only filters. Previous/Next select exact text in the plain editor. Review one replacement or all replacements, then apply or cancel. A 128 KiB source limit, 256-character query limit, 1,000-match cap, and precomputed output-size bound prevent partial or oversized bulk edits. Applied replacements retain one previous source in Session recovery; keep checkpoints for multiple revisions.
 
 ## Name an export
 
@@ -37,3 +37,25 @@ In Markdown Mode, choose **Source only**, **Preview and checks**, or **Split vie
 ## Compare an updated export
 
 After a Markdown download, **Changes since last Markdown download** compares the current bytes with the exact source used for that download request, including changes of document kind. The display is bounded to 80 lines and 12,000 characters per side; it is a changed-region comparison rather than a full multi-hunk diff. Only another Markdown download updates this baseline. Clipboard copies, checkpoint downloads, and recovery/review files do not move it. The app cannot verify that the browser actually saved a file on disk.
+
+Search can optionally ignore case or require whole words. Word boundaries include Unicode letters, marks, numbers, and underscores. Literal punctuation remains literal.
+
+Choose **Body only** to exclude opening YAML frontmatter from matching and replacement. An unclosed frontmatter block yields no body matches; fix the delimiter before replacing.
+
+Replacement actions first open a bounded before/after review. Apply the reviewed result or cancel without changes. Edits to the source or search settings disable an old review until it is regenerated.
+
+Applied search replacements now keep the prior source in **Session recovery**, using the same single-step undo as imports. Undo preserves checkpoints but replaces later edits; keep named checkpoints for multiple versions.
+
+In **Document outline and length**, enter a source line and choose **Go to line**. This selects the exact line, including frontmatter or blank lines, in the plain-text editor. Out-of-range requests preserve your selection and explain the error.
+
+Filter headings by case-insensitive text to reach sections beyond the first 60 displayed entries. Counts reflect all matching headings, and clearing the filter restores the full outline without editing the draft.
+
+Writing review now flags skipped heading levels and repeated heading labels, with source-line navigation. Fenced examples and frontmatter do not create outline findings. These are suggestions, not schema errors.
+
+Writing review inspects simple inline Markdown links for empty destinations, unsupported schemes, relative/local addresses, and fragment links. Fragment navigation is not wired in the local preview. No address is fetched; reference-style links, nested link syntax, inline code, and destination availability still require manual review.
+
+Choose **Review excerpt** beside an outline heading to inspect and download that section with its child sections. Excerpts exclude frontmatter and neighboring sections, retain normalized Markdown, and use an `excerpt-` filename. They are not complete validated documents. Draft edits disable a stale excerpt download until you select it again; excerpts do not update the full-document download receipt or clear reload warnings.
+
+**Download unfinished source** in Session recovery saves the exact current source as a clearly named `-unfinished.md` file even when validation fails. It is bounded to 128 KiB and excludes checkpoints. Paste it directly into the source editor to resume, because validated import can reject unfinished files. This backup does not clear validation errors, change the validated download receipt, or dismiss reload protection.
+
+Excerpt export fails closed when an opening frontmatter block is unclosed, so ambiguous metadata cannot be mistaken for a body section.

@@ -1,3 +1,6 @@
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { SourceSearch } from "../components/source-search";
 import { describe, expect, it } from "vitest";
 import { findSourceMatches, replaceSourceMatches } from "../lib/source-search";
 
@@ -18,4 +21,23 @@ describe("literal source editing", () => {
     expect(() => replaceSourceMatches("abc", "a", "x", 8)).toThrow("match");
     expect(() => replaceSourceMatches("😀".repeat(32768), "\ud83d", "AB", 0)).toThrow("128 KiB");
   });
+});
+
+it("supports optional case folding and Unicode whole-word boundaries", () => {
+  expect(findSourceMatches("Cat cat scatter cat_ caté", "cat", { matchCase: false, wholeWord: true }).matches).toEqual([0, 4]);
+  expect(replaceSourceMatches("CAT cat", "cat", "$&", "all", { matchCase: false })).toBe("$& $&");
+  expect(findSourceMatches("İx a", "a", { matchCase: false }).matches).toEqual([3]);
+});
+
+it("body-only replacement preserves metadata and fails closed on unclosed frontmatter", () => {
+  const source = "---\nname: Cat\n---\nCat";
+  expect(replaceSourceMatches(source, "Cat", "Dog", "all", { bodyOnly: true })).toBe("---\nname: Cat\n---\nDog");
+  expect(findSourceMatches("---\nname: Cat", "Cat", { bodyOnly: true }).matches).toEqual([]);
+  expect(findSourceMatches("Cat", "Cat", { bodyOnly: true }).matches).toEqual([0]);
+});
+
+it("offers a review step before changing source", () => {
+  const html = renderToStaticMarkup(React.createElement(SourceSearch, { markdown: "Cat", onChange: () => {}, onSelect: () => {} }));
+  expect(html).toContain("Review all replacements");
+  expect(html).toContain("Review match replacement");
 });
