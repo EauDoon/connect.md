@@ -20,7 +20,7 @@ Use **Download source** beside a checkpoint to keep its exact captured Markdown 
 
 ## Find and replace
 
-Markdown Mode offers case-sensitive literal search across the whole source, including frontmatter. Previous/Next select exact text in the plain editor. Replace one match or confirm replacement of all matches. A 128 KiB source limit, 256-character query limit, 1,000-match cap, and precomputed output-size bound prevent partial or oversized bulk edits. Keep a checkpoint before bulk replacement.
+Markdown Mode offers literal search with optional case, whole-word, and body-only filters. Previous/Next select exact text in the plain editor. Review one replacement or all replacements, then apply or cancel. A 128 KiB source limit, 256-character query limit, 1,000-match cap, and precomputed output-size bound prevent partial or oversized bulk edits. Applied replacements retain one previous source in Session recovery; keep checkpoints for multiple revisions.
 
 ## Name an export
 
@@ -57,3 +57,5 @@ Writing review inspects simple inline Markdown links for empty destinations, uns
 Choose **Review excerpt** beside an outline heading to inspect and download that section with its child sections. Excerpts exclude frontmatter and neighboring sections, retain normalized Markdown, and use an `excerpt-` filename. They are not complete validated documents. Draft edits disable a stale excerpt download until you select it again; excerpts do not update the full-document download receipt or clear reload warnings.
 
 **Download unfinished source** in Session recovery saves the exact current source as a clearly named `-unfinished.md` file even when validation fails. It is bounded to 128 KiB and excludes checkpoints. Paste it directly into the source editor to resume, because validated import can reject unfinished files. This backup does not clear validation errors, change the validated download receipt, or dismiss reload protection.
+
+Excerpt export fails closed when an opening frontmatter block is unclosed, so ambiguous metadata cannot be mistaken for a body section.

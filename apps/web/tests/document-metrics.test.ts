@@ -33,3 +33,8 @@ it("exports only the chosen body section including nested content", async () => 
   expect(() => sectionExcerpt(source, 0)).toThrow("body heading");
   expect(() => sectionExcerpt("x".repeat(131073), 0)).toThrow("128 KiB");
 });
+
+it("refuses excerpt export from ambiguous unclosed frontmatter", async () => {
+  const { sectionExcerpt } = await import("../lib/document-metrics");
+  expect(() => sectionExcerpt("---\nname: example\n# Metadata heading\n", 22)).toThrow("Close frontmatter");
+});
