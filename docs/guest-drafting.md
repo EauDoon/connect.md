@@ -45,3 +45,5 @@ Choose **Body only** to exclude opening YAML frontmatter from matching and repla
 Replacement actions first open a bounded before/after review. Apply the reviewed result or cancel without changes. Edits to the source or search settings disable an old review until it is regenerated.
 
 Applied search replacements now keep the prior source in **Session recovery**, using the same single-step undo as imports. Undo preserves checkpoints but replaces later edits; keep named checkpoints for multiple versions.
+
+In **Document outline and length**, enter a source line and choose **Go to line**. This selects the exact line, including frontmatter or blank lines, in the plain-text editor. Out-of-range requests preserve your selection and explain the error.
