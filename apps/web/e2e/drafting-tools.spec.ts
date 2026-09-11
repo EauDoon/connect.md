@@ -350,3 +350,25 @@ test("reviewed replacements can be undone without losing checkpoints", async ({ 
   await page.getByRole("button", { name: "Undo draft replacement", exact: true }).click();
   await expect(source).toHaveValue("# Cat\nCat\n");
 });
+
+test("unfinished source downloads preserve invalid work without clearing validation or unload warnings", async ({ page }) => {
+  await page.goto("/md");
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  const source = page.getByRole("textbox", { name: "Canonical Markdown source" });
+  const draft = "# Unfinished résumé\nStill writing.\n";
+  await source.fill(draft);
+  await expect(page.getByRole("button", { name: "Download profile .md", exact: true })).toBeDisabled();
+  await page.getByText("Session recovery", { exact: true }).click();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download unfinished source", exact: true }).click();
+  const file = await pending;
+  expect(file.suggestedFilename()).toBe("connectmd-profile-unfinished.md");
+  const chunks: Buffer[] = [];
+  for await (const chunk of (await file.createReadStream())!) chunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(chunks).toString()).toBe(draft);
+  await expect(page.getByRole("button", { name: "Download profile .md", exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(true);
+  await source.fill("é".repeat(65537));
+  await page.getByRole("button", { name: "Download unfinished source", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "limited to 128 KiB" })).toBeVisible();
+});

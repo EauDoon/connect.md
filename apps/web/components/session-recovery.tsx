@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import { useDraft } from "@/components/draft-provider";
 import { Button } from "@/components/ui/button";
 import { downloadMarkdown } from "@/components/publish-panel";
+import { PROFILE_RESUME_MAX_UTF8_BYTES } from "@/lib/markdown";
 import { encodeRecoveryBundle, parseRecoveryBundle, RECOVERY_MAX_BYTES, type RecoveryBundle } from "@/lib/session-recovery";
 
 export function SessionRecovery({ onBeforeAction }: { onBeforeAction?: () => void }) {
@@ -39,6 +40,17 @@ export function SessionRecovery({ onBeforeAction }: { onBeforeAction?: () => voi
         setMessage("Recovery file download requested. Keep the file before closing this tab. This does not mark the draft as validated or downloaded Markdown.");
       } catch (error) { setFailed(true); setMessage(error instanceof Error ? error.message : "Recovery download could not start. Keep this tab open and copy your source."); }
     }}>Download session recovery</Button>
+    <p className="mt-3 text-xs leading-5 text-mist">Need a plain file while fixing validation errors? Download the exact unfinished source below. It contains the full draft, has no validation guarantee, and does not include checkpoints. Paste its contents into the source editor to continue; validated file import may reject it.</p>
+    <Button className="mt-2" variant="secondary" disabled={masked} onClick={() => {
+      onBeforeAction?.();
+      try {
+        const snapshot = getDraftSnapshot();
+        if (!snapshot) throw new Error("The current draft is unavailable.");
+        if (new TextEncoder().encode(snapshot.markdown).length > PROFILE_RESUME_MAX_UTF8_BYTES) throw new Error("Unfinished source download is limited to 128 KiB. Copy the source before reducing its size.");
+        downloadMarkdown(snapshot.markdown, `connectmd-${snapshot.kind}-unfinished.md`);
+        setFailed(false); setMessage("Unfinished source download requested. This is not a validated document and does not clear the reload warning.");
+      } catch (error) { setFailed(true); setMessage(error instanceof Error ? error.message : "Source download could not start. Keep this tab open and copy the source."); }
+    }}>Download unfinished source</Button>
     <label className="mt-4 block text-xs text-mist">Open a recovery file
       <input type="file" accept=".json,application/json" disabled={masked} className="mt-2 block min-h-11 w-full min-w-0 text-sm" onChange={async (event) => {
         const file = event.target.files?.[0];
