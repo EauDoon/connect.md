@@ -51,3 +51,5 @@ In **Document outline and length**, enter a source line and choose **Go to line*
 Filter headings by case-insensitive text to reach sections beyond the first 60 displayed entries. Counts reflect all matching headings, and clearing the filter restores the full outline without editing the draft.
 
 Writing review now flags skipped heading levels and repeated heading labels, with source-line navigation. Fenced examples and frontmatter do not create outline findings. These are suggestions, not schema errors.
+
+Writing review inspects simple inline Markdown links for empty destinations, unsupported schemes, relative/local addresses, and fragment links. Fragment navigation is not wired in the local preview. No address is fetched; reference-style links, nested link syntax, inline code, and destination availability still require manual review.

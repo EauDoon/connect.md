@@ -38,6 +38,14 @@ export function reviewWriting(markdown: string) {
     const marker = line.match(/^\s{0,3}(`{3,}|~{3,})/u)?.[1];
     if (marker) { flush(); if (!fence) fence = marker; else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null; continue; }
     if (fence) continue;
+    // ponytail: simple inline links only; use a syntax tree if reference links need review.
+    for (const match of line.matchAll(/(?<!!)\[[^\]\n]+\]\(([^\s)]*)\)/gu)) {
+      const destination = match[1];
+      if (!destination) add("empty-link", bodyLine + index, "This inline link has no destination. Supply an address or remove the link markup.");
+      else if (destination.startsWith("#")) add("fragment-link", bodyLine + index, "Heading fragment links are not wired in this local preview. Check navigation in the destination Markdown reader.");
+      else if (/^[a-z][a-z0-9+.-]*:/iu.test(destination) && !/^(?:https?:|mailto:|tel:)/iu.test(destination)) add("link-scheme", bodyLine + index, "This inline link uses an unsupported destination scheme. Prefer an HTTPS address that readers can open.");
+      else if (!/^(?:https?:|mailto:|tel:)/iu.test(destination)) add("relative-link", bodyLine + index, "This inline link is relative or local. It may stop working when this Markdown file is shared on its own.");
+    }
     if (!line.trim() || /^#{1,6}\s/u.test(line)) { flush(); continue; }
     const bullet = line.match(/^\s*[-*+]\s+(.+)$/u)?.[1].trim().toLocaleLowerCase("en-US");
     if (bullet) {
