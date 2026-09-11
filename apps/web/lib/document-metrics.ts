@@ -21,3 +21,14 @@ export function filterOutline(headings: ReturnType<typeof documentMetrics>["head
   const needle = query.trim().toLocaleLowerCase("en-US");
   return headings.filter((heading) => heading.text.toLocaleLowerCase("en-US").includes(needle));
 }
+
+export function sectionExcerpt(markdown: string, start: number) {
+  const source = normaliseMarkdown(markdown);
+  const metrics = documentMetrics(source);
+  if (metrics.limited) throw new Error("Section export is limited to 128 KiB drafts.");
+  const index = metrics.headings.findIndex((heading) => heading.start === start);
+  if (index < 0) throw new Error("Choose an available body heading.");
+  const heading = metrics.headings[index];
+  const end = metrics.headings.slice(index + 1).find((next) => next.level <= heading.level)?.start ?? source.length;
+  return { title: heading.text, markdown: source.slice(start, end) };
+}

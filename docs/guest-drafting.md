@@ -53,3 +53,5 @@ Filter headings by case-insensitive text to reach sections beyond the first 60 d
 Writing review now flags skipped heading levels and repeated heading labels, with source-line navigation. Fenced examples and frontmatter do not create outline findings. These are suggestions, not schema errors.
 
 Writing review inspects simple inline Markdown links for empty destinations, unsupported schemes, relative/local addresses, and fragment links. Fragment navigation is not wired in the local preview. No address is fetched; reference-style links, nested link syntax, inline code, and destination availability still require manual review.
+
+Choose **Review excerpt** beside an outline heading to inspect and download that section with its child sections. Excerpts exclude frontmatter and neighboring sections, retain normalized Markdown, and use an `excerpt-` filename. They are not complete validated documents. Draft edits disable a stale excerpt download until you select it again; excerpts do not update the full-document download receipt or clear reload warnings.

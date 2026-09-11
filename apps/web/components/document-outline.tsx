@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { downloadMarkdown, preferredMarkdownName } from "@/components/publish-panel";
 import { Button } from "@/components/ui/button";
 import { sourceLineRange } from "@/lib/source-line";
-import { documentMetrics, filterOutline } from "@/lib/document-metrics";
+import { documentMetrics, filterOutline, sectionExcerpt } from "@/lib/document-metrics";
 
 export function DocumentOutline({ markdown, onSelect }: { markdown: string; onSelect: (offset: number) => void }) {
+  const [excerpt, setExcerpt] = useState<{ title: string; markdown: string; source: string } | null>(null);
+  const [exportMessage, setExportMessage] = useState("");
   const [filter, setFilter] = useState("");
   const [line, setLine] = useState("1");
   const [error, setError] = useState("");
@@ -33,8 +36,25 @@ export function DocumentOutline({ markdown, onSelect }: { markdown: string; onSe
         <button type="button" onClick={() => onSelect(heading.start)} aria-label={`Edit ${heading.text.slice(0, 120)} at line ${heading.line}`} className="min-h-11 w-full break-words rounded-lg px-2 py-1 text-left text-xs text-mist hover:bg-white/5 hover:text-white">
           <span className="mr-2 font-mono text-acid">H{heading.level} · {heading.line}</span>{heading.text.slice(0, 120)}
         </button>
+        <Button variant="ghost" aria-label={`Review excerpt ${heading.text.slice(0, 120)} at line ${heading.line}`} onClick={() => {
+          try { setExcerpt({ ...sectionExcerpt(markdown, heading.start), source: markdown }); setExportMessage(""); }
+          catch { setError("Section could not be selected. Choose a current heading."); }
+        }}>Review excerpt</Button>
       </li>)}</ol>
     </nav>
+    {excerpt && <section aria-label="Section excerpt review" className="mt-3 text-xs text-mist">
+      <h3 className="font-semibold text-white">{excerpt.title}</h3>
+      <p className="mt-2">Body section and child sections only. This excerpt excludes frontmatter and is not a complete validated profile or resume. Review sensitive content before sharing.</p>
+      <pre tabIndex={0} className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-all bg-black/20 p-2">{excerpt.markdown.slice(0, 12000)}</pre>
+      {excerpt.markdown.length > 12000 && <p>Preview shows the first 12,000 characters; download contains the full section.</p>}
+      {excerpt.source !== markdown && <p role="alert">The draft changed. Select the excerpt again before downloading.</p>}
+      <div className="mt-2 flex flex-wrap gap-2"><Button variant="secondary" disabled={excerpt.source !== markdown} onClick={() => {
+        if (excerpt.source !== markdown) return;
+        try { downloadMarkdown(excerpt.markdown, preferredMarkdownName("profile", "section", `excerpt-${excerpt.title}`)); setExportMessage("Excerpt download requested. The full draft and download receipt were kept."); }
+        catch { setExportMessage("Excerpt download could not start. Your draft is still here."); }
+      }}>Download section excerpt</Button><Button variant="ghost" onClick={() => setExcerpt(null)}>Close excerpt</Button></div>
+      {exportMessage && <p role="status" className="mt-2">{exportMessage}</p>}
+    </section>}
     {headings.length > 60 && <p className="mt-2 text-xs text-mist">Showing the first 60 of {headings.length} matching headings.</p>}
   </details>;
 }
