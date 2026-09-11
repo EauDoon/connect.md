@@ -41,3 +41,5 @@ After a Markdown download, **Changes since last Markdown download** compares the
 Search can optionally ignore case or require whole words. Word boundaries include Unicode letters, marks, numbers, and underscores. Literal punctuation remains literal.
 
 Choose **Body only** to exclude opening YAML frontmatter from matching and replacement. An unclosed frontmatter block yields no body matches; fix the delimiter before replacing.
+
+Replacement actions first open a bounded before/after review. Apply the reviewed result or cancel without changes. Edits to the source or search settings disable an old review until it is regenerated.
