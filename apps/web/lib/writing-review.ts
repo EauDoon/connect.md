@@ -12,7 +12,13 @@ export function reviewWriting(markdown: string) {
     if (/\b(?:TODO|TBD|Your Name|Your professional headline|Unspecified skill|Unspecified occupation)\b/iu.test(line)) add("placeholder", index + 1, "Replace starter or unfinished wording with facts you can support, or remove it.");
     if (/\[(?:click here|here|link)\]\(/iu.test(line)) add("link-label", index + 1, "Give this link a descriptive label so readers know its destination.");
   }
+  const headingLabels = new Set<string>();
   for (const [index, heading] of metrics.headings.entries()) {
+    const previous = metrics.headings[index - 1];
+    if (previous && heading.level > previous.level + 1) add("heading-level", heading.line, "This heading skips a level. Consider a consistent hierarchy for readers and assistive navigation.");
+    const label = heading.text.trim().toLocaleLowerCase("en-US");
+    if (headingLabels.has(label)) add("repeated-heading", heading.line, "This heading label appears earlier. Consider a more specific label if these sections serve different purposes.");
+    headingLabels.add(label);
     const next = metrics.headings[index + 1];
     const lineEnd = source.indexOf("\n", heading.start);
     const content = source.slice(lineEnd < 0 ? source.length : lineEnd, next?.start ?? source.length).trim();

@@ -49,3 +49,5 @@ Applied search replacements now keep the prior source in **Session recovery**, u
 In **Document outline and length**, enter a source line and choose **Go to line**. This selects the exact line, including frontmatter or blank lines, in the plain-text editor. Out-of-range requests preserve your selection and explain the error.
 
 Filter headings by case-insensitive text to reach sections beyond the first 60 displayed entries. Counts reflect all matching headings, and clearing the filter restores the full outline without editing the draft.
+
+Writing review now flags skipped heading levels and repeated heading labels, with source-line navigation. Fenced examples and frontmatter do not create outline findings. These are suggestions, not schema errors.

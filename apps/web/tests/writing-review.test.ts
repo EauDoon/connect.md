@@ -15,3 +15,8 @@ describe("advisory writing review", () => {
     expect(reviewWriting("TODO\n".repeat(30)).findings).toHaveLength(20);
   });
 });
+
+it("finds skipped heading levels and repeated heading labels outside code", () => {
+  const findings = reviewWriting("# Name\ntext\n### Work\ntext\n## Work\ntext\n```\n#### Hidden\n```\n").findings;
+  expect(findings.map(({ code, line }) => [code, line])).toEqual([["heading-level", 3], ["repeated-heading", 5]]);
+});
