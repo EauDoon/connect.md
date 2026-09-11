@@ -47,3 +47,5 @@ Replacement actions first open a bounded before/after review. Apply the reviewed
 Applied search replacements now keep the prior source in **Session recovery**, using the same single-step undo as imports. Undo preserves checkpoints but replaces later edits; keep named checkpoints for multiple versions.
 
 In **Document outline and length**, enter a source line and choose **Go to line**. This selects the exact line, including frontmatter or blank lines, in the plain-text editor. Out-of-range requests preserve your selection and explain the error.
+
+Filter headings by case-insensitive text to reach sections beyond the first 60 displayed entries. Counts reflect all matching headings, and clearing the filter restores the full outline without editing the draft.

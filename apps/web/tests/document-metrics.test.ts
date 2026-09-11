@@ -15,3 +15,12 @@ describe("document outline", () => {
     expect(documentMetrics("")).toMatchObject({ words: 0, readingMinutes: 0, headings: [] });
   });
 });
+
+it("filters all headings before the display cap while retaining source offsets", async () => {
+  const { filterOutline } = await import("../lib/document-metrics");
+  const metrics = documentMetrics(Array.from({ length: 80 }, (_, i) => `## Section ${i}\n`).join(""));
+  const selected = filterOutline(metrics.headings, " SECTION 79 ");
+  expect(selected).toHaveLength(1);
+  expect(selected[0]).toEqual(metrics.headings[79]);
+  expect(filterOutline(metrics.headings, "missing")).toEqual([]);
+});

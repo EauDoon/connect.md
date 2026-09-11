@@ -16,3 +16,8 @@ export function documentMetrics(markdown: string) {
   const words = (body.match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu) ?? []).length;
   return { bytes, words, readingMinutes: Math.ceil(words / 200), headings, limited: false };
 }
+
+export function filterOutline(headings: ReturnType<typeof documentMetrics>["headings"], query: string) {
+  const needle = query.trim().toLocaleLowerCase("en-US");
+  return headings.filter((heading) => heading.text.toLocaleLowerCase("en-US").includes(needle));
+}
