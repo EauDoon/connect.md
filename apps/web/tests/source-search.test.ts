@@ -25,3 +25,10 @@ it("supports optional case folding and Unicode whole-word boundaries", () => {
   expect(replaceSourceMatches("CAT cat", "cat", "$&", "all", { matchCase: false })).toBe("$& $&");
   expect(findSourceMatches("İx a", "a", { matchCase: false }).matches).toEqual([3]);
 });
+
+it("body-only replacement preserves metadata and fails closed on unclosed frontmatter", () => {
+  const source = "---\nname: Cat\n---\nCat";
+  expect(replaceSourceMatches(source, "Cat", "Dog", "all", { bodyOnly: true })).toBe("---\nname: Cat\n---\nDog");
+  expect(findSourceMatches("---\nname: Cat", "Cat", { bodyOnly: true }).matches).toEqual([]);
+  expect(findSourceMatches("Cat", "Cat", { bodyOnly: true }).matches).toEqual([0]);
+});

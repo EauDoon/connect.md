@@ -39,3 +39,5 @@ In Markdown Mode, choose **Source only**, **Preview and checks**, or **Split vie
 After a Markdown download, **Changes since last Markdown download** compares the current bytes with the exact source used for that download request, including changes of document kind. The display is bounded to 80 lines and 12,000 characters per side; it is a changed-region comparison rather than a full multi-hunk diff. Only another Markdown download updates this baseline. Clipboard copies, checkpoint downloads, and recovery/review files do not move it. The app cannot verify that the browser actually saved a file on disk.
 
 Search can optionally ignore case or require whole words. Word boundaries include Unicode letters, marks, numbers, and underscores. Literal punctuation remains literal.
+
+Choose **Body only** to exclude opening YAML frontmatter from matching and replacement. An unclosed frontmatter block yields no body matches; fix the delimiter before replacing.
