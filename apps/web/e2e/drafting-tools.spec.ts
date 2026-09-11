@@ -332,3 +332,21 @@ test("expanded drafting tools reflow at 320 pixels and pass serious accessibilit
   await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0, 0); });
   await page.screenshot({ path: test.info().outputPath("drafting-tools-mobile.png"), fullPage: true });
 });
+
+test("reviewed replacements can be undone without losing checkpoints", async ({ page }) => {
+  await page.goto("/md");
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  const source = page.getByRole("textbox", { name: "Canonical Markdown source" });
+  await source.fill("# Cat\nCat\n");
+  await page.getByText("Find and replace source text", { exact: true }).click();
+  await page.getByLabel("Find text", { exact: true }).fill("Cat");
+  await page.getByLabel("Replace with", { exact: true }).fill("Dog");
+  await page.getByRole("button", { name: "Review all replacements", exact: true }).click();
+  await expect(source).toHaveValue("# Cat\nCat\n");
+  await page.getByRole("button", { name: "Apply reviewed replacement", exact: true }).click();
+  await expect(source).toHaveValue("# Dog\nDog\n");
+  await page.getByText("Session recovery", { exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Undo draft replacement", exact: true }).click();
+  await expect(source).toHaveValue("# Cat\nCat\n");
+});

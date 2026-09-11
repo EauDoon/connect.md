@@ -59,7 +59,7 @@ export function SourceSearch({ markdown, onChange, onSelect }: { markdown: strin
       {(preview.before !== markdown || preview.settings !== settings) && <p role="alert">Source or search settings changed. Review the replacement again.</p>}
       <div className="mt-2 flex flex-wrap gap-2"><Button variant="secondary" disabled={comparison.identical || preview.before !== markdown || preview.settings !== settings} onClick={() => {
         if (preview.before !== markdown || preview.settings !== settings) return;
-        onChange(preview.after); setPreview(null); setIndex(-1); setMessage("Reviewed replacement applied.");
+        onChange(preview.after); setPreview(null); setIndex(-1); setMessage("Reviewed replacement applied. Session recovery can undo this replacement.");
       }}>Apply reviewed replacement</Button><Button variant="ghost" onClick={() => setPreview(null)}>Cancel replacement</Button></div>
     </section>}
     {message && <p role="status" className="mt-2 text-xs text-mist">{message}</p>}
