@@ -1,4 +1,4 @@
-"""Create and verify a deterministic, clean-HEAD Connect.md source archive.
+"""Create and verify a deterministic, clean-HEAD connect.md source archive.
 
 The exporter reads blobs from a committed Git tree only.  It never packages the
 working directory, and it refuses a missing HEAD, a dirty checkout, unexpected
@@ -869,7 +869,7 @@ def _result_json(result: DistributionResult) -> str:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Export and verify a deterministic clean-HEAD Connect.md source distribution."
+        description="Export and verify a deterministic clean-HEAD connect.md source distribution."
     )
     commands = parser.add_subparsers(dest="command", required=True)
     export = commands.add_parser(
