@@ -1,5 +1,40 @@
 # connect.md architecture
 
+## Monorepo layout
+
+The diagram below shows the relationship between the top-level directories and
+the compose files at runtime.
+
+```mermaid
+flowchart LR
+    Browser([Browser])
+    Web["apps/web<br/>Next.js guest UI"]
+    Api["apps/api<br/>FastAPI authority"]
+    Schemas["packages/markdown-schemas<br/>canonical Markdown"]
+    Infra["infra/<br/>nginx, postgres, scripts, tests"]
+    Deploy["deploy/<br/>with-network-secrets.sh"]
+    Storage["storage/"]
+
+    Browser --> Web
+    Web --> Api
+    Api --> Schemas
+    Api --> Infra
+    Api --> Storage
+    Deploy --> Infra
+```
+
+`apps/web` is the active Next.js application. It serves the standalone guest
+drafting workflow at `/human` and `/md` and, when the optional network stack
+is configured, the public pages that read from `apps/api`. `apps/api` is a
+FastAPI service that validates writes against `packages/markdown-schemas`,
+persists canonical Markdown into the `storage/` volume, and depends on the
+Postgres, Meilisearch, and Nginx services declared under `infra/` in
+`compose.yaml`. The `deploy/` directory provides operator scripts and
+overlay compose fragments used for production; `compose.prod.yaml` adds the
+`frontend`, `nginx`, and `certbot` services on top of the base file. The
+detailed runtime topology, document contract, API surface, and deployment
+controls follow below.
+
 ## Product invariant
 
 Every public profile and resume has one canonical Markdown representation. Human-mode forms, Monaco editing, API writes, public pages, and search all read from or produce the same validated document. PostgreSQL exact-search/taxonomy projections and Meilisearch are projections around that source, not competing content stores.

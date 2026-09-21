@@ -15,6 +15,40 @@ routes. Those require a separately configured network database. Route source
 and a successful build do not establish that a production network service is
 configured or operational. The guest workflow does not depend on those services.
 
+## Architecture
+
+The repository is a monorepo. The diagram below shows how the top-level
+directories and compose files relate at runtime.
+
+```mermaid
+flowchart LR
+    Browser([Browser])
+    Web["apps/web<br/>Next.js guest UI"]
+    Api["apps/api<br/>FastAPI authority"]
+    Schemas["packages/markdown-schemas<br/>canonical Markdown"]
+    Infra["infra/<br/>nginx, postgres, scripts, tests"]
+    Deploy["deploy/<br/>with-network-secrets.sh"]
+    Storage["storage/"]
+
+    Browser --> Web
+    Web --> Api
+    Api --> Schemas
+    Api --> Infra
+    Api --> Storage
+    Deploy --> Infra
+```
+
+A browser request enters `apps/web`, the Next.js application that hosts the
+guest drafting workflow at `/human` and `/md`. That standalone workflow does
+not require any database or backend service. The optional network account,
+discovery, and messaging routes read from `apps/api`, a FastAPI service that
+consumes the canonical Markdown schemas in `packages/markdown-schemas`, mounts
+the runtime data contract from `storage/`, and depends on `infra/` services
+(Postgres, Meilisearch, Nginx) declared in `compose.yaml`. The `deploy/`
+directory provides operator scripts and overlay compose fragments used to
+bring the stack up in production; `compose.prod.yaml` adds the `frontend`,
+`nginx`, and `certbot` services on top of the base file.
+
 ## What works
 
 - Guided profile and resume composition in Human Mode.
