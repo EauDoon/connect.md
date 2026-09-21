@@ -1,5 +1,9 @@
 # connect.md
 
+[![build](https://img.shields.io/github/actions/workflow/status/EauDoon/connect.md/ci.yml?branch=main)](https://github.com/EauDoon/connect.md/actions)
+[![license](https://img.shields.io/github/license/EauDoon/connect.md)](https://github.com/EauDoon/connect.md/blob/main/LICENSE)
+[![last commit](https://img.shields.io/github/last-commit/EauDoon/connect.md)](https://github.com/EauDoon/connect.md)
+
 **A private, browser-only builder for portable professional Markdown.**
 
 Production: [connect-md.vercel.app](https://connect-md.vercel.app)
