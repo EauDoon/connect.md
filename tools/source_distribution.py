@@ -132,6 +132,7 @@ _ALLOWED_ROOT_FILES = frozenset(
 )
 _ALLOWED_PREFIXES = (
     ".github/",
+    "audits/",
     "apps/",
     "deploy/",
     "docs/",
