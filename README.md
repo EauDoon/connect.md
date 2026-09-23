@@ -19,6 +19,30 @@ routes. Those require a separately configured network database. Route source
 and a successful build do not establish that a production network service is
 configured or operational. The guest workflow does not depend on those services.
 
+## Quick start
+
+The active production path is the Next.js app at `apps/web`. It runs locally
+without the optional network services.
+
+```text
+cd apps/web
+cp .env.example .env.local
+npm ci
+npm run dev
+```
+
+Open http://localhost:3000. No service account or backend is required.
+
+To verify the build:
+
+```text
+cd apps/web
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
 ## Architecture
 
 The repository is a monorepo. The diagram below shows how the top-level
