@@ -1,6 +1,6 @@
 import {
   frontmatterParseIssue,
-  normaliseMarkdown,
+  normaliseDraftSource,
   PROFILE_RESUME_MAX_UTF8_BYTES,
   splitFrontmatter,
   type DocumentKind,
@@ -48,5 +48,5 @@ export function parseLocalMarkdownDraft(source: string): LocalMarkdownDraft {
       : null;
   if (!kind) throw new Error("The file schema must be connect.md/profile or connect.md/resume.");
 
-  return { kind, markdown: normaliseMarkdown(source) };
+  return { kind, markdown: normaliseDraftSource(source) };
 }

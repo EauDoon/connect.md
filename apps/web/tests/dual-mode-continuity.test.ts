@@ -176,9 +176,9 @@ describe("dual-mode canonical draft continuity", () => {
       await act(async () => { root.render(renderSurface("human")); });
       await act(async () => { currentDraft.setMarkdown("# Before replacement"); });
       await act(async () => { currentDraft.replaceDraft("resume", "# Imported"); });
-      expect(currentDraft!.previousDraft?.markdown).toBe("# Before replacement\n");
+      expect(currentDraft!.previousDraft?.markdown).toBe("# Before replacement");
       await act(async () => { currentDraft.undoReplacement(); });
-      expect(currentDraft!.markdown).toBe("# Before replacement\n");
+      expect(currentDraft!.markdown).toBe("# Before replacement");
       expect(currentDraft!.kind).toBe("profile");
       expect(currentDraft!.previousDraft).toBeNull();
       await act(async () => { currentDraft.replaceMarkdown("# Reset"); });
@@ -189,14 +189,14 @@ describe("dual-mode canonical draft continuity", () => {
         recordLocalDownload("alpha.md");
         saveCheckpoint("Alpha revision");
       });
-      expect(observed).toMatchObject({ surface: "human", adjacent: "alpha-owned-filename.pdf", markdown: "# Alpha private Markdown\n", stage: "review", downloadFilename: "alpha.md" });
+      expect(observed).toMatchObject({ surface: "human", adjacent: "alpha-owned-filename.pdf", markdown: "# Alpha private Markdown", stage: "review", downloadFilename: "alpha.md" });
       await act(async () => { currentDraft.setEditorLayout("preview"); currentDraft.setEditorInterface("plain"); });
 
       await act(async () => { root.render(renderSurface("markdown")); });
       expect(checkpointLabels).toEqual(["Alpha revision"]);
       expect(currentDraft!.editorLayout).toBe("preview");
       expect(currentDraft!.editorInterface).toBe("plain");
-      expect(observed).toMatchObject({ surface: "markdown", markdown: "# Alpha private Markdown\n", stage: "review", downloadFilename: "alpha.md" });
+      expect(observed).toMatchObject({ surface: "markdown", markdown: "# Alpha private Markdown", stage: "review", downloadFilename: "alpha.md" });
       await act(async () => { root.render(renderSurface("human")); });
       await act(async () => { setAdjacent("alpha-owned-provenance"); });
       const sameSubjectInstance = observed.instance;

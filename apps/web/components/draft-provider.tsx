@@ -3,7 +3,7 @@
 import React, { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useConnectmdAuth } from "@/components/auth-provider";
-import { PROFILE_RESUME_MAX_UTF8_BYTES, documentIdentifier, profileStarter, type DocumentKind, type HumanFields, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
+import { PROFILE_RESUME_MAX_UTF8_BYTES, documentIdentifier, profileStarter, type DocumentKind, type HumanFields, normaliseDraftSource, normaliseMarkdown, starterFor, switchDocumentKind } from "@/lib/markdown";
 import { type DocumentResponse } from "@/lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject } from "@/lib/draft-security";
 import { type HumanJourneyStage } from "@/lib/human-journey";
@@ -167,7 +167,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   }, []);
   const setMarkdown = useCallback((next: string) => {
     if (!maskDraftRef.current) {
-      const canonical = normaliseMarkdown(next);
+      const canonical = normaliseDraftSource(next);
       markdownRef.current = canonical;
       revisionRef.current += 1;
       updateMarkdown(canonical);
@@ -177,7 +177,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const replaceMarkdown = useCallback((next: string) => {
     if (maskDraftRef.current) return;
     rememberReplacement();
-    const canonical = normaliseMarkdown(next);
+    const canonical = normaliseDraftSource(next);
     markdownRef.current = canonical;
     savedDocumentRef.current = null;
     revisionRef.current += 1;
@@ -191,7 +191,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const replaceDraft = useCallback((nextKind: DocumentKind, nextMarkdown: string) => {
     if (maskDraftRef.current) return;
     rememberReplacement();
-    const canonical = normaliseMarkdown(nextMarkdown);
+    const canonical = normaliseDraftSource(nextMarkdown);
     kindRef.current = nextKind;
     markdownRef.current = canonical;
     savedDocumentRef.current = null;

@@ -91,7 +91,7 @@ export function MarkdownEditor() {
               <label className="inline-flex min-h-11 items-center gap-2"><input type="radio" name="editor-interface" checked={!plainEditor} onChange={() => setPlainEditor(false)} />Code editor</label>
               <label className="inline-flex min-h-11 items-center gap-2"><input type="radio" name="editor-interface" checked={plainEditor} onChange={() => setPlainEditor(true)} />Plain-text editor</label>
             </fieldset>
-            <p id="editor-interface-help" className="mb-3 text-xs leading-5 text-mist">Both interfaces edit the same draft. Plain text works with standard browser controls and is available while the code editor loads.</p>
+            <p id="editor-interface-help" className="mb-3 text-xs leading-5 text-mist">Both interfaces edit the same draft. Spaces and blank lines are kept as you type; line endings use LF. Plain text works with standard browser controls and is available while the code editor loads.</p>
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0c0e12]">
               {plainEditor ? <textarea ref={sourceRef} aria-label="Canonical Markdown source" aria-describedby="editor-interface-help" value={markdown} onChange={(event) => setMarkdown(event.target.value)} spellCheck={false} autoCapitalize="off" autoCorrect="off" className="block h-[540px] w-full resize-y bg-transparent p-4 font-mono text-sm leading-[22px] text-white outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-acid" /> : <MonacoEditor
                 height="540px"
