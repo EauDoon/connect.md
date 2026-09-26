@@ -4,7 +4,7 @@ const baseURL = process.env.E2E_BASE_URL;
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["standalone-release.spec.ts", "drafting-tools.spec.ts"],
+  testMatch: ["standalone-release.spec.ts", "drafting-tools.spec.ts", "source-continuity.spec.ts"],
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,

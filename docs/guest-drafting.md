@@ -2,11 +2,15 @@
 
 Guest documents remain in React memory. No browser storage, account, or upload is required.
 
+## Source editing and reopening
+
+The source editors keep spaces, blank lines, and the presence or absence of a final newline as you type. Local Markdown opening and pasting, downloads, checkpoints, replacement undo, and recovery retain that source; CRLF and CR line endings normalize to LF. Downloaded LF source can be reopened without losing trailing whitespace. The 128 KiB source limit includes trailing whitespace. Guided field edits and document-type conversion deliberately regenerate the affected Markdown; keep a checkpoint before those changes if you need the original formatting.
+
 ## Recovery files
 
 Open **Session recovery** in either editing mode to download the current source and up to five named checkpoints as a local JSON file. Invalid work in progress can be backed up without passing the Markdown download gate. Each source is limited to 128 KiB. This file contains your document text, so keep it privately. Downloading it does not validate a document, publish it, clear the reload warning, or save anything automatically.
 
-To reopen it, choose the recovery JSON file, inspect its document type and checkpoint names, then confirm replacement. Parsing and all bounds succeed before any draft state changes. Unsupported versions, duplicate checkpoint names, invalid UTF-8, and oversized sources fail without replacing your work. If the draft changes during review, reopen the file before restoring. Restoration replaces the complete checkpoint set; ordinary Markdown editing normalization still applies to the active source.
+To reopen it, choose the recovery JSON file, inspect its document type and checkpoint names, then confirm replacement. Parsing and all bounds succeed before any draft state changes. Unsupported versions, duplicate checkpoint names, invalid UTF-8, and oversized sources fail without replacing your work. If the draft changes during review, reopen the file before restoring. Restoration replaces the complete checkpoint set; only line endings normalize to LF in the active source.
 
 ## Undo a replacement
 

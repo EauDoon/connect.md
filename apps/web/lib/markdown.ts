@@ -203,7 +203,11 @@ function inspectFrontmatter(markdown: string): FrontmatterInspection {
   if (utf8ByteLength(markdown) > PROFILE_RESUME_MAX_UTF8_BYTES * 2) {
     return { attributes: emptyAttributes, body: "", hasFrontmatter: false, issue: canonicalSizeMessage() };
   }
-  const source = normaliseMarkdown(markdown);
+  const draftSource = normaliseDraftSource(markdown);
+  if (utf8ByteLength(draftSource) > PROFILE_RESUME_MAX_UTF8_BYTES) {
+    return { attributes: emptyAttributes, body: draftSource, hasFrontmatter: false, issue: canonicalSizeMessage() };
+  }
+  const source = normaliseMarkdown(draftSource);
   if (utf8ByteLength(source) > PROFILE_RESUME_MAX_UTF8_BYTES) {
     return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: canonicalSizeMessage() };
   }
@@ -223,8 +227,13 @@ function inspectFrontmatter(markdown: string): FrontmatterInspection {
   }
 }
 
+/** Normalize line endings without trimming text or moving the editor's caret. */
+export function normaliseDraftSource(markdown: string) {
+  return markdown.replace(/\r\n?/g, "\n");
+}
+
 export function normaliseMarkdown(markdown: string) {
-  return markdown.replace(/\r\n?/g, "\n").replace(/\s+$/u, "") + "\n";
+  return normaliseDraftSource(markdown).replace(/\s+$/u, "") + "\n";
 }
 
 function isEmptyDraftSource(source: string) {

@@ -21,6 +21,24 @@ describe("local Markdown file opening", () => {
     expect(imported.markdown).toBe(resumeStarter);
   });
 
+  it("reopens downloaded source without trimming spaces or changing its final newline", () => {
+    for (const starter of [profileStarter, resumeStarter]) {
+      for (const suffix of ["", " ", "  \n\n\t", "\n\n"]) {
+        const source = starter.trimEnd() + suffix;
+        expect(parseLocalMarkdownDraft(source).markdown).toBe(source);
+        expect(parseLocalMarkdownDraft(source.replace(/\n/gu, "\r\n")).markdown).toBe(source);
+      }
+    }
+  });
+
+  it("counts preserved trailing whitespace toward the source limit", () => {
+    const remaining = PROFILE_RESUME_MAX_UTF8_BYTES - new TextEncoder().encode(profileStarter).length;
+    expect(parseLocalMarkdownDraft(profileStarter + " ".repeat(remaining)).markdown).toHaveLength(PROFILE_RESUME_MAX_UTF8_BYTES);
+    expect(() => parseLocalMarkdownDraft(profileStarter + " ".repeat(remaining + 1))).toThrow("exceeds");
+    // The canonical representation still needs room for its final newline.
+    expect(() => parseLocalMarkdownDraft(profileStarter + "x".repeat(remaining))).toThrow("exceeds");
+  });
+
   it("accepts bounded CRLF input when its normalized Markdown fits the canonical limit", () => {
     const source = profileStarter.replace(/\n/gu, "\r\n") + "x\r\n".repeat(45_000);
     const buffer = new TextEncoder().encode(source).buffer;
