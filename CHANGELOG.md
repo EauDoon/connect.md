@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [`surfaces/tanstack-start/`](surfaces/tanstack-start/): experimental parallel TanStack Start live-preview surface (v2.20.1). Paper light UI, unique-prefix handles, honest `writesOffered: false`, CTA "Paste this into your agent". Demo Focus sections only — no invented employers/titles/metrics. **Does not replace** `apps/web` or `apps/api`.
 
+### Changed
+
+- Migration `0029_retention_residue_resource_indexes` adds `(resource_type, resource_id)` indexes to `change_events` and `idempotency_records`. The retention worker deletes idempotency and change-event residues for every disposed resource, and both tables previously had no index covering that predicate.
+
 ## [0.2.4] - 2026-08-27
 
 ### Added
