@@ -19,7 +19,7 @@ from app.services.artifact_durability import ArtifactIntentGateLease
 from app.services.database_roles import API_DATABASE_ROLE, require_database_role
 from app.services.storage import StorageIntegrityError
 
-EXPECTED_ALEMBIC_HEAD = "0028_scrub_verification_change_payloads"
+EXPECTED_ALEMBIC_HEAD = "0029_retention_residue_resource_indexes"
 
 
 class DatabaseSchemaNotCurrent(RuntimeError):

@@ -1735,3 +1735,52 @@ def test_0028_rejects_malformed_target_payload_without_rewriting_it(tmp_path: Pa
     assert preserved["verification-valid-before-malformed-0028"] == valid_payload
     assert preserved["verification-malformed-0028"] == malformed_payload
     assert revision == ("0027_application_snapshot_size",)
+
+
+def test_0029_indexes_retention_residue_lookups_and_reverses(tmp_path: Path) -> None:
+    api_root = Path(__file__).resolve().parents[1]
+    database = tmp_path / "retention-residue-indexes.db"
+    _alembic(api_root, database, "0028_scrub_verification_change_payloads")
+    with sqlite3.connect(database) as connection:
+        before = {
+            table: {row[1] for row in connection.execute(f"PRAGMA index_list('{table}')")}
+            for table in ("change_events", "idempotency_records")
+        }
+    assert "ix_change_events_resource" not in before["change_events"]
+    assert "ix_idempotency_resource" not in before["idempotency_records"]
+
+    _alembic(api_root, database, "head")
+    with sqlite3.connect(database) as connection:
+        after = {
+            table: {row[1] for row in connection.execute(f"PRAGMA index_list('{table}')")}
+            for table in ("change_events", "idempotency_records")
+        }
+        indexed_columns = {
+            table: {
+                row[1]: {column[2] for column in connection.execute(f"PRAGMA index_info('{row[1]}')")}
+                for row in connection.execute(f"PRAGMA index_list('{table}')")
+            }
+            for table in ("change_events", "idempotency_records")
+        }
+        revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+    assert "ix_change_events_resource" in after["change_events"]
+    assert "ix_idempotency_resource" in after["idempotency_records"]
+    assert indexed_columns["change_events"]["ix_change_events_resource"] == {
+        "resource_type",
+        "resource_id",
+    }
+    assert indexed_columns["idempotency_records"]["ix_idempotency_resource"] == {
+        "resource_type",
+        "resource_id",
+    }
+    assert revision == (EXPECTED_ALEMBIC_HEAD,)
+
+    _alembic_downgrade(api_root, database, "0028_scrub_verification_change_payloads")
+    with sqlite3.connect(database) as connection:
+        reverted = {
+            table: {row[1] for row in connection.execute(f"PRAGMA index_list('{table}')")}
+            for table in ("change_events", "idempotency_records")
+        }
+        revision_after = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+    assert reverted == before
+    assert revision_after == ("0028_scrub_verification_change_payloads",)

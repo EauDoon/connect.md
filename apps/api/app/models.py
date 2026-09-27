@@ -797,6 +797,7 @@ class IdempotencyRecord(Base):
     __table_args__ = (
         UniqueConstraint("owner_id", "idempotency_key", name="uq_idempotency_owner_key"),
         Index("ix_idempotency_created", "created_at"),
+        Index("ix_idempotency_resource", "resource_type", "resource_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -1106,7 +1107,10 @@ class IdentifierReservation(Base):
 
 class ChangeEvent(Base):
     __tablename__ = "change_events"
-    __table_args__ = (Index("ix_change_events_owner_sequence", "owner_id", "sequence"),)
+    __table_args__ = (
+        Index("ix_change_events_owner_sequence", "owner_id", "sequence"),
+        Index("ix_change_events_resource", "resource_type", "resource_id"),
+    )
 
     sequence: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     owner_id: Mapped[str] = mapped_column(String(255), nullable=False)
