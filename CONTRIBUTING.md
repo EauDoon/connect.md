@@ -21,8 +21,32 @@ Thanks for your interest in this project. Pull requests are welcome.
 
 ## Local checks
 
-Run the project's lint and test commands from the repository root. If you
-are unsure which commands apply, open a draft pull request and ask.
+The repository root is not a project. There is no root `package.json`,
+`pyproject.toml`, `pytest.ini`, or `setup.cfg`, so these commands have to run
+from the directory continuous integration uses for each job, which is the
+`working-directory` set on that job in `.github/workflows/ci.yml`.
+
+From `apps/api`:
+
+    python -m pip install --require-hashes -r requirements-test.lock
+    ruff check .
+    mypy app
+    pytest -q -m "not integration" tests
+
+From `apps/web`:
+
+    npm ci
+    npm run lint
+    npm run typecheck
+    npm test
+
+Those are the checks that gate a pull request. CI also builds the pinned API
+image, audits the API lockfile, audits the web lockfile, and runs the web
+production harness under Playwright; those need a Docker daemon or a browser
+install and are not a prerequisite for requesting review.
+
+`apps/api/README.md` documents the API's own run and verify steps, including
+`alembic upgrade head`.
 
 ## Reporting issues
 
