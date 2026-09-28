@@ -15052,15 +15052,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         statement = select(ContactRequest).where(
             ContactRequest.recipient_owner_id == principal.subject,
             ContactRequest.retention_expires_at > datetime.now(UTC),
-            ContactRequest.status != "blocked",
             connection_pair_is_not_blocked(
                 ContactRequest.sender_owner_id,
                 ContactRequest.recipient_owner_id,
             ),
         )
-        if status_filter is not None:
-            if status_filter not in {"pending", "accepted", "rejected", "blocked", "reported"}:
-                raise HTTPException(status_code=400, detail="unknown contact request status")
+        if status_filter is None:
+            statement = statement.where(ContactRequest.status != "blocked")
+        elif status_filter not in {"pending", "accepted", "rejected", "blocked", "reported"}:
+            raise HTTPException(status_code=400, detail="unknown contact request status")
+        else:
             statement = statement.where(ContactRequest.status == status_filter)
         if cursor:
             payload = generic_cursor_decode(
