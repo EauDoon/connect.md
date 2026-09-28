@@ -15053,6 +15053,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ContactRequest.recipient_owner_id == principal.subject,
             ContactRequest.retention_expires_at > datetime.now(UTC),
             ContactRequest.status != "blocked",
+            connection_pair_is_not_blocked(
+                ContactRequest.sender_owner_id,
+                ContactRequest.recipient_owner_id,
+            ),
         )
         if status_filter is not None:
             if status_filter not in {"pending", "accepted", "rejected", "blocked", "reported"}:
@@ -15167,6 +15171,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if replay is not None:
             return replay
         if row is None or retention_expired(row.retention_expires_at):
+            raise HTTPException(status_code=404, detail="contact request was not found")
+        if await connection_blocked(session, row.sender_owner_id, row.recipient_owner_id):
             raise HTTPException(status_code=404, detail="contact request was not found")
         if row.origin == "agent_outreach" and principal.method != "clerk_jwt":
             raise HTTPException(
