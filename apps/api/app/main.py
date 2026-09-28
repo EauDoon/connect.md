@@ -14528,7 +14528,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ContactBlock.blocked_owner_id == principal.subject,
             )
         )
-        if blocked is not None:
+        if blocked is not None or await connection_blocked(
+            session, principal.subject, target.owner_id
+        ):
             raise HTTPException(status_code=404, detail="contact target was not found")
         now = datetime.now(UTC)
         rate_limit = _CONTACT_SENDER_DAILY_LIMIT
