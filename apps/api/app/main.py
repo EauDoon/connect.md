@@ -15626,9 +15626,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=409,
                 detail="organization verification is required before public visibility",
             )
+        material_changed = ("name" in fields and body.name != organization.name) or (
+            "website_url" in fields and body.website_url != organization.website_url
+        )
         for field in fields:
             setattr(organization, field, getattr(body, field))
-        if fields.intersection({"name", "website_url"}):
+        if material_changed:
             organization.verification_material_version += 1
         now = datetime.now(UTC)
         organization.version += 1
