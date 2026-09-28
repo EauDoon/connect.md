@@ -18393,6 +18393,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ConnectionRequest.recipient_owner_id == principal.subject,
             ConnectionRequest.status == "pending",
             ConnectionRequest.retention_expires_at > datetime.now(UTC),
+            connection_pair_is_not_blocked(
+                ConnectionRequest.requester_owner_id,
+                ConnectionRequest.recipient_owner_id,
+            ),
         )
         if cursor:
             payload = generic_cursor_decode(
@@ -18480,6 +18484,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         replay = await idempotency_replay(session, request, principal, key, operation, fingerprint)
         if replay is not None:
             return replay
+        if await connection_blocked(session, row.requester_owner_id, row.recipient_owner_id):
+            raise HTTPException(status_code=404, detail="connection request was not found")
         if row.status != "pending":
             raise HTTPException(status_code=409, detail="connection request is already decided")
         if action == "accept" and (body is None or body.messaging_consent is None):
