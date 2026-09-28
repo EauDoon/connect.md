@@ -14564,17 +14564,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 headers={"Retry-After": "86400"},
             )
         pending = await session.scalar(
-            select(ContactRequest).where(
+            select(ContactRequest)
+            .where(
                 ContactRequest.sender_owner_id == principal.subject,
                 ContactRequest.recipient_owner_id == target.owner_id,
                 ContactRequest.status == "pending",
             )
+            .with_for_update()
         )
         if pending is not None:
-            raise HTTPException(
-                status_code=409,
-                detail="a contact request to this recipient is already pending",
-            )
+            if not retention_expired(pending.retention_expires_at, now):
+                raise HTTPException(
+                    status_code=409,
+                    detail="a contact request to this recipient is already pending",
+                )
+            # The pending-pair unique index ignores retention. An expired row
+            # would otherwise reject every later request to the same recipient.
+            pending.status = "rejected"
+            pending.decision_actor_id = "system:retention"
+            pending.decided_at = now
+            await session.flush()
         recipient_quota_values = {
             "recipient_owner_id": target.owner_id,
             "bucket_date": now.date(),
