@@ -8701,6 +8701,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             session, principal.subject, post.owner_id
         ):
             raise HTTPException(status_code=404, detail="post was not found")
+        if post.owner_id == principal.subject:
+            raise HTTPException(status_code=409, detail="cannot report your own post")
         now = datetime.now(UTC)
         # Probe only to preserve the lock order below. A duplicate linked to a
         # closed case must lock that existing case rather than open a new one.
