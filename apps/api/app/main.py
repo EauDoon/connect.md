@@ -17674,6 +17674,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             Application.job_id == job.id,
             Application.retention_expires_at > datetime.now(UTC),
             Application.status != "withdrawn",
+            connection_pair_is_not_blocked(
+                Application.applicant_owner_id, organization.owner_id
+            ),
+            connection_pair_is_not_blocked(Application.applicant_owner_id, principal.subject),
         )
         application_cursor_bindings = cursor_principal_bindings(principal) + (
             organization.id,
@@ -17795,6 +17799,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=404,
                 detail="withdrawn application content is no longer available to the organization",
             )
+        if await connection_blocked(
+            session, organization.owner_id, row.applicant_owner_id
+        ) or await connection_blocked(session, principal.subject, row.applicant_owner_id):
+            raise HTTPException(status_code=404, detail="application was not found")
         return application_detail_response(row, job, organization)
 
     async def employer_application_snapshot(
@@ -17820,6 +17828,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         )
         if row is None or row.status == "withdrawn" or retention_expired(row.retention_expires_at):
+            raise HTTPException(status_code=404, detail="application snapshot was not found")
+        if await connection_blocked(
+            session, organization.owner_id, row.applicant_owner_id
+        ) or await connection_blocked(session, principal.subject, row.applicant_owner_id):
             raise HTTPException(status_code=404, detail="application snapshot was not found")
         return row, job, organization, read_application_snapshot(request, row)
 
@@ -18151,6 +18163,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=409, detail="you cannot decide your own application"
             )
+        if await connection_blocked(
+            session, organization.owner_id, row.applicant_owner_id
+        ) or await connection_blocked(session, principal.subject, row.applicant_owner_id):
+            raise HTTPException(status_code=404, detail="application was not found")
         now = datetime.now(UTC)
         row.status = {"review": "under_review", "accept": "accepted", "reject": "rejected"}[action]
         row.decision_actor_id = principal.audit_actor_id
