@@ -18285,6 +18285,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=409, detail="an active connection request already exists"
             )
+        active_connection = await session.scalar(
+            select(Connection).where(
+                Connection.pair_owner_low == pair_low,
+                Connection.pair_owner_high == pair_high,
+                Connection.status == "active",
+                Connection.retention_expires_at > now,
+            )
+        )
+        if active_connection is not None:
+            # The accepted request can lapse while the connection it created is
+            # still inside its own retention window. Do not release that request
+            # or open a second one until the connection itself has ended.
+            raise HTTPException(status_code=409, detail="an active connection already exists")
         expired_request = await session.scalar(
             select(ConnectionRequest)
             .where(
