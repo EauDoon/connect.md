@@ -711,3 +711,32 @@ async def test_social_discovery_excludes_graph_writes(api_client) -> None:
     assert skill_ids.isdisjoint(
         {"follow-profile", "unfollow-profile", "block-profile", "unblock-profile"}
     )
+
+@pytest.mark.asyncio
+async def test_self_referential_social_edges_are_rejected_without_writing_rows(api_client) -> None:
+    app, client = api_client
+    await create_profile(client, app, "solo", "solo-profile")
+    as_principal(app, human("solo"))
+
+    follow = await client.post("/v1/follows/solo-profile", headers=key_header("solo-follow-0001"))
+    assert follow.status_code == 409, follow.text
+    assert follow.json()["detail"] == "cannot follow your own profile"
+
+    block = await client.post(
+        "/v1/content-blocks/solo-profile", headers=key_header("solo-block-0001")
+    )
+    assert block.status_code == 409, block.text
+    assert block.json()["detail"] == "cannot block your own profile"
+
+    async with app.state.session_factory() as session:
+        assert (await session.scalars(select(ProfileFollow))).all() == []
+        assert (await session.scalars(select(PostContentBlock))).all() == []
+        assert (
+            await session.scalars(
+                select(IdempotencyRecord).where(
+                    IdempotencyRecord.idempotency_key.in_(
+                        {"solo-follow-0001", "solo-block-0001"}
+                    )
+                )
+            )
+        ).all() == []
