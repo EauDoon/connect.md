@@ -1290,6 +1290,12 @@ def _post_openapi() -> dict[str, Any]:
     }
 
 
+def _sql_contains_pattern(value: str) -> str:
+    """Build a case-insensitive contains pattern with LIKE metacharacters escaped."""
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 def _quality(value: str) -> float:
     for parameter in value.split(";")[1:]:
         name, _, raw = parameter.strip().partition("=")
@@ -17105,6 +17111,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JobListResponse(jobs=[], next_cursor=None)
         job_query = q.strip() if q is not None else None
         job_location = location.strip() if location is not None else None
+        if job_location == "":
+            raise HTTPException(status_code=400, detail="job location must not be blank")
         if work_mode is not None and work_mode not in {"remote", "hybrid", "onsite"}:
             raise HTTPException(status_code=400, detail="unknown work_mode")
         if employment_type is not None and employment_type not in {
@@ -17143,18 +17151,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             term = job_query
             if not term:
                 raise HTTPException(status_code=400, detail="job query must not be blank")
-            pattern = f"%{term}%"
+            pattern = _sql_contains_pattern(term)
             statement = statement.where(
                 or_(
-                    Job.title.ilike(pattern),
-                    Job.description.ilike(pattern),
-                    Organization.name.ilike(pattern),
+                    Job.title.ilike(pattern, escape="\\"),
+                    Job.description.ilike(pattern, escape="\\"),
+                    Organization.name.ilike(pattern, escape="\\"),
                 )
             )
         if organization_slug is not None:
             statement = statement.where(Organization.slug == organization_slug)
         if job_location is not None:
-            statement = statement.where(Job.location.ilike(f"%{job_location}%"))
+            statement = statement.where(
+                Job.location.ilike(_sql_contains_pattern(job_location), escape="\\")
+            )
         if work_mode is not None:
             statement = statement.where(Job.work_mode == work_mode)
         if employment_type is not None:
