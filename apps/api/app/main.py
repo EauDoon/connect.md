@@ -16325,6 +16325,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             .where(
                 OrganizationMembership.member_owner_id == principal.subject,
                 OrganizationMembership.status == "invited",
+                connection_pair_is_not_blocked(
+                    OrganizationMembership.member_owner_id, Organization.owner_id
+                ),
             )
         )
         if cursor:
@@ -16565,6 +16568,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         if existing is not None:
             raise HTTPException(status_code=409, detail="organization administrator already exists")
+        if await connection_blocked(session, organization.owner_id, member_owner_id):
+            raise HTTPException(status_code=404, detail="profile was not found")
         now = datetime.now(UTC)
         member = OrganizationMembership(
             id=new_id(),
@@ -16679,6 +16684,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=409, detail="organization invitation is already accepted"
             )
+        if await connection_blocked(session, organization.owner_id, member.member_owner_id):
+            raise HTTPException(status_code=404, detail="organization invitation was not found")
         now = datetime.now(UTC)
         member.status = "active"
         session.add(
