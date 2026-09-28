@@ -1062,3 +1062,31 @@ async def test_private_gets_and_social_operations_are_marked_human_only_in_opena
             assert operation["security"] == [{"ClerkBearerAuth": []}]
             assert operation["x-connectmd-human-only"] is True
             assert "401" in operation["responses"]
+
+async def test_self_connection_request_is_rejected_without_writing_a_pair_row(api_client) -> None:
+    app, client = api_client
+    as_principal(app, human("solo"))
+    profile = await client.post(
+        "/v1/profiles",
+        json={"markdown": profile_markdown(visibility="public")},
+        headers={"Idempotency-Key": "self-connection-profile-create"},
+    )
+    assert profile.status_code == 201, profile.text
+
+    request = await client.post(
+        "/v1/connection-requests",
+        json={"recipient_profile_handle": "ada-lovelace", "messaging_requested": True},
+        headers={"Idempotency-Key": "self-connection-request-0001"},
+    )
+    assert request.status_code == 409, request.text
+    assert request.json()["detail"] == "cannot create a social relationship with yourself"
+
+    async with app.state.session_factory() as session:
+        assert (await session.scalars(select(ConnectionRequest))).all() == []
+        assert (
+            await session.scalars(
+                select(IdempotencyRecord).where(
+                    IdempotencyRecord.idempotency_key == "self-connection-request-0001"
+                )
+            )
+        ).all() == []
