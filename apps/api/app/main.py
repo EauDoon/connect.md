@@ -18140,6 +18140,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         if action in {"accept", "reject"} and row.status not in {"submitted", "under_review"}:
             raise HTTPException(status_code=409, detail="application is already decided")
+        if row.applicant_owner_id == principal.subject:
+            raise HTTPException(
+                status_code=409, detail="you cannot decide your own application"
+            )
         now = datetime.now(UTC)
         row.status = {"review": "under_review", "accept": "accepted", "reject": "rejected"}[action]
         row.decision_actor_id = principal.audit_actor_id
