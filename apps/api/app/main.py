@@ -15366,9 +15366,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             term = organization_query
             if not term:
                 raise HTTPException(status_code=400, detail="organization query must not be blank")
-            pattern = f"%{term}%"
+            pattern = _sql_contains_pattern(term)
             statement = statement.where(
-                or_(Organization.name.ilike(pattern), Organization.slug.ilike(pattern))
+                or_(
+                    Organization.name.ilike(pattern, escape="\\"),
+                    Organization.slug.ilike(pattern, escape="\\"),
+                )
             )
         if cursor:
             payload = generic_cursor_decode(
