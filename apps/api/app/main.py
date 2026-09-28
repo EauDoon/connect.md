@@ -18694,6 +18694,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         row.ended_at = now
         row.ended_by_owner_id = principal.subject
         row.updated_at = now
+        accepted_request = await session.scalar(
+            select(ConnectionRequest)
+            .where(ConnectionRequest.id == row.connection_request_id)
+            .with_for_update()
+        )
+        if accepted_request is not None and accepted_request.status == "accepted":
+            # Release the active-pair reservation. Retention expiry already uses
+            # rejected for this purpose; removal must not keep the pair locked
+            # until that expiry, and it must not create a block.
+            accepted_request.status = "rejected"
+            accepted_request.updated_at = now
         conversation = await session.scalar(
             select(Conversation).where(Conversation.connection_id == row.id).with_for_update()
         )
