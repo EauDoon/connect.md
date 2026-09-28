@@ -1090,3 +1090,70 @@ async def test_self_connection_request_is_rejected_without_writing_a_pair_row(ap
                 )
             )
         ).all() == []
+
+
+async def test_removed_connection_can_be_requested_again(api_client) -> None:
+    app, client = api_client
+    as_principal(app, human("reconnect-recipient"))
+    recipient = await client.post(
+        "/v1/profiles",
+        json={"markdown": profile_markdown(visibility="public")},
+        headers={"Idempotency-Key": "reconnect-remove-recipient-profile"},
+    )
+    assert recipient.status_code == 201, recipient.text
+    as_principal(app, human("reconnect-sender"))
+    sender = await client.post(
+        "/v1/profiles",
+        json={
+            "markdown": profile_markdown(visibility="public").replace(
+                "ada-lovelace", "reconnect-sender"
+            )
+        },
+        headers={"Idempotency-Key": "reconnect-remove-sender-profile"},
+    )
+    assert sender.status_code == 201, sender.text
+    first_request = await client.post(
+        "/v1/connection-requests",
+        json={"recipient_profile_handle": "ada-lovelace", "messaging_requested": False},
+        headers={"Idempotency-Key": "reconnect-remove-request-0001"},
+    )
+    assert first_request.status_code == 201, first_request.text
+    as_principal(app, human("reconnect-recipient"))
+    accepted = await client.post(
+        f"/v1/connection-requests/{first_request.json()['id']}/accept",
+        json={"messaging_consent": False},
+        headers={"Idempotency-Key": "reconnect-remove-accept-0001"},
+    )
+    assert accepted.status_code == 200, accepted.text
+    connection_id = (await client.get("/v1/connections")).json()["connections"][0]["id"]
+    as_principal(app, human("reconnect-sender"))
+    removed = await client.delete(
+        f"/v1/connections/{connection_id}",
+        headers={"Idempotency-Key": "reconnect-remove-delete-0001"},
+    )
+    assert removed.status_code == 204, removed.text
+
+    replacement = await client.post(
+        "/v1/connection-requests",
+        json={"recipient_profile_handle": "ada-lovelace", "messaging_requested": False},
+        headers={"Idempotency-Key": "reconnect-remove-request-0002"},
+    )
+    assert replacement.status_code == 201, replacement.text
+    assert replacement.json()["id"] != first_request.json()["id"]
+    as_principal(app, human("reconnect-recipient"))
+    replacement_accept = await client.post(
+        f"/v1/connection-requests/{replacement.json()['id']}/accept",
+        json={"messaging_consent": False},
+        headers={"Idempotency-Key": "reconnect-remove-accept-0002"},
+    )
+    assert replacement_accept.status_code == 200, replacement_accept.text
+    visible = await client.get("/v1/connections")
+    assert visible.status_code == 200, visible.text
+    assert [row["id"] for row in visible.json()["connections"]] != [connection_id]
+    assert len(visible.json()["connections"]) == 1
+
+    async with app.state.session_factory() as session:
+        original_connection = await session.get(Connection, connection_id)
+        original_request = await session.get(ConnectionRequest, first_request.json()["id"])
+    assert original_connection is not None and original_connection.status == "removed"
+    assert original_request is not None and original_request.status == "rejected"
