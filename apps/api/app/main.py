@@ -17382,6 +17382,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=409, detail="organization owner cannot apply to its own job"
             )
+        if await organization_role(session, organization, principal) is not None:
+            raise HTTPException(
+                status_code=409, detail="organization members cannot apply to their own job"
+            )
         snapshot_document = await session.scalar(
             select(Document)
             .where(
