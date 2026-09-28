@@ -214,3 +214,106 @@ async def test_active_organization_member_cannot_apply_to_its_job(api_client) ->
     assert [row.applicant_owner_id for row in applications] == ["member-apply-outsider"]
     assert insider_receipts == []
     assert insider_quota == []
+
+
+async def test_invited_and_non_admin_members_cannot_apply(api_client) -> None:
+    """Employer authority is owner/admin only, but every membership bars applying."""
+
+    app, client = api_client
+    owner_id = "member-role-owner"
+    await _seed_published_job(
+        app, owner_id=owner_id, slug="member-role-org", job_slug="member-role-job"
+    )
+    await _public_profile(app, client, "member-role-member", "member-role-member")
+    await _public_profile(app, client, "member-role-invited", "member-role-invited")
+    await _public_profile(app, client, "member-role-outsider", "member-role-outsider")
+
+    as_principal(app, human(owner_id))
+    member_invite = await client.post(
+        "/v1/organizations/member-role-org/admins",
+        json={"member_profile_handle": "member-role-member", "role": "member"},
+        headers={"Idempotency-Key": "member-role-invite-member"},
+    )
+    assert member_invite.status_code == 201, member_invite.text
+    invited = await client.post(
+        "/v1/organizations/member-role-org/admins",
+        json={"member_profile_handle": "member-role-invited", "role": "admin"},
+        headers={"Idempotency-Key": "member-role-invite-pending"},
+    )
+    assert invited.status_code == 201, invited.text
+
+    as_principal(app, human("member-role-member"))
+    accepted = await client.post(
+        f"/v1/organizations/member-role-org/memberships/{member_invite.json()['id']}/accept",
+        headers={"Idempotency-Key": "member-role-accept"},
+    )
+    assert accepted.status_code == 200, accepted.text
+    member_application = await client.post(
+        "/v1/organizations/member-role-org/jobs/member-role-job/applications",
+        json={
+            "message": "An active non-admin member must not apply.",
+            "snapshot_kind": "profile",
+            "snapshot_identifier": "member-role-member",
+            "human_confirmed": True,
+        },
+        headers={"Idempotency-Key": "member-role-apply-member"},
+    )
+    assert member_application.status_code == 409, member_application.text
+    assert (
+        member_application.json()["detail"]
+        == "organization members cannot apply to their own job"
+    )
+
+    as_principal(app, human("member-role-invited"))
+    invited_application = await client.post(
+        "/v1/organizations/member-role-org/jobs/member-role-job/applications",
+        json={
+            "message": "An invited member must not apply.",
+            "snapshot_kind": "profile",
+            "snapshot_identifier": "member-role-invited",
+            "human_confirmed": True,
+        },
+        headers={"Idempotency-Key": "member-role-apply-invited"},
+    )
+    assert invited_application.status_code == 409, invited_application.text
+    assert (
+        invited_application.json()["detail"]
+        == "organization members cannot apply to their own job"
+    )
+
+    as_principal(app, human("member-role-outsider"))
+    outsider = await client.post(
+        "/v1/organizations/member-role-org/jobs/member-role-job/applications",
+        json={
+            "message": "An outsider may apply.",
+            "snapshot_kind": "profile",
+            "snapshot_identifier": "member-role-outsider",
+            "human_confirmed": True,
+        },
+        headers={"Idempotency-Key": "member-role-apply-outsider"},
+    )
+    assert outsider.status_code == 201, outsider.text
+
+    async with app.state.session_factory() as session:
+        applications = (await session.scalars(select(Application))).all()
+        refused_receipts = (
+            await session.scalars(
+                select(IdempotencyRecord).where(
+                    IdempotencyRecord.idempotency_key.in_(
+                        ("member-role-apply-member", "member-role-apply-invited")
+                    )
+                )
+            )
+        ).all()
+        refused_quota = (
+            await session.scalars(
+                select(ApplicationRateBucket).where(
+                    ApplicationRateBucket.applicant_owner_id.in_(
+                        ("member-role-member", "member-role-invited")
+                    )
+                )
+            )
+        ).all()
+    assert [row.applicant_owner_id for row in applications] == ["member-role-outsider"]
+    assert refused_receipts == []
+    assert refused_quota == []
