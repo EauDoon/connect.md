@@ -17398,6 +17398,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=409, detail="organization members cannot apply to their own job"
             )
+        if await connection_blocked(session, principal.subject, organization.owner_id):
+            raise HTTPException(status_code=404, detail="job was not found")
         snapshot_document = await session.scalar(
             select(Document)
             .where(
