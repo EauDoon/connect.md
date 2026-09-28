@@ -619,3 +619,43 @@ async def test_post_commit_then_raise_preserves_one_graph_and_replays(
     scan = app.state.store.scan_staged_artifacts()
     assert scan.descriptors == ()
     assert scan.incomplete_payloads == ()
+
+async def test_publishing_requires_a_currently_public_profile(api_client) -> None:
+    app, client = api_client
+
+    as_principal(app, human("unprofiled_poster"))
+    unprofiled = await client.post(
+        "/v1/posts",
+        json={"markdown": post_markdown()},
+        headers={"Idempotency-Key": "post-unprofiled-author-0001"},
+    )
+    assert unprofiled.status_code == 409, unprofiled.text
+    assert unprofiled.json()["detail"] == "a currently public profile is required to publish"
+
+    as_principal(app, human("concealed_poster"))
+    concealed_profile = await client.post(
+        "/v1/profiles",
+        json={"markdown": profile_for("concealed-poster").replace("visibility: public", "visibility: private")},
+        headers={"Idempotency-Key": "post-concealed-author-profile-0001"},
+    )
+    assert concealed_profile.status_code == 201, concealed_profile.text
+    concealed = await client.post(
+        "/v1/posts",
+        json={"markdown": post_markdown()},
+        headers={"Idempotency-Key": "post-concealed-author-0001"},
+    )
+    assert concealed.status_code == 409, concealed.text
+    assert concealed.json()["detail"] == "a currently public profile is required to publish"
+
+    async with app.state.session_factory() as session:
+        assert (await session.scalars(select(Post))).all() == []
+        assert (await session.scalars(select(PostVersion))).all() == []
+        assert (
+            await session.scalars(
+                select(IdempotencyRecord).where(
+                    IdempotencyRecord.idempotency_key.in_(
+                        {"post-unprofiled-author-0001", "post-concealed-author-0001"}
+                    )
+                )
+            )
+        ).all() == []
