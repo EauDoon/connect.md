@@ -17397,7 +17397,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=409, detail="organization owner cannot apply to its own job"
             )
-        if await organization_role(session, organization, principal) is not None:
+        # organization_role is the employer-authority predicate and ignores
+        # invited rows and active role=member rows. Any current membership
+        # is an insider and must not become an applicant.
+        membership = await session.scalar(
+            select(OrganizationMembership.id).where(
+                OrganizationMembership.organization_id == organization.id,
+                OrganizationMembership.member_owner_id == principal.subject,
+            )
+        )
+        if membership is not None:
             raise HTTPException(
                 status_code=409, detail="organization members cannot apply to their own job"
             )
