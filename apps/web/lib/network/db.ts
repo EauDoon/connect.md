@@ -63,28 +63,30 @@ export class NetworkUnavailableError extends Error {
   }
 }
 
-/** Apply any not-yet-applied migration files, in name order, in one transaction each. */
+/** Serialize and atomically apply pending migrations, preserving legacy extensionless names. */
 export async function migrate(): Promise<readonly string[]> {
   const sql = database();
-  await sql`CREATE TABLE IF NOT EXISTS network_schema_migrations (
-    name TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`;
-  const applied = new Set(
-    (await sql`SELECT name FROM network_schema_migrations`).map((row) => row.name as string),
-  );
-  const files = readdirSync(MIGRATIONS_DIRECTORY).filter((name) => name.endsWith(".sql")).sort();
-  const ran: string[] = [];
-  for (const file of files) {
-    if (applied.has(file)) continue;
-    const statements = readFileSync(join(MIGRATIONS_DIRECTORY, file), "utf8");
-    await sql.begin(async (tx) => {
+  return sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(683212447)`;
+    await tx`CREATE TABLE IF NOT EXISTS network_schema_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`;
+    const applied = new Set(
+      (await tx`SELECT name FROM network_schema_migrations`).map((row) => String(row.name).replace(/\.sql$/, "")),
+    );
+    const files = readdirSync(MIGRATIONS_DIRECTORY).filter((name) => name.endsWith(".sql")).sort();
+    const ran: string[] = [];
+    for (const file of files) {
+      const name = file.replace(/\.sql$/, "");
+      if (applied.has(name)) continue;
+      const statements = readFileSync(join(MIGRATIONS_DIRECTORY, file), "utf8");
       await tx.unsafe(statements);
-      // Files include their own migration-bookkeeping INSERT; nothing else to do.
-    });
-    ran.push(file);
-  }
-  return ran;
+      await tx`INSERT INTO network_schema_migrations (name) VALUES (${name}) ON CONFLICT DO NOTHING`;
+      ran.push(file);
+    }
+    return ran;
+  });
 }
 
 export async function closeDatabase(): Promise<void> {

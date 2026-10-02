@@ -55,10 +55,10 @@ describe("self-hosted Monaco contract", () => {
     expect(manifest.dependencies["monaco-editor"]).toBe("0.56.0");
     expect(manifest.scripts.predev).toBe("node scripts/copy-monaco-assets.mjs");
     expect(manifest.scripts.prebuild).toBe("node scripts/copy-monaco-assets.mjs");
-    expect(manifest.overrides["monaco-editor"].dompurify).toBe("3.4.13");
+    expect(manifest.overrides["monaco-editor"].dompurify).toBe("3.4.16");
     expect(lock.packages[""].dependencies["monaco-editor"]).toBe("0.56.0");
     expect(lock.packages["node_modules/monaco-editor"]).toMatchObject({ version: "0.56.0" });
-    expect(lock.packages["node_modules/dompurify"]).toMatchObject({ version: "3.4.13" });
+    expect(lock.packages["node_modules/dompurify"]).toMatchObject({ version: "3.4.16" });
     expect(lock.packages["node_modules/monaco-editor"].peer).not.toBe(true);
   });
 

@@ -1,5 +1,5 @@
 import { AgentGrantError, createAgentGrant, listAgentGrants } from "@/lib/network/agent-service";
-import { jsonResponse, currentSession, readBoundedJson, withNetworkUnavailable } from "@/lib/network/http";
+import { rejectCrossOrigin, jsonResponse, currentSession, readBoundedJson, withNetworkUnavailable } from "@/lib/network/http";
 import { database } from "@/lib/network/db";
 
 export const runtime = "nodejs";
@@ -16,10 +16,12 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const originError = rejectCrossOrigin(request);
+  if (originError !== null) return originError;
   return withNetworkUnavailable(async () => {
     const session = await currentSession();
     if (session === null) return jsonResponse({ ok: false, reason: "unauthenticated" }, 401);
-    const body = await readBoundedJson(request);
+    const body = await readBoundedJson(request, ["name", "scopes", "expiresAt"]);
     if (body === null) return jsonResponse({ ok: false, reason: "request-body-invalid" }, 400);
     try {
       const { record, token } = await createAgentGrant(database(), session.account.id, {

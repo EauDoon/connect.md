@@ -1,6 +1,10 @@
 # Live surface vs this source tree
 
-This repository is the pre-launch **source** of connect.md: FastAPI in `apps/api`, Next.js in `apps/web`, canonical Markdown schemas, and agent examples.
+This repository contains three distinct surfaces: the active browser-only guest
+builder in `apps/web`, optional Next.js/PostgreSQL network routes in that same
+app, and the retained FastAPI reference platform in `apps/api`. Source presence
+and passing CI do not establish which optional services a live deployment has
+configured. See [Vercel deployment and network acceptance](vercel-deployment.md).
 
 A separately hosted live network (for example a Grok App Builder preview) is **not** this tree. It must not replace `apps/web` or `apps/api`. It may read the same product invariants:
 

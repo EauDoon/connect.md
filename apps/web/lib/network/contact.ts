@@ -9,8 +9,9 @@
  *   pending ──accept──> accepted           (opens the conversation channel)
  *   pending ──reject──> rejected           (recipient declines)
  *   pending ──revoke──> revoked            (sender withdraws)
- *   pending ──block───> blocked            (recipient blocks; total)
+ *   pending ──block───> blocked            (either person blocks; total)
  *   accepted ──block──> blocked            (a later block closes the channel)
+ *   accepted ──revoke─> revoked            (either person closes the channel)
  *
  * A rejected requester may send a new request later (bounded by rate limits);
  * a blocked pair may never re-request in either direction.
@@ -42,8 +43,8 @@ export function contactTransition(
       if (actor !== "recipient") return { ok: false, reason: "wrong-actor" };
       return { ok: true, status: "rejected" };
     case "revoke":
-      if (current !== "pending") return { ok: false, reason: "not-pending" };
-      if (actor !== "requester") return { ok: false, reason: "wrong-actor" };
+      if (current !== "pending" && current !== "accepted") return { ok: false, reason: "already-terminal" };
+      if (current === "pending" && actor !== "requester") return { ok: false, reason: "wrong-actor" };
       return { ok: true, status: "revoked" };
     case "block":
       // A block is valid from pending (decline and block) and accepted
@@ -52,7 +53,6 @@ export function contactTransition(
       if (current !== "pending" && current !== "accepted") {
         return { ok: false, reason: "already-terminal" };
       }
-      if (actor !== "recipient") return { ok: false, reason: "wrong-actor" };
       return { ok: true, status: "blocked" };
     default:
       return { ok: false, reason: "unknown-action" };

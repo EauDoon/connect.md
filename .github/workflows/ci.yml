@@ -119,6 +119,8 @@ jobs:
       - run: npm run build:e2e
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run test:e2e
+      - name: Network browser journey against disposable PostgreSQL
+        run: npm run test:network-e2e
       - name: Audit dependency advisories
         run: |
           audit_with_retry() {

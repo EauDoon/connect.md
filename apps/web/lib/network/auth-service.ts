@@ -8,6 +8,7 @@
  */
 
 import postgres from "postgres";
+import { isIP } from "node:net";
 import {
   hashPassword,
   tokenDigest,
@@ -19,6 +20,7 @@ import { validateEmail, validateHandle, validatePassword } from "./identity";
 
 export const SESSION_COOKIE_NAME = "connectmd_network_session";
 export const SESSION_TTL_MILLISECONDS = 14 * 24 * 3600_000;
+const DUMMY_PASSWORD_HASH = hashPassword("network-dummy-password");
 
 export type AccountRecord = {
   id: string;
@@ -82,7 +84,7 @@ export async function registerAccount(
 
   const ipBucket = await takeRateBucket(sql, `register:ip:${input.ipKey}`, 10, 3600);
   if (!ipBucket.allowed) throw new AccountActionError("rate-limited", "Too many registrations from this address. Try again later.");
-  const emailBucket = await takeRateBucket(sql, `register:email:${email.email}`, 5, 3600);
+  const emailBucket = await takeRateBucket(sql, `register:email:${tokenDigest(email.email)}`, 5, 3600);
   if (!emailBucket.allowed) throw new AccountActionError("rate-limited", "Too many registrations for this address. Try again later.");
 
   const existing = await sql`
@@ -90,9 +92,7 @@ export async function registerAccount(
     WHERE email = ${email.email} OR handle = ${handle.handle} LIMIT 1
   `;
   if (existing.length > 0) {
-    const row = existing[0]!;
-    if (row.email === email.email) throw new AccountActionError("conflict", "An account with this email already exists.");
-    throw new AccountActionError("conflict", "That handle is already taken.");
+    throw new AccountActionError("conflict", "Unable to register with those account details. Try signing in or use different details.");
   }
 
   const passwordHash = hashPassword(password.password);
@@ -117,7 +117,7 @@ export async function loginAccount(
 
   const ipBucket = await takeRateBucket(sql, `login:ip:${input.ipKey}`, 30, 900);
   if (!ipBucket.allowed) throw new AccountActionError("rate-limited", "Too many sign-in attempts. Try again later.");
-  const accountBucket = await takeRateBucket(sql, `login:email:${email.email}`, 10, 900);
+  const accountBucket = await takeRateBucket(sql, `login:email:${tokenDigest(email.email)}`, 10, 900);
   if (!accountBucket.allowed) throw new AccountActionError("rate-limited", "Too many sign-in attempts for this account. Try again later.");
 
   const rows = await sql`
@@ -125,8 +125,8 @@ export async function loginAccount(
     FROM network_accounts WHERE email = ${email.email} LIMIT 1
   `;
   const row = rows[0];
-  const ok = row !== undefined && verifyPassword(password.password, row.password_hash as string);
-  if (!ok) {
+  const ok = verifyPassword(password.password, row?.password_hash as string ?? DUMMY_PASSWORD_HASH);
+  if (!ok || row === undefined) {
     // Uniform failure: never reveal whether the address exists.
     throw new AccountActionError("credentials", "Email or password is incorrect.");
   }
@@ -179,11 +179,10 @@ function serializeAccount(row: Record<string, unknown>): AccountRecord {
   };
 }
 
-/** Client-identity key for per-IP buckets (proxy-established or socket; never a secret). */
+/** Only Vercel's overwritten IP header is trusted. Other hosts share a bounded bucket. */
 export function clientKeyFromHeaders(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim();
-  return first !== undefined && first.length > 0 && first.length <= 64 ? first : "unknown-client";
+  const address = process.env.VERCEL === "1" ? headers.get("x-vercel-forwarded-for")?.trim() : null;
+  return address && isIP(address) ? tokenDigest(address) : "unverified-client";
 }
 
 export function tokenSummary(token: string): string {

@@ -14,6 +14,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/network/v1/conversations/${conversationId}/messages`);
@@ -23,14 +24,31 @@ export function ConversationView({ conversationId }: { conversationId: string })
       setNotice(body?.message ?? "This conversation is not available.");
       return;
     }
-    const body = (await response.json()) as { messages: Message[]; counterpartHandle: string };
+    const body = (await response.json()) as { messages: Message[]; counterpartHandle: string; nextCursor: string | null };
     setMessages(body.messages);
     setCounterpart(body.counterpartHandle);
+    setNextCursor(body.nextCursor);
   }, [conversationId]);
 
   useEffect(() => {
     void load().catch(() => setNotice("Could not load this conversation."));
   }, [load]);
+
+  async function loadOlder(): Promise<void> {
+    if (busy || nextCursor === null) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/network/v1/conversations/${conversationId}/messages?before=${encodeURIComponent(nextCursor)}`);
+      if (!response.ok) throw new Error("Older messages unavailable");
+      const body = await response.json() as { messages: Message[]; nextCursor: string | null };
+      setMessages((current) => [...body.messages, ...(current ?? [])]);
+      setNextCursor(body.nextCursor);
+    } catch {
+      setNotice("Could not load older messages. Your current messages are unchanged.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function send(): Promise<void> {
     if (busy || draft.trim() === "") return;
@@ -62,6 +80,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
         <h1 className="text-2xl font-semibold text-white">Conversation with @{counterpart || "…"}</h1>
         <Link href="/inbox" className="text-sm font-semibold text-acid underline-offset-4 hover:underline">Back to inbox</Link>
       </div>
+      {nextCursor !== null ? <button type="button" className={sendButton + " justify-self-start"} disabled={busy} onClick={() => void loadOlder()}>Load older messages</button> : null}
       <ul className="grid gap-2" data-testid="message-list">
         {(messages ?? []).map((message) => (
           <li key={message.id} className="rounded-xl border border-white/10 bg-white/[.02] px-4 py-3">

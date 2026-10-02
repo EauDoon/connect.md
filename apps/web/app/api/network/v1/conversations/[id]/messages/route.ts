@@ -1,20 +1,20 @@
 import { ConversationError, listMessages, sendMessage } from "@/lib/network/conversations";
-import { jsonResponse, currentSession, readBoundedJson, withNetworkUnavailable } from "@/lib/network/http";
+import { rejectCrossOrigin, jsonResponse, currentSession, readBoundedJson, withNetworkUnavailable } from "@/lib/network/http";
 import { database } from "@/lib/network/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const UUID_PATTERN = /^[0-9a-f-]{36}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   return withNetworkUnavailable(async () => {
     const session = await currentSession();
     if (session === null) return jsonResponse({ ok: false, reason: "unauthenticated" }, 401);
     const { id } = await context.params;
     if (!UUID_PATTERN.test(id)) return jsonResponse({ ok: false, reason: "request-invalid" }, 400);
     try {
-      const result = await listMessages(database(), session.account.id, id);
+      const result = await listMessages(database(), session.account.id, id, new URL(request.url).searchParams.get("before"));
       return jsonResponse({ ok: true, ...result });
     } catch (error) {
       if (error instanceof ConversationError) {
@@ -27,12 +27,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
+  const originError = rejectCrossOrigin(request);
+  if (originError !== null) return originError;
   return withNetworkUnavailable(async () => {
     const session = await currentSession();
     if (session === null) return jsonResponse({ ok: false, reason: "unauthenticated" }, 401);
     const { id } = await context.params;
     if (!UUID_PATTERN.test(id)) return jsonResponse({ ok: false, reason: "request-invalid" }, 400);
-    const body = await readBoundedJson(request);
+    const body = await readBoundedJson(request, ["body"]);
     if (body === null) return jsonResponse({ ok: false, reason: "request-body-invalid" }, 400);
     try {
       const message = await sendMessage(database(), session.account.id, id, body.body);

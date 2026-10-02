@@ -87,6 +87,9 @@ describe("contact state machine", () => {
     expect(contactTransition("pending", "requester", "revoke")).toEqual({ ok: true, status: "revoked" });
     expect(contactTransition("pending", "recipient", "block")).toEqual({ ok: true, status: "blocked" });
     expect(contactTransition("accepted", "recipient", "block")).toEqual({ ok: true, status: "blocked" });
+    expect(contactTransition("accepted", "requester", "block")).toEqual({ ok: true, status: "blocked" });
+    expect(contactTransition("accepted", "requester", "revoke")).toEqual({ ok: true, status: "revoked" });
+    expect(contactTransition("accepted", "recipient", "revoke")).toEqual({ ok: true, status: "revoked" });
 
     expect(contactTransition("pending", "requester", "accept")).toEqual({ ok: false, reason: "wrong-actor" });
     expect(contactTransition("pending", "recipient", "revoke")).toEqual({ ok: false, reason: "wrong-actor" });

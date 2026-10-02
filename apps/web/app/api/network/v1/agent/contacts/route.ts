@@ -17,7 +17,9 @@ export async function GET(request: Request): Promise<Response> {
     if (!scopeAllows(agent, "contacts:read")) {
       return jsonResponse({ ok: false, reason: "scope-denied", required: "contacts:read" }, 403);
     }
-    const requests = await listContactRequests(database(), agent.accountId);
+    const before = new URL(request.url).searchParams.get("before");
+    if (before !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(before)) return jsonResponse({ ok: false, reason: "request-invalid" }, 400);
+    const requests = await listContactRequests(database(), agent.accountId, before);
     return jsonResponse({ ok: true, account: { handle: agent.accountHandle }, ...requests });
   });
 }
