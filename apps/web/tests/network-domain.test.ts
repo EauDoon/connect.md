@@ -21,6 +21,10 @@ describe("network identity validation", () => {
   it("accepts safe handles and normalizes nothing silently", () => {
     expect(validateHandle("ada-lovelace")).toEqual({ ok: true, handle: "ada-lovelace" });
     expect(validateHandle("a1")).toEqual({ ok: false, reason: expect.stringContaining("3-30") });
+    expect(validateHandle("a")).toEqual({ ok: false, reason: expect.stringContaining("3-30") });
+    expect(validateHandle("0")).toEqual({ ok: false, reason: expect.stringContaining("3-30") });
+    expect(validateHandle("a".repeat(30))).toEqual({ ok: true, handle: "a".repeat(30) });
+    expect(validateHandle("a".repeat(31))).toEqual({ ok: false, reason: expect.stringContaining("3-30") });
     expect(validateHandle("Ada")).toEqual({ ok: false, reason: expect.stringContaining("lowercase") });
     expect(validateHandle("-bad")).toEqual({ ok: false, reason: expect.stringContaining("3-30") });
     expect(validateHandle("bad--double")).toEqual({ ok: false, reason: expect.stringContaining("consecutive") });

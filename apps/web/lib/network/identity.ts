@@ -5,7 +5,7 @@
  * and is shared by API routes, pages, and tests.
  */
 
-const HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?$/;
+const HANDLE_PATTERN = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/;
 const EMAIL_PATTERN = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,63}$/;
 
 /** Handles that would collide with navigation or public contracts. */
