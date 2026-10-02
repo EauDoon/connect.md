@@ -5,6 +5,7 @@ import { starterFor } from "../lib/markdown";
 async function whileRequestIsPending(page: Page, url: string, click: () => Promise<void>, check: () => Promise<void>) {
   let release!: () => void;
   let started!: () => void;
+  let resumed: Promise<void> | undefined;
   const pending = new Promise<void>((resolve) => { release = resolve; });
   const arrived = new Promise<void>((resolve) => { started = resolve; });
   const handler = async (route: Route) => {
@@ -12,9 +13,9 @@ async function whileRequestIsPending(page: Page, url: string, click: () => Promi
       await route.fallback();
       return;
     }
+    resumed = pending.then(() => route.continue());
     started();
-    await pending;
-    await route.continue();
+    await resumed;
   };
   await page.route(url, handler);
   try {
@@ -23,7 +24,11 @@ async function whileRequestIsPending(page: Page, url: string, click: () => Promi
     await check();
   } finally {
     release();
-    await page.unroute(url, handler);
+    try {
+      await resumed;
+    } finally {
+      await page.unroute(url, handler);
+    }
   }
 }
 
