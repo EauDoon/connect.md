@@ -128,14 +128,19 @@ export function AccountAuthPanel() {
 export function AccountSignOut() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function signOut() {
     if (pending) return;
     setPending(true);
+    setError(null);
     try {
-      await fetch("/api/network/v1/accounts/logout", { method: "POST" });
+      const response = await fetch("/api/network/v1/accounts/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Sign out failed");
       router.refresh();
       router.push("/");
+    } catch {
+      setError("Could not confirm sign out. Your session may still be active. Try again.");
     } finally {
       setPending(false);
     }
@@ -149,6 +154,7 @@ export function AccountSignOut() {
       <button type="submit" disabled={pending} className="text-sm font-semibold text-mist underline-offset-4 hover:text-white hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid" data-testid="account-signout">
         {pending ? "Signing out…" : "Sign out"}
       </button>
+      {error !== null ? <p role="alert" className="mt-3 text-sm text-red-200">{error}</p> : null}
     </form>
   );
 }

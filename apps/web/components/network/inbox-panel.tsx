@@ -128,6 +128,7 @@ export function InboxPanel() {
           <input
             id="contact-handle"
             value={sendHandle}
+            disabled={busy}
             onChange={(event) => setSendHandle(event.target.value)}
             placeholder="handle to contact"
             className="min-h-11 w-full max-w-xs rounded-xl border border-white/10 bg-white/[.04] px-4 text-white placeholder:text-mist/55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid"

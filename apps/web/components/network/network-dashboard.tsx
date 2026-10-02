@@ -134,9 +134,14 @@ export function NetworkDashboard({ handle }: { handle: string }) {
   async function revokeGrant(id: string): Promise<void> {
     if (busy) return;
     setBusy(true);
+    setStatus(null);
     try {
-      await fetch(`/api/network/v1/agent-grants/${id}`, { method: "DELETE" });
+      const response = await fetch(`/api/network/v1/agent-grants/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Grant revocation failed");
       await loadGrants();
+      setStatus({ kind: "success", message: "Agent grant revoked." });
+    } catch {
+      setStatus({ kind: "error", message: "Could not confirm revocation. The agent may still have access. Try again." });
     } finally {
       setBusy(false);
     }
@@ -233,6 +238,7 @@ export function NetworkDashboard({ handle }: { handle: string }) {
             <input
               id="new-grant-name"
               value={newGrantName}
+              disabled={busy}
               onChange={(event) => setNewGrantName(event.target.value)}
               placeholder="Grant name, e.g. profile-agent"
               className="min-h-11 w-full rounded-xl border border-white/10 bg-white/[.04] px-4 text-white placeholder:text-mist/55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid"
@@ -260,7 +266,7 @@ export function NetworkDashboard({ handle }: { handle: string }) {
                   </p>
                 </div>
                 {grant.revokedAt === null ? (
-                  <button type="button" className="text-sm font-semibold text-red-300 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid" onClick={() => void revokeGrant(grant.id)}>
+                  <button type="button" disabled={busy} className="text-sm font-semibold text-red-300 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acid" onClick={() => void revokeGrant(grant.id)}>
                     Revoke
                   </button>
                 ) : null}

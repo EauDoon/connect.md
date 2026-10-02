@@ -101,6 +101,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
         <textarea
           id="message-body"
           value={draft}
+          disabled={busy}
           onChange={(event) => setDraft(event.target.value)}
           maxLength={2000}
           rows={3}
