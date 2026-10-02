@@ -31,6 +31,7 @@ export function InboxPanel() {
   const [sendHandle, setSendHandle] = useState("");
   const [notice, setNotice] = useState<{ kind: "error" | "success"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [contactsResponse, conversationsResponse] = await Promise.all([
@@ -38,10 +39,11 @@ export function InboxPanel() {
       fetch("/api/network/v1/conversations"),
     ]);
     if (contactsResponse.ok) {
-      const body = (await contactsResponse.json()) as { incoming: ContactRequest[]; outgoing: ContactRequest[]; blockedHandles: string[] };
+      const body = (await contactsResponse.json()) as { incoming: ContactRequest[]; outgoing: ContactRequest[]; blockedHandles: string[]; nextCursor: string | null };
       setIncoming(body.incoming);
       setOutgoing(body.outgoing);
       setBlocked(body.blockedHandles);
+      setNextCursor(body.nextCursor);
     }
     if (conversationsResponse.ok) {
       const body = (await conversationsResponse.json()) as { conversations: Conversation[] };
@@ -52,6 +54,23 @@ export function InboxPanel() {
   useEffect(() => {
     void load().catch(() => setNotice({ kind: "error", message: "Could not load your inbox." }));
   }, [load]);
+
+  async function loadOlderContacts(): Promise<void> {
+    if (busy || nextCursor === null) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/network/v1/contacts?before=${encodeURIComponent(nextCursor)}`);
+      if (!response.ok) throw new Error("Contacts unavailable");
+      const body = await response.json() as { incoming: ContactRequest[]; outgoing: ContactRequest[]; nextCursor: string | null };
+      setIncoming((current) => [...current, ...body.incoming]);
+      setOutgoing((current) => [...current, ...body.outgoing]);
+      setNextCursor(body.nextCursor);
+    } catch {
+      setNotice({ kind: "error", message: "Could not load older contacts. Try again." });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function sendRequest(): Promise<void> {
     if (busy || sendHandle.trim() === "") return;
@@ -155,12 +174,23 @@ export function InboxPanel() {
           {activeOutgoing.length === 0 ? <li className="text-sm text-mist" data-testid="no-outgoing">No pending sent requests.</li> : null}
         </ul>
 
-        <h3 className="mt-8 text-lg font-semibold text-white">History</h3>
+        <h3 className="mt-8 text-lg font-semibold text-white">Accepted contacts</h3>
         <ul className="mt-3 grid gap-1">
-          {[...incoming, ...outgoing].filter((request) => request.status !== "pending").slice(0, 20).map((request) => (
+          {[...incoming, ...outgoing].filter((request) => request.status === "accepted").map((request) => (
             <li key={request.id} className="text-sm text-mist">
               @{request.requesterHandle} → @{request.recipientHandle}: <span className="font-semibold">{request.status}</span>
+                <span className="ml-3 inline-flex gap-2">
+                  <button type="button" className={secondaryButton} disabled={busy} onClick={() => void decide(request.id, "revoke")}>Close contact</button>
+                  <button type="button" className={secondaryButton} disabled={busy} onClick={() => void decide(request.id, "block")}>Block</button>
+                </span>
             </li>
+          ))}
+        </ul>
+        {nextCursor !== null ? <button type="button" className={secondaryButton + " mt-4"} disabled={busy} onClick={() => void loadOlderContacts()}>Load older contacts</button> : null}
+        <h3 className="mt-8 text-lg font-semibold text-white">Recent history</h3>
+        <ul className="mt-3 grid gap-1">
+          {[...incoming, ...outgoing].filter((request) => request.status !== "pending" && request.status !== "accepted").slice(0, 20).map((request) => (
+            <li key={request.id} className="text-sm text-mist">@{request.requesterHandle} → @{request.recipientHandle}: <span className="font-semibold">{request.status}</span></li>
           ))}
         </ul>
         {blocked.length > 0 ? (

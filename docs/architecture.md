@@ -1,5 +1,10 @@
 # connect.md architecture
 
+Scope: this document describes the retained FastAPI reference platform. The
+active Vercel guest builder and optional Next.js/PostgreSQL network MVP are
+described in [ADR 0002](decisions/0002-consent-first-network-mvp.md) and
+[the Vercel guide](vercel-deployment.md). They do not invoke this backend.
+
 ## Monorepo layout
 
 The diagram below shows the relationship between the top-level directories and

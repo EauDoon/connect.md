@@ -10,6 +10,7 @@
 
 import postgres from "postgres";
 import { takeRateBucket } from "./auth-service";
+import { lockContactPair } from "./contacts";
 
 export type ConversationRecord = {
   id: string;
@@ -47,7 +48,7 @@ export async function listConversations(sql: postgres.Sql, accountId: string): P
       other.handle AS counterpart_handle, other.status AS counterpart_status,
       (SELECT COUNT(*)::int FROM network_messages m WHERE m.conversation_id = c.id) AS message_count,
       (SELECT MAX(m.created_at) FROM network_messages m WHERE m.conversation_id = c.id) AS last_message_at,
-      (SELECT m.body FROM network_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_preview
+      (SELECT m.body FROM network_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_message_preview
     FROM network_conversations c
     JOIN network_accounts other ON other.id = CASE WHEN c.account_a = ${accountId} THEN c.account_b ELSE c.account_a END
     WHERE c.account_a = ${accountId} OR c.account_b = ${accountId}
@@ -69,7 +70,11 @@ export async function listMessages(
   sql: postgres.Sql,
   accountId: string,
   conversationId: string,
-): Promise<{ counterpartHandle: string; messages: MessageRecord[] }> {
+  before: string | null = null,
+): Promise<{ counterpartHandle: string; messages: MessageRecord[]; nextCursor: string | null }> {
+  if (before !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(before)) {
+    throw new ConversationError("invalid", "Invalid message cursor.");
+  }
   const conversationRows = await sql`
     SELECT other.handle AS counterpart_handle, other.status AS counterpart_status
     FROM network_conversations c
@@ -85,11 +90,17 @@ export async function listMessages(
     SELECT m.id, m.body, m.created_at, a.handle AS sender_handle
     FROM network_messages m JOIN network_accounts a ON a.id = m.sender_id
     WHERE m.conversation_id = ${conversationId}
-    ORDER BY m.created_at ASC LIMIT 500
+      AND (${before}::uuid IS NULL OR (m.created_at, m.id) < (
+        SELECT created_at, id FROM network_messages
+        WHERE id = ${before}::uuid AND conversation_id = ${conversationId}
+      ))
+    ORDER BY m.created_at DESC, m.id DESC LIMIT 101
   `;
+  const page = messageRows.slice(0, 100);
   return {
     counterpartHandle: conversation.counterpart_handle as string,
-    messages: messageRows.map((row) => ({
+    nextCursor: messageRows.length > 100 ? page[page.length - 1]!.id as string : null,
+    messages: page.reverse().map((row) => ({
       id: row.id as string,
       senderHandle: row.sender_handle as string,
       body: row.body as string,
@@ -113,36 +124,46 @@ export async function sendMessage(
   const bucket = await takeRateBucket(sql, `message:account:${accountId}`, 120, 3600);
   if (!bucket.allowed) throw new ConversationError("rate-limited", "You are sending messages too quickly. Try again later.");
 
-  // Consent gate, re-checked atomically with the insert: the conversation
-  // must exist for this account AND its contact state must still be accepted.
-  const inserted = await sql`
-    INSERT INTO network_messages (conversation_id, sender_id, body)
-    SELECT c.id, ${accountId}, ${trimmed}
-    FROM network_conversations c
-    WHERE c.id = ${conversationId} AND (c.account_a = ${accountId} OR c.account_b = ${accountId})
-      AND EXISTS (
-        SELECT 1 FROM network_contact_requests cr
-        WHERE ((cr.requester_id = c.account_a AND cr.recipient_id = c.account_b)
-            OR (cr.requester_id = c.account_b AND cr.recipient_id = c.account_a))
-          AND cr.status = 'accepted'
-      )
-    RETURNING id, body, created_at
-  `;
-  if (inserted.length === 0) {
-    // Distinguish a missing conversation from a closed channel.
-    const exists = await sql`
-      SELECT 1 FROM network_conversations c
+  return sql.begin(async (sql) => {
+    const pair = await sql`SELECT account_a, account_b FROM network_conversations
+      WHERE id = ${conversationId} AND (account_a = ${accountId} OR account_b = ${accountId}) LIMIT 1`;
+    if (pair.length === 0) throw new ConversationError("not-found", "No such conversation.");
+    await lockContactPair(sql, pair[0]!.account_a as string, pair[0]!.account_b as string);
+    // The shared pair lock makes consent changes and message insertion serial.
+    const inserted = await sql`
+      INSERT INTO network_messages (conversation_id, sender_id, body)
+      SELECT c.id, ${accountId}, ${trimmed}
+      FROM network_conversations c
       WHERE c.id = ${conversationId} AND (c.account_a = ${accountId} OR c.account_b = ${accountId})
-      LIMIT 1
+        AND EXISTS (
+          SELECT 1 FROM network_contact_requests cr
+          WHERE ((cr.requester_id = c.account_a AND cr.recipient_id = c.account_b)
+              OR (cr.requester_id = c.account_b AND cr.recipient_id = c.account_a))
+            AND cr.status = 'accepted'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM network_contact_blocks b
+          WHERE (b.blocker_id = c.account_a AND b.blocked_id = c.account_b)
+             OR (b.blocker_id = c.account_b AND b.blocked_id = c.account_a)
+        )
+      RETURNING id, body, created_at
     `;
-    if (exists.length === 0) throw new ConversationError("not-found", "No such conversation.");
-    throw new ConversationError("blocked", "The conversation channel is closed. Contact must be re-established.");
-  }
-  const senderRows = await sql`SELECT handle FROM network_accounts WHERE id = ${accountId} LIMIT 1`;
-  return {
-    id: inserted[0]!.id as string,
-    senderHandle: (senderRows[0]?.handle as string) ?? "(unknown)",
-    body: inserted[0]!.body as string,
-    createdAt: (inserted[0]!.created_at as Date).toISOString(),
-  };
+    if (inserted.length === 0) {
+      // Distinguish a missing conversation from a closed channel.
+      const exists = await sql`
+        SELECT 1 FROM network_conversations c
+        WHERE c.id = ${conversationId} AND (c.account_a = ${accountId} OR c.account_b = ${accountId})
+        LIMIT 1
+      `;
+      if (exists.length === 0) throw new ConversationError("not-found", "No such conversation.");
+      throw new ConversationError("blocked", "The conversation channel is closed. Contact must be re-established.");
+    }
+    const senderRows = await sql`SELECT handle FROM network_accounts WHERE id = ${accountId} LIMIT 1`;
+    return {
+      id: inserted[0]!.id as string,
+      senderHandle: (senderRows[0]?.handle as string) ?? "(unknown)",
+      body: inserted[0]!.body as string,
+      createdAt: (inserted[0]!.created_at as Date).toISOString(),
+    };
+  });
 }

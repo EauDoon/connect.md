@@ -47,6 +47,12 @@ type ContactRow = {
   recipient_handle: string;
 };
 
+/** Every contact mutation and message insert takes the same unordered pair lock. */
+export async function lockContactPair(sql: postgres.TransactionSql, first: string, second: string): Promise<void> {
+  const pair = [first, second].sort().join(":");
+  await sql`SELECT pg_advisory_xact_lock(hashtextextended(${pair}, 0))`;
+}
+
 export async function sendContactRequest(
   sql: postgres.Sql,
   accountId: string,
@@ -69,49 +75,53 @@ export async function sendContactRequest(
     throw new ContactError("invalid", "You cannot send a contact request to yourself.");
   }
 
-  const blocked = await sql`
-    SELECT 1 FROM network_contact_blocks
-    WHERE (blocker_id = ${recipient.id} AND blocked_id = ${accountId})
-       OR (blocker_id = ${accountId} AND blocked_id = ${recipient.id})
-    LIMIT 1
-  `;
-  const priorRows = await sql`
-    SELECT status, requester_id FROM network_contact_requests
-    WHERE (requester_id = ${accountId} AND recipient_id = ${recipient.id})
-       OR (requester_id = ${recipient.id} AND recipient_id = ${accountId})
-    ORDER BY created_at DESC LIMIT 1
-  `;
-  const priorStatus = (priorRows[0]?.status as ContactRequestStatus | undefined) ?? null;
-  const eligibility = canRequestContact(priorStatus, blocked.length > 0);
-  if (!eligibility.ok) {
-    const messages: Record<string, string> = {
-      blocked: "Contact with this account is blocked.",
-      "pending-exists": "A pending request to this account already exists.",
-      "accepted-exists": "You are already connected with this account.",
-      "rate-limited": "Too many contact requests. Try again later.",
-    };
-    throw new ContactError(
-      eligibility.reason === "blocked" ? "blocked" : "conflict",
-      messages[eligibility.reason] ?? "Contact request not allowed.",
-    );
-  }
+  return sql.begin(async (sql) => {
+    await lockContactPair(sql, accountId, recipient.id as string);
+    const blocked = await sql`
+      SELECT 1 FROM network_contact_blocks
+      WHERE (blocker_id = ${recipient.id} AND blocked_id = ${accountId})
+         OR (blocker_id = ${accountId} AND blocked_id = ${recipient.id})
+      LIMIT 1
+    `;
+    const priorRows = await sql`
+      SELECT status, requester_id FROM network_contact_requests
+      WHERE ((requester_id = ${accountId} AND recipient_id = ${recipient.id})
+         OR (requester_id = ${recipient.id} AND recipient_id = ${accountId}))
+      AND status IN ('pending', 'accepted')
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    const priorStatus = (priorRows[0]?.status as ContactRequestStatus | undefined) ?? null;
+    const eligibility = canRequestContact(priorStatus, blocked.length > 0);
+    if (!eligibility.ok) {
+      const messages: Record<string, string> = {
+        blocked: "Contact with this account is blocked.",
+        "pending-exists": "A pending request to this account already exists.",
+        "accepted-exists": "You are already connected with this account.",
+        "rate-limited": "Too many contact requests. Try again later.",
+      };
+      throw new ContactError(
+        eligibility.reason === "blocked" ? "blocked" : "conflict",
+        messages[eligibility.reason] ?? "Contact request not allowed.",
+      );
+    }
 
-  const inserted = await sql`
-    INSERT INTO network_contact_requests (requester_id, recipient_id)
-    VALUES (${accountId}, ${recipient.id})
-    RETURNING id, status, created_at, decided_at
-  `;
-  return {
-    id: inserted[0]!.id as string,
-    requesterHandle: "(you)",
-    recipientHandle: recipientHandle.toLowerCase(),
-    status: inserted[0]!.status as ContactRequestStatus,
-    createdAt: (inserted[0]!.created_at as Date).toISOString(),
-    decidedAt: null,
-  };
+    const inserted = await sql`
+      INSERT INTO network_contact_requests (requester_id, recipient_id)
+      VALUES (${accountId}, ${recipient.id})
+      RETURNING id, status, created_at, decided_at
+    `;
+    return {
+      id: inserted[0]!.id as string,
+      requesterHandle: "(you)",
+      recipientHandle: recipientHandle.toLowerCase(),
+      status: inserted[0]!.status as ContactRequestStatus,
+      createdAt: (inserted[0]!.created_at as Date).toISOString(),
+      decidedAt: null,
+    };
+  });
 }
 
-async function loadRequest(sql: postgres.Sql, requestId: string): Promise<ContactRow | null> {
+async function loadRequest(sql: postgres.Sql | postgres.TransactionSql, requestId: string): Promise<ContactRow | null> {
   const rows = await sql`
     SELECT cr.id, cr.status, cr.created_at, cr.decided_at, cr.requester_id, cr.recipient_id,
            ra.handle AS requester_handle, sa.handle AS recipient_handle
@@ -129,74 +139,101 @@ export async function decideContactRequest(
   requestId: string,
   action: "accept" | "reject" | "revoke" | "block",
 ): Promise<ContactRequestRecord> {
-  const request = await loadRequest(sql, requestId);
-  if (request === null) throw new ContactError("not-found", "No such contact request.");
-  const actor: ContactActor | null =
-    request.requester_id === accountId ? "requester"
-    : request.recipient_id === accountId ? "recipient"
-    : null;
-  if (actor === null) throw new ContactError("forbidden", "This request does not involve your account.");
-  const transition = contactTransition(request.status, actor, action);
-  if (!transition.ok) {
-    const messages: Record<string, string> = {
-      "unknown-action": "Unknown action.",
-      "wrong-actor": "Only the recipient can decide a request; only the sender can revoke it.",
-      "not-pending": "Only pending requests can be decided this way.",
-      "already-terminal": "This request has already reached a final state.",
+  const initial = await loadRequest(sql, requestId);
+  if (initial === null) throw new ContactError("not-found", "No such contact request.");
+  if (initial.requester_id !== accountId && initial.recipient_id !== accountId) {
+    throw new ContactError("forbidden", "This request does not involve your account.");
+  }
+  return sql.begin(async (sql) => {
+    await lockContactPair(sql, initial.requester_id, initial.recipient_id);
+    const request = await loadRequest(sql, requestId);
+    if (request === null) throw new ContactError("not-found", "No such contact request.");
+    const actor: ContactActor | null =
+      request.requester_id === accountId ? "requester"
+      : request.recipient_id === accountId ? "recipient"
+      : null;
+    if (actor === null) throw new ContactError("forbidden", "This request does not involve your account.");
+    if (action === "accept") {
+      const blocked = await sql`SELECT 1 FROM network_contact_blocks
+        WHERE (blocker_id = ${request.requester_id} AND blocked_id = ${request.recipient_id})
+           OR (blocker_id = ${request.recipient_id} AND blocked_id = ${request.requester_id}) LIMIT 1`;
+      if (blocked.length > 0) throw new ContactError("blocked", "Contact with this account is blocked.");
+    }
+    const transition = contactTransition(request.status, actor, action);
+    if (!transition.ok) {
+      const messages: Record<string, string> = {
+        "unknown-action": "Unknown action.",
+        "wrong-actor": "Only the recipient can accept or reject; only the sender can revoke a pending request.",
+        "not-pending": "Only pending requests can be decided this way.",
+        "already-terminal": "This request has already reached a final state.",
+      };
+      throw new ContactError(transition.reason === "wrong-actor" ? "forbidden" : "conflict", messages[transition.reason] ?? "Not allowed.");
+    }
+
+    const updated = await sql`
+      UPDATE network_contact_requests SET status = ${transition.status}, decided_at = now()
+      WHERE id = ${requestId} AND status = ${request.status}
+      RETURNING id, status, created_at, decided_at
+    `;
+    if (updated.length === 0) {
+      throw new ContactError("conflict", "The request changed state concurrently. Reload and retry.");
+    }
+
+    if (transition.status === "blocked") {
+      await sql`
+        INSERT INTO network_contact_blocks (blocker_id, blocked_id)
+        VALUES (${accountId}, ${actor === "recipient" ? request.requester_id : request.recipient_id})
+        ON CONFLICT DO NOTHING
+      `;
+      await sql`UPDATE network_contact_requests SET status = 'blocked', decided_at = now()
+        WHERE status IN ('pending', 'accepted')
+          AND ((requester_id = ${request.requester_id} AND recipient_id = ${request.recipient_id})
+            OR (requester_id = ${request.recipient_id} AND recipient_id = ${request.requester_id}))`;
+    }
+    if (transition.status === "accepted") {
+      const [lowId, highId] = [request.requester_id, request.recipient_id].sort();
+      await sql`
+        INSERT INTO network_conversations (account_a, account_b)
+        VALUES (${lowId}, ${highId})
+        ON CONFLICT DO NOTHING
+      `;
+    }
+    return {
+      id: request.id,
+      requesterHandle: request.requester_handle,
+      recipientHandle: request.recipient_handle,
+      status: transition.status,
+      createdAt: request.created_at.toISOString(),
+      decidedAt: (updated[0]!.decided_at as Date).toISOString(),
     };
-    throw new ContactError(transition.reason === "wrong-actor" ? "forbidden" : "conflict", messages[transition.reason] ?? "Not allowed.");
-  }
-
-  const updated = await sql`
-    UPDATE network_contact_requests SET status = ${transition.status}, decided_at = now()
-    WHERE id = ${requestId} AND status = ${request.status}
-    RETURNING id, status, created_at, decided_at
-  `;
-  if (updated.length === 0) {
-    throw new ContactError("conflict", "The request changed state concurrently. Reload and retry.");
-  }
-
-  if (transition.status === "blocked") {
-    await sql`
-      INSERT INTO network_contact_blocks (blocker_id, blocked_id)
-      VALUES (${accountId}, ${actor === "recipient" ? request.requester_id : request.recipient_id})
-      ON CONFLICT DO NOTHING
-    `;
-  }
-  if (transition.status === "accepted") {
-    const [lowId, highId] = [request.requester_id, request.recipient_id].sort();
-    await sql`
-      INSERT INTO network_conversations (account_a, account_b)
-      VALUES (${lowId}, ${highId})
-      ON CONFLICT DO NOTHING
-    `;
-  }
-  return {
-    id: request.id,
-    requesterHandle: request.requester_handle,
-    recipientHandle: request.recipient_handle,
-    status: transition.status,
-    createdAt: request.created_at.toISOString(),
-    decidedAt: (updated[0]!.decided_at as Date).toISOString(),
-  };
+  });
 }
 
 export async function listContactRequests(
   sql: postgres.Sql,
   accountId: string,
-): Promise<{ incoming: ContactRequestRecord[]; outgoing: ContactRequestRecord[] }> {
+  before: string | null = null,
+): Promise<{ incoming: ContactRequestRecord[]; outgoing: ContactRequestRecord[]; nextCursor: string | null }> {
+  if (before !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(before)) {
+    throw new ContactError("invalid", "Invalid contact cursor.");
+  }
   const rows = await sql`
     SELECT cr.id, cr.status, cr.created_at, cr.decided_at, cr.requester_id, cr.recipient_id,
            ra.handle AS requester_handle, sa.handle AS recipient_handle
     FROM network_contact_requests cr
     JOIN network_accounts ra ON ra.id = cr.requester_id
     JOIN network_accounts sa ON sa.id = cr.recipient_id
-    WHERE cr.requester_id = ${accountId} OR cr.recipient_id = ${accountId}
-    ORDER BY cr.created_at DESC LIMIT 200
+    WHERE (cr.requester_id = ${accountId} OR cr.recipient_id = ${accountId})
+      AND (${before}::uuid IS NULL OR (cr.created_at, cr.id) < (
+        SELECT created_at, id FROM network_contact_requests
+        WHERE id = ${before}::uuid AND (requester_id = ${accountId} OR recipient_id = ${accountId})
+      ))
+    ORDER BY cr.created_at DESC, cr.id DESC LIMIT 201
   `;
+  const page = rows.slice(0, 200);
   const incoming: ContactRequestRecord[] = [];
   const outgoing: ContactRequestRecord[] = [];
-  for (const row of rows as unknown as ContactRow[]) {
+  for (const row of page as unknown as ContactRow[]) {
     const record: ContactRequestRecord = {
       id: row.id,
       requesterHandle: row.requester_handle,
@@ -208,7 +245,7 @@ export async function listContactRequests(
     if (row.requester_id === accountId) outgoing.push(record);
     else incoming.push(record);
   }
-  return { incoming, outgoing };
+  return { incoming, outgoing, nextCursor: rows.length > 200 ? page[page.length - 1]!.id as string : null };
 }
 
 export async function listBlocks(sql: postgres.Sql, accountId: string): Promise<string[]> {
@@ -226,16 +263,19 @@ export async function blockAccount(sql: postgres.Sql, accountId: string, targetH
   const target = rows[0];
   if (target === undefined) throw new ContactError("not-found", "No account holds that handle.");
   if (target.id === accountId) throw new ContactError("invalid", "You cannot block yourself.");
-  await sql`
-    INSERT INTO network_contact_blocks (blocker_id, blocked_id)
-    VALUES (${accountId}, ${target.id})
-    ON CONFLICT DO NOTHING
-  `;
-  // A block also ends any active pending or accepted request in either direction.
-  await sql`
-    UPDATE network_contact_requests SET status = 'blocked', decided_at = now()
-    WHERE status IN ('pending', 'accepted')
-      AND ((requester_id = ${accountId} AND recipient_id = ${target.id})
-        OR (requester_id = ${target.id} AND recipient_id = ${accountId}))
-  `;
+  await sql.begin(async (sql) => {
+    await lockContactPair(sql, accountId, target.id as string);
+    await sql`
+      INSERT INTO network_contact_blocks (blocker_id, blocked_id)
+      VALUES (${accountId}, ${target.id})
+      ON CONFLICT DO NOTHING
+    `;
+    // A block also ends any active pending or accepted request in either direction.
+    await sql`
+      UPDATE network_contact_requests SET status = 'blocked', decided_at = now()
+      WHERE status IN ('pending', 'accepted')
+        AND ((requester_id = ${accountId} AND recipient_id = ${target.id})
+          OR (requester_id = ${target.id} AND recipient_id = ${accountId}))
+    `;
+  });
 }

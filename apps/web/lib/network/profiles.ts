@@ -81,49 +81,53 @@ export async function saveProfile(
   ifMatch: string | null,
 ): Promise<ProfileRecord> {
   const validated = validateProfileMarkdown(markdown);
+  if (ifMatch !== null && !/^"[a-f0-9]{64}"$/.test(ifMatch)) {
+    throw new ProfileError("precondition", "A current profile ETag is required for edits.");
+  }
   const etag = profileEtag(validated);
-  const expectedEtag = ifMatch ?? (await networkProfilesCurrentEtag(sql, account.id));
+  const expectedEtag = ifMatch;
   const rows = await sql`
     INSERT INTO network_profiles (account_id, markdown, etag, visibility)
-    VALUES (${account.id}, ${validated}, ${etag}, 'private')
+    SELECT ${account.id}, ${validated}, ${etag}, 'private'
+    WHERE ${ifMatch}::text IS NULL OR EXISTS (SELECT 1 FROM network_profiles WHERE account_id = ${account.id})
     ON CONFLICT (account_id) DO UPDATE SET
       markdown = EXCLUDED.markdown,
       etag = EXCLUDED.etag,
       updated_at = now()
-    WHERE network_profiles.etag = ${expectedEtag}
+    WHERE network_profiles.etag = ${expectedEtag} AND network_profiles.visibility = 'private'
     RETURNING markdown, etag, visibility, published_at, updated_at, created_at
   `;
   if (rows.length === 0) {
+    const current = await getProfile(sql, account.id);
+    if (current?.visibility === "public") {
+      throw new ProfileError("conflict", "Unpublish your profile before editing it. Saving does not publish changes.");
+    }
     throw new ProfileError("precondition", "The profile changed since you last loaded it. Reload and reapply your edit.");
   }
   return serializeProfile(rows[0]);
-}
-
-async function networkProfilesCurrentEtag(sql: postgres.Sql, accountId: string): Promise<string> {
-  const rows = await sql`SELECT etag FROM network_profiles WHERE account_id = ${accountId} LIMIT 1`;
-  if (rows.length === 0) {
-    // First save: no conflict can occur, so the WHERE clause is irrelevant.
-    // The marker only needs to be a valid, unmatchable SQL string (real
-    // etags are double-quoted hex, so this can never match one).
-    return "__first_save_no_conflict__";
-  }
-  return rows[0]!.etag as string;
 }
 
 export async function setProfileVisibility(
   sql: postgres.Sql,
   account: AccountRecord,
   visibility: "private" | "public",
+  ifMatch: string | null = null,
 ): Promise<ProfileRecord> {
+  if (visibility === "public" && (ifMatch === null || !/^"[a-f0-9]{64}"$/.test(ifMatch))) {
+    throw new ProfileError("precondition", "Load and review the saved profile before publishing it.");
+  }
   const rows = await sql`
     UPDATE network_profiles SET
       visibility = ${visibility},
       published_at = CASE WHEN ${visibility} = 'public' THEN COALESCE(published_at, now()) ELSE published_at END,
       updated_at = now()
-    WHERE account_id = ${account.id}
+    WHERE account_id = ${account.id} AND (${visibility} = 'private' OR etag = ${ifMatch})
     RETURNING markdown, etag, visibility, published_at, updated_at, created_at
   `;
   if (rows.length === 0) {
+    if (visibility === "public" && await getProfile(sql, account.id) !== null) {
+      throw new ProfileError("precondition", "The saved profile changed. Review the current revision before publishing.");
+    }
     throw new ProfileError("not-found", "Save a profile before changing its visibility.");
   }
   return serializeProfile(rows[0]);

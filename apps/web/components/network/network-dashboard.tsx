@@ -20,7 +20,8 @@ const secondaryButton =
 
 export function NetworkDashboard({ handle }: { handle: string }) {
   const router = useRouter();
-  const [profile, setProfile] = useState<ProfileState>(undefined as unknown as ProfileState);
+  const [profile, setProfile] = useState<ProfileState | undefined>(undefined);
+  const [conflict, setConflict] = useState(false);
   const [markdown, setMarkdown] = useState<string>("");
   const [status, setStatus] = useState<{ kind: "info" | "error" | "success"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,9 +31,11 @@ export function NetworkDashboard({ handle }: { handle: string }) {
 
   const loadProfile = useCallback(async () => {
     const response = await fetch("/api/network/v1/profile");
+    if (!response.ok) throw new Error("Profile unavailable");
     const body = (await response.json()) as { profile: ProfileState };
     setProfile(body.profile);
     setMarkdown(body.profile?.markdown ?? "");
+    setConflict(false);
   }, []);
 
   const loadGrants = useCallback(async () => {
@@ -49,7 +52,7 @@ export function NetworkDashboard({ handle }: { handle: string }) {
   }, [loadGrants, loadProfile]);
 
   async function saveProfile(): Promise<void> {
-    if (busy) return;
+    if (busy || profile === undefined || profile?.visibility === "public") return;
     setBusy(true);
     setStatus(null);
     try {
@@ -61,13 +64,14 @@ export function NetworkDashboard({ handle }: { handle: string }) {
         },
         body: JSON.stringify({ markdown }),
       });
-      const body = (await response.json()) as { ok?: boolean; etag?: string; message?: string };
-      if (response.ok && body.ok === true && profile !== null) {
-        setProfile({ ...profile, markdown, etag: body.etag! });
+      const body = (await response.json()) as { ok?: boolean; profile?: Exclude<ProfileState, null>; message?: string };
+      if (response.ok && body.ok === true && body.profile !== undefined) {
+        setProfile(body.profile);
+        setConflict(false);
         setStatus({ kind: "success", message: "Profile saved. It is private until you publish it." });
       } else {
         setStatus({ kind: "error", message: body.message ?? "Save failed." });
-        if (response.status === 412) await loadProfile();
+        if (response.status === 412) setConflict(true);
       }
     } catch {
       setStatus({ kind: "error", message: "The network is unreachable right now." });
@@ -77,17 +81,21 @@ export function NetworkDashboard({ handle }: { handle: string }) {
   }
 
   async function setVisibility(publish: boolean): Promise<void> {
-    if (busy) return;
+    if (busy || !profile || (publish && (conflict || markdown !== profile.markdown))) return;
     setBusy(true);
     setStatus(null);
     try {
-      const response = await fetch(`/api/network/v1/profile/${publish ? "publish" : "unpublish"}`, { method: "POST" });
+      const response = await fetch(`/api/network/v1/profile/${publish ? "publish" : "unpublish"}`, {
+        method: "POST",
+        headers: publish ? { "if-match": profile.etag } : {},
+      });
       const body = (await response.json()) as { ok?: boolean; message?: string };
       if (response.ok && body.ok === true) {
         await loadProfile();
         router.refresh();
         setStatus({ kind: "success", message: publish ? "Profile published. It is now discoverable." : "Profile unpublished. Only you can see it again." });
       } else {
+        if (response.status === 412) setConflict(true);
         setStatus({ kind: "error", message: body.message ?? "Could not change visibility." });
       }
     } catch {
@@ -159,12 +167,13 @@ export function NetworkDashboard({ handle }: { handle: string }) {
           id="profile-markdown"
           className={textareaClass}
           value={markdown}
+          disabled={busy || profile === undefined || published}
           onChange={(event) => setMarkdown(event.target.value)}
           spellCheck={false}
           placeholder={"---\nschema: connect.md/profile\nhandle: your-handle\nname: Your Name\nheadline: Your headline\n---\n\nWrite your profile here."}
         />
         <div className="mt-4 flex flex-wrap gap-3">
-          <button type="button" className={primaryButton} onClick={() => void saveProfile()} disabled={busy} data-testid="profile-save">
+          <button type="button" className={primaryButton} onClick={() => void saveProfile()} disabled={busy || profile === undefined || published || conflict} data-testid="profile-save">
             {busy ? "Working…" : "Save profile"}
           </button>
           {published ? (
@@ -172,7 +181,7 @@ export function NetworkDashboard({ handle }: { handle: string }) {
               Unpublish
             </button>
           ) : (
-            <button type="button" className={secondaryButton} onClick={() => void setVisibility(true)} disabled={busy || profile === null} data-testid="profile-publish">
+            <button type="button" className={secondaryButton} onClick={() => void setVisibility(true)} disabled={busy || !profile || conflict || markdown !== profile.markdown} data-testid="profile-publish">
               Publish
             </button>
           )}
@@ -182,6 +191,15 @@ export function NetworkDashboard({ handle }: { handle: string }) {
             </a>
           ) : null}
         </div>
+        {published ? <p className="mt-3 text-sm text-mist">Unpublish before editing. Publish again when you are ready to share the saved revision.</p> : null}
+        {conflict ? (
+          <div className="mt-3 text-sm text-mist">
+            <p>Your edits are still in the editor. Copy them before replacing them with the saved version.</p>
+            <button type="button" className={secondaryButton} disabled={busy} onClick={() => void loadProfile().catch(() => setStatus({ kind: "error", message: "Could not reload your profile." }))}>
+              Discard edits and reload saved profile
+            </button>
+          </div>
+        ) : null}
         <div aria-live="polite" className="mt-4">
           {status !== null ? (
             <p

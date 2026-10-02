@@ -3,6 +3,8 @@
  */
 
 import { cookies } from "next/headers";
+import postgres from "postgres";
+import { PROFILE_RESUME_MAX_UTF8_BYTES } from "@/lib/markdown";
 import { SESSION_COOKIE_NAME, type SessionContext, accountForSessionToken, revokeSession, type AccountActionError } from "./auth-service";
 import { database, NetworkUnavailableError } from "./db";
 
@@ -47,18 +49,71 @@ export function jsonResponse(body: unknown, status = 200, headers: Record<string
 }
 
 export const MAX_JSON_BODY_BYTES = 8 * 1024;
+// JSON escaping may use six ASCII bytes for one canonical Markdown byte.
+export const MAX_PROFILE_JSON_BYTES = 6 * PROFILE_RESUME_MAX_UTF8_BYTES + 128;
 
-export async function readBoundedJson(request: Request): Promise<Record<string, unknown> | null> {
-  const declared = request.headers.get("content-length");
-  if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_JSON_BODY_BYTES)) return null;
-  const text = await request.text();
-  if (text.length > MAX_JSON_BODY_BYTES) return null;
+/** Cookie mutations require an exact configured origin, including bodyless actions. */
+export function rejectCrossOrigin(request: Request): Response | null {
+  const configured = process.env.CONNECTMD_NETWORK_ORIGIN ?? process.env.NEXT_PUBLIC_SITE_URL;
+  const origin = request.headers.get("origin");
+  if (configured === undefined || origin !== configured || request.headers.get("sec-fetch-site") === "cross-site") {
+    return jsonResponse({ ok: false, reason: "origin-denied" }, 403);
+  }
   try {
+    const expected = new URL(configured);
+    if (expected.origin !== configured || !["https:", "http:"].includes(expected.protocol)) {
+      return jsonResponse({ ok: false, reason: "origin-denied" }, 403);
+    }
+  } catch {
+    return jsonResponse({ ok: false, reason: "origin-denied" }, 403);
+  }
+  return null;
+}
+
+export async function readBoundedJson(request: Request, fields: readonly string[], limit = MAX_JSON_BODY_BYTES): Promise<Record<string, unknown> | null> {
+  if (request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !== "application/json") return null;
+  const declared = request.headers.get("content-length");
+  if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > limit)) return null;
+  if (request.body === null) return null;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) { await reader.cancel(); return null; }
+      chunks.push(value);
+    }
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
     const parsed = JSON.parse(text) as unknown;
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const record = parsed as Record<string, unknown>;
+    if (Object.keys(record).some((key) => !fields.includes(key))) return null;
+    if (Object.values(record).some((value) => value !== null && typeof value === "object"
+      && (!Array.isArray(value) || value.length > 3 || value.some((entry) => typeof entry !== "string")))) return null;
+    // These endpoints accept flat objects only. Check their original key tokens
+    // because JSON.parse otherwise silently accepts duplicate/escaped keys.
+    let depth = 0;
+    const seen = new Set<string>();
+    for (const match of text.matchAll(/"(?:[^"\\]|\\.)*"|[{}\[\]]/g)) {
+      const token = match[0];
+      if (token === "{" || token === "[") { depth++; continue; }
+      if (token === "}" || token === "]") { depth--; continue; }
+      let next = match.index + token.length;
+      while (/\s/.test(text[next] ?? "") && next < text.length) next++;
+      if (depth === 1 && text[next] === ":") {
+        const key = JSON.parse(token) as string;
+        if (seen.has(key)) return null;
+        seen.add(key);
+      }
+    }
     return parsed as Record<string, unknown>;
   } catch {
     return null;
+  } finally {
+    reader.releaseLock();
   }
 }
 
@@ -72,7 +127,11 @@ export function withNetworkUnavailable(handler: () => Promise<Response>): Promis
         { "x-connectmd-network": "unavailable" },
       );
     }
-    throw error;
+    if (error instanceof postgres.PostgresError) {
+      if (error.code === "23505") return jsonResponse({ ok: false, reason: "conflict", message: "That operation conflicts with existing data." }, 409);
+      if (error.code === "22P02") return jsonResponse({ ok: false, reason: "request-invalid" }, 400);
+    }
+    return jsonResponse({ ok: false, reason: "network-unavailable", message: "The network is temporarily unavailable. Try again later." }, 503);
   });
 }
 

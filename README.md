@@ -50,32 +50,24 @@ directories and compose files relate at runtime.
 
 ```mermaid
 flowchart LR
-    Browser([Browser])
-    Web["apps/web<br/>Next.js guest UI"]
-    Api["apps/api<br/>FastAPI authority"]
-    Schemas["packages/markdown-schemas<br/>canonical Markdown"]
-    Infra["infra/<br/>nginx, postgres, scripts, tests"]
-    Deploy["deploy/<br/>with-network-secrets.sh"]
-    Storage["storage/"]
-
-    Browser --> Web
-    Web --> Api
-    Api --> Schemas
-    Api --> Infra
-    Api --> Storage
-    Deploy --> Infra
+    Browser([Browser]) --> Web["apps/web: Next.js guest UI"]
+    Web --> Network["Optional Next.js network handlers"]
+    Network --> NetworkDB["Optional network PostgreSQL"]
+    Api["Retained apps/api: FastAPI reference"] --> Schemas["packages/markdown-schemas"]
+    Api --> Infra["Retained infra: Postgres, Meilisearch, nginx"]
+    Api --> Storage["storage"]
 ```
 
-A browser request enters `apps/web`, the Next.js application that hosts the
-guest drafting workflow at `/human` and `/md`. That standalone workflow does
-not require any database or backend service. The optional network account,
-discovery, and messaging routes read from `apps/api`, a FastAPI service that
-consumes the canonical Markdown schemas in `packages/markdown-schemas`, mounts
-the runtime data contract from `storage/`, and depends on `infra/` services
-(Postgres, Meilisearch, Nginx) declared in `compose.yaml`. The `deploy/`
-directory provides operator scripts and overlay compose fragments used to
-bring the stack up in production; `compose.prod.yaml` adds the `frontend`,
-`nginx`, and `certbot` services on top of the base file.
+The guest workflow at `/human` and `/md` runs entirely in the browser. The
+optional account, profile, contact, and messaging product uses Next.js route
+handlers under `/api/network/v1` and one PostgreSQL database. It does not call
+FastAPI, Clerk, Meilisearch, or the retained worker services.
+
+`apps/api`, `infra`, `compose.yaml`, and `compose.prod.yaml` retain the older
+reference platform and its tests. Their deployment and acceptance documents
+apply to that stack only. See [ADR 0002](docs/decisions/0002-consent-first-network-mvp.md)
+and the [Vercel deployment guide](docs/vercel-deployment.md) for the active
+network boundary and its separate launch checks.
 
 ## What works
 
@@ -121,27 +113,10 @@ the source file. Clipboard history and synchronization follow your device settin
 6. Download the Markdown source. Optionally print its sanitized body or save a
    review report. The report excludes document text and must be regenerated after edits.
 
-## Run locally
-
-    cd apps/web
-    cp .env.example .env.local
-    npm ci
-    npm run dev
-
-Open http://localhost:3000. No service account or backend is required.
-
-## Verify
-
-    cd apps/web
-    npm run lint
-    npm run typecheck
-    npm test
-    npm run build
-
 ## Deploy
 
 The Vercel project uses apps/web as its Root Directory, npm ci to install, and
-npm run build to build. Its only application environment variable is:
+npm run build to build. For the guest-only deployment, its application environment variable is:
 
     NEXT_PUBLIC_SITE_URL=https://connect-md.vercel.app
 

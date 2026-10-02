@@ -1,11 +1,13 @@
 import { ProfileError, setProfileVisibility } from "@/lib/network/profiles";
-import { jsonResponse, currentSession, withNetworkUnavailable } from "@/lib/network/http";
+import { rejectCrossOrigin, jsonResponse, currentSession, withNetworkUnavailable } from "@/lib/network/http";
 import { database } from "@/lib/network/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
+  const originError = rejectCrossOrigin(request);
+  if (originError !== null) return originError;
   return withNetworkUnavailable(async () => {
     const session = await currentSession();
     if (session === null) return jsonResponse({ ok: false, reason: "unauthenticated" }, 401);
