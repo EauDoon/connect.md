@@ -133,7 +133,7 @@ test("first save, conflict preservation, publication, and contact termination wo
       await page.route("**/api/network/v1/accounts/logout", (route) => failure === "http"
         ? route.fulfill({ status: 503, json: { ok: false } }) : route.abort(), { times: 1 });
       await page.getByTestId("account-signout").click();
-      await expect(page.getByRole("alert")).toContainText("Could not confirm sign out");
+      await expect(page.getByTestId("account-signed-in").getByRole("alert")).toContainText("Could not confirm sign out");
       await expect(page).toHaveURL(/\/account$/);
       await expect(page.getByTestId("account-signout")).toBeEnabled();
     }
