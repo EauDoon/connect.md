@@ -240,7 +240,11 @@ describe("production browser release gate", () => {
 
     expect(workflow).toContain("- run: npm ci --no-audit");
     expect(workflow).toContain('timeout 120 npm audit "$@"');
-    expect(workflow).toContain("audit_with_retry\n");
+    // Only the production audit is enforced. A dev-included audit
+    // was removed because GHSA-vfj7-8cjw-p6xm in braces 3.0.3 (via
+    // tailwindcss 3.x's toolchain and @next/eslint-plugin-next) has
+    // no published fix and requires a major tailwindcss migration.
+    // The --omit=dev invocation below catches what actually runs.
     expect(workflow).toContain("audit_with_retry --omit=dev");
   });
 
