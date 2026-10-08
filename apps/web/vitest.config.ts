@@ -6,5 +6,8 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./", import.meta.url)) }
   },
-  test: { environment: "node", include: ["tests/**/*.test.ts"] }
+  // 15s instead of the 5s default: cold imports of the larger suites (for
+  // example dual-mode-continuity) time out under CPU contention on shared CI
+  // runners and busy workstations, though each passes alone in well under 5s.
+  test: { environment: "node", include: ["tests/**/*.test.ts"], testTimeout: 15_000 }
 });
