@@ -160,7 +160,54 @@ export async function createSession(sql: postgres.Sql, accountId: string): Promi
     INSERT INTO network_sessions (account_id, token_hash, expires_at)
     VALUES (${accountId}, ${tokenDigest(token)}, now() + (${SESSION_TTL_MILLISECONDS / 1000} * INTERVAL '1 second'))
   `;
+  await pruneExpiredAuthStateBestEffort(sql);
   return token;
+}
+
+/** Rows removed per table per prune, so one sign-in never pays for a large backlog. */
+export const AUTH_STATE_PRUNE_BATCH = 500;
+
+/**
+ * Delete auth state that can no longer affect any decision: rate buckets whose
+ * window started more than a day ago (the longest window is one hour, and a
+ * stale bucket resets to 1 on its next use anyway) and sessions that expired
+ * or were revoked more than a day ago (accountForSessionToken already ignores
+ * them). Bucket keys embed email digests, so this bounds how long those
+ * digests are retained. Each delete repeats its predicate, so a row a
+ * concurrent request just refreshed is re-checked and kept.
+ */
+export async function pruneExpiredAuthState(sql: postgres.Sql): Promise<{ buckets: number; sessions: number }> {
+  const buckets = await sql`
+    DELETE FROM network_auth_buckets
+    WHERE bucket_key IN (
+      SELECT bucket_key FROM network_auth_buckets
+      WHERE window_started_at < now() - INTERVAL '1 day'
+      LIMIT ${AUTH_STATE_PRUNE_BATCH}
+    )
+    AND window_started_at < now() - INTERVAL '1 day'
+  `;
+  const sessions = await sql`
+    DELETE FROM network_sessions
+    WHERE id IN (
+      SELECT id FROM network_sessions
+      WHERE expires_at < now() - INTERVAL '1 day' OR revoked_at < now() - INTERVAL '1 day'
+      LIMIT ${AUTH_STATE_PRUNE_BATCH}
+    )
+    AND (expires_at < now() - INTERVAL '1 day' OR revoked_at < now() - INTERVAL '1 day')
+  `;
+  return { buckets: buckets.count, sessions: sessions.count };
+}
+
+/** Pruning is housekeeping: a failure is logged without detail and never fails a sign-in. */
+async function pruneExpiredAuthStateBestEffort(sql: postgres.Sql): Promise<void> {
+  try {
+    await pruneExpiredAuthState(sql);
+  } catch (error) {
+    const name = error instanceof Error ? error.name : typeof error;
+    const raw = error !== null && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
+    const code = typeof raw === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(raw) ? raw : null;
+    console.error("[connectmd-network] prune failed", { name, code });
+  }
 }
 
 export type SessionContext = { account: AccountRecord; sessionId: string };

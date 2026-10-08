@@ -256,6 +256,39 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     return accounts as [typeof accounts[number], typeof accounts[number]];
   }
 
+  it("prunes expired auth state on sign-in and keeps live state", async () => {
+    const [owner] = await pair("prune");
+    await sql`INSERT INTO network_auth_buckets (bucket_key, window_started_at, count) VALUES
+      (${`stale:${suffix}`}, now() - INTERVAL '2 days', 3),
+      (${`fresh:${suffix}`}, now() - INTERVAL '2 hours', 3)`;
+    const session = async (label: string, expiresInSeconds: number, revokedSecondsAgo: number | null) => (await sql`
+      INSERT INTO network_sessions (account_id, token_hash, expires_at, revoked_at)
+      VALUES (
+        ${owner.id},
+        ${`${label}-${suffix}`},
+        now() + (${expiresInSeconds} * INTERVAL '1 second'),
+        CASE WHEN ${revokedSecondsAgo}::integer IS NULL THEN NULL
+          ELSE now() - (${revokedSecondsAgo}::integer * INTERVAL '1 second') END
+      )
+      RETURNING id`)[0]!.id as string;
+    const day = 24 * 3600;
+    const expiredLongAgo = await session("expired", -2 * day, null);
+    const revokedLongAgo = await session("revoked", day, 2 * day);
+    const expiredRecently = await session("recent", -3600, null);
+    const live = await session("live", day, null);
+
+    const signedIn = await loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey: `prune-${suffix}` });
+
+    const buckets = await sql`SELECT bucket_key FROM network_auth_buckets WHERE bucket_key IN (${`stale:${suffix}`}, ${`fresh:${suffix}`})`;
+    expect(buckets.map((row) => row.bucket_key)).toEqual([`fresh:${suffix}`]);
+    const remaining = new Set((await sql`SELECT id FROM network_sessions WHERE account_id = ${owner.id}`).map((row) => row.id as string));
+    expect(remaining.has(expiredLongAgo)).toBe(false);
+    expect(remaining.has(revokedLongAgo)).toBe(false);
+    expect(remaining.has(expiredRecently)).toBe(true);
+    expect(remaining.has(live)).toBe(true);
+    expect((await accountForSessionToken(sql, signedIn.sessionToken))?.account.id).toBe(owner.id);
+  });
+
   it("requires current ETags and preserves public bytes until a human unpublishes", async () => {
     const [owner] = await pair("profile");
     const first = await saveProfile(sql, owner, PROFILE_FIXTURE, null);

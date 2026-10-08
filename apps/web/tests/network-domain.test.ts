@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import type postgres from "postgres";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AGENT_SCOPES,
@@ -8,6 +9,7 @@ import {
   scopeAllows,
   validateGrantDefinition,
 } from "@/lib/network/agent-grants";
+import { AUTH_STATE_PRUNE_BATCH, createSession, pruneExpiredAuthState } from "@/lib/network/auth-service";
 import { canRequestContact, contactTransition } from "@/lib/network/contact";
 import { normalizeHandleLookup, normalizeHandlePrefix, validateEmail, validateHandle, validatePassword } from "@/lib/network/identity";
 import {
@@ -207,5 +209,47 @@ describe("agent grants", () => {
   it("never offers messaging scopes to agents", () => {
     expect(AGENT_SCOPES).not.toContain("contacts:write");
     expect(AGENT_SCOPES).not.toContain("messages:send");
+  });
+});
+
+describe("auth state pruning", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function stubSql(failDeletes: boolean) {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join("$");
+      statements.push({ text, values });
+      if (failDeletes && text.includes("DELETE")) {
+        return Promise.reject(Object.assign(new Error("lock timeout for ada@example.test"), { code: "55P03" }));
+      }
+      return Promise.resolve(Object.assign([], { count: text.includes("DELETE") ? 2 : 1 }));
+    }) as unknown as postgres.Sql;
+    return { sql, statements };
+  }
+
+  it("deletes only state past a one-day grace, in bounded batches", async () => {
+    const { sql, statements } = stubSql(false);
+    expect(await pruneExpiredAuthState(sql)).toEqual({ buckets: 2, sessions: 2 });
+    expect(statements).toHaveLength(2);
+    const [buckets, sessions] = statements;
+    expect(buckets!.text).toContain("DELETE FROM network_auth_buckets");
+    expect(buckets!.text.match(/window_started_at < now\(\) - INTERVAL '1 day'/g)).toHaveLength(2);
+    expect(sessions!.text).toContain("DELETE FROM network_sessions");
+    expect(sessions!.text.match(/expires_at < now\(\) - INTERVAL '1 day' OR revoked_at < now\(\) - INTERVAL '1 day'/g)).toHaveLength(2);
+    expect(buckets!.values).toEqual([AUTH_STATE_PRUNE_BATCH]);
+    expect(sessions!.values).toEqual([AUTH_STATE_PRUNE_BATCH]);
+  });
+
+  it("prunes after creating a session and never fails a sign-in because pruning failed", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { sql, statements } = stubSql(true);
+    const token = await createSession(sql, "00000000-0000-4000-8000-000000000001");
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(statements[0]!.text).toContain("INSERT INTO network_sessions");
+    expect(statements.slice(1).every((statement) => statement.text.includes("DELETE"))).toBe(true);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0]).toEqual(["[connectmd-network] prune failed", { name: "Error", code: "55P03" }]);
+    expect(JSON.stringify(log.mock.calls)).not.toContain("ada@example.test");
   });
 });
