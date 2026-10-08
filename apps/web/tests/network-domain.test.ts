@@ -8,7 +8,7 @@ import {
   validateGrantDefinition,
 } from "@/lib/network/agent-grants";
 import { canRequestContact, contactTransition } from "@/lib/network/contact";
-import { validateEmail, validateHandle, validatePassword } from "@/lib/network/identity";
+import { normalizeHandleLookup, normalizeHandlePrefix, validateEmail, validateHandle, validatePassword } from "@/lib/network/identity";
 import {
   constantTimeEquals,
   generateToken,
@@ -31,6 +31,24 @@ describe("network identity validation", () => {
     expect(validateHandle("network")).toEqual({ ok: false, reason: expect.stringContaining("reserved") });
     expect(validateHandle("md")).toEqual({ ok: false, reason: expect.stringContaining("3-30") });
     expect(validateHandle(42)).toEqual({ ok: false, reason: expect.stringContaining("string") });
+  });
+
+  it("normalizes public handle lookups without widening the handle alphabet", () => {
+    expect(normalizeHandleLookup(" Ada-Lovelace ")).toBe("ada-lovelace");
+    expect(normalizeHandleLookup("ada-lovelace")).toBe("ada-lovelace");
+    for (const raw of ["", "a", "Ada!", "%", "ada_lovelace", "-ada", "a".repeat(31), 42, null]) {
+      expect(normalizeHandleLookup(raw)).toBeNull();
+    }
+  });
+
+  it("accepts only literal handle fragments as discovery prefixes", () => {
+    expect(normalizeHandlePrefix(" Ada ")).toBe("ada");
+    expect(normalizeHandlePrefix("a")).toBe("a");
+    expect(normalizeHandlePrefix("-")).toBe("-");
+    expect(normalizeHandlePrefix("a".repeat(30))).toBe("a".repeat(30));
+    for (const raw of ["", "   ", "_", "%", "a_", "a%", "a b", "a".repeat(31), "x".repeat(200), undefined]) {
+      expect(normalizeHandlePrefix(raw)).toBeNull();
+    }
   });
 
   it("validates emails conservatively", () => {

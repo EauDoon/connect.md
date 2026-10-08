@@ -94,6 +94,16 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     await setProfileVisibility(sql, { id: alice.id, email: "", handle: "x", status: "active", created_at: new Date().toISOString() }, "public", (await getProfile(sql, alice.id))!.etag);
   });
 
+  it("treats discovery prefixes as literal handle fragments, never LIKE wildcards", async () => {
+    await expect(listPublishedProfiles(sql, { prefix: "_" })).rejects.toMatchObject({ code: "invalid" });
+    await expect(listPublishedProfiles(sql, { prefix: "%" })).rejects.toMatchObject({ code: "invalid" });
+    expect((await listPublishedProfiles(sql, { prefix: "alice-" })).map((profile) => profile.handle)).toContain(`alice-${suffix}`);
+    expect((await listPublishedProfiles(sql, { prefix: `ALICE-${suffix}` })).map((profile) => profile.handle)).toEqual([`alice-${suffix}`]);
+    expect(await listPublishedProfiles(sql, { prefix: `bob-${suffix}` })).toEqual([]);
+    expect((await getPublishedProfile(sql, ` ALICE-${suffix} `)).handle).toBe(`alice-${suffix}`);
+    await expect(getPublishedProfile(sql, "alice_%")).rejects.toMatchObject({ code: "not-found" });
+  });
+
   it("runs the contact consent journey: request, accept, converse", async () => {
     const request = await sendContactRequest(sql, bob.id, `alice-${suffix}`);
     expect(request.status).toBe("pending");
