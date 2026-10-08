@@ -1,3 +1,4 @@
+import { randomBytes, scryptSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,6 +14,7 @@ import {
   constantTimeEquals,
   generateToken,
   hashPassword,
+  scryptParametersAcceptable,
   tokenDigest,
   verifyPassword,
 } from "@/lib/network/secrets";
@@ -67,27 +69,66 @@ describe("network identity validation", () => {
 });
 
 describe("password hashing", () => {
-  it("round-trips a password and never stores it", () => {
-    const stored = hashPassword("GoodPassword123");
+  it("round-trips a password and never stores it", async () => {
+    const stored = await hashPassword("GoodPassword123");
     expect(stored).not.toContain("GoodPassword123");
-    expect(stored.startsWith("scrypt$")).toBe(true);
-    expect(verifyPassword("GoodPassword123", stored)).toBe(true);
-    expect(verifyPassword("WrongPassword123", stored)).toBe(false);
-    expect(verifyPassword("goodpassword123", stored)).toBe(false);
+    expect(stored.startsWith("scrypt$32768$8$1$")).toBe(true);
+    expect(await verifyPassword("GoodPassword123", stored)).toBe(true);
+    expect(await verifyPassword("WrongPassword123", stored)).toBe(false);
+    expect(await verifyPassword("goodpassword123", stored)).toBe(false);
   });
 
-  it("produces unique salts for equal passwords", () => {
-    const first = hashPassword("GoodPassword123");
-    const second = hashPassword("GoodPassword123");
+  it("produces unique salts for equal passwords", async () => {
+    const first = await hashPassword("GoodPassword123");
+    const second = await hashPassword("GoodPassword123");
     expect(first).not.toBe(second);
   });
 
-  it("rejects tampered stored hashes", () => {
-    const stored = hashPassword("GoodPassword123");
+  it("keeps verifying hashes stored by the synchronous implementation", async () => {
+    // Byte-for-byte what the previous scryptSync code stored, so existing
+    // accounts keep signing in after the move to async derivation.
+    const salt = randomBytes(16);
+    const key = scryptSync("Légacy Password 1".normalize("NFKC"), salt, 64, { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    const legacy = ["scrypt", "32768", "8", "1", salt.toString("base64"), key.toString("base64")].join("$");
+    expect(await verifyPassword("Légacy Password 1", legacy)).toBe(true);
+    expect(await verifyPassword("Legacy Password 1", legacy)).toBe(false);
+  });
+
+  it("rejects tampered stored hashes", async () => {
+    const stored = await hashPassword("GoodPassword123");
     const parts = stored.split("$");
     parts[4] = Buffer.from("tampered-salt-bits").toString("base64");
-    expect(verifyPassword("GoodPassword123", parts.join("$"))).toBe(false);
-    expect(verifyPassword("GoodPassword123", "nonsense")).toBe(false);
+    expect(await verifyPassword("GoodPassword123", parts.join("$"))).toBe(false);
+    expect(await verifyPassword("GoodPassword123", "nonsense")).toBe(false);
+  });
+
+  it("refuses out-of-bounds stored parameters without deriving or throwing", async () => {
+    const stored = await hashPassword("GoodPassword123");
+    const withParams = (n: string, r: string, p: string) => {
+      const parts = stored.split("$");
+      parts[1] = n;
+      parts[2] = r;
+      parts[3] = p;
+      return parts.join("$");
+    };
+    for (const [n, r, p] of [
+      ["3", "8", "1"],
+      [String(2 ** 30), "8", "1"],
+      ["32768", "99", "1"],
+      ["32768", "8", "99"],
+      ["16384", "0", "1"],
+      ["8192", "8", "1"],
+      ["65536", "16", "1"],
+      ["32768abc", "8", "1"],
+      ["-32768", "8", "1"],
+    ]) {
+      await expect(verifyPassword("GoodPassword123", withParams(n!, r!, p!))).resolves.toBe(false);
+    }
+    expect(scryptParametersAcceptable(2 ** 15, 8, 1)).toBe(true);
+    expect(scryptParametersAcceptable(2 ** 14, 16, 4)).toBe(true);
+    expect(scryptParametersAcceptable(2 ** 16, 8, 1)).toBe(true);
+    expect(scryptParametersAcceptable(2 ** 17, 8, 1)).toBe(false);
+    expect(scryptParametersAcceptable(3 * 2 ** 14, 8, 1)).toBe(false);
   });
 });
 

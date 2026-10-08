@@ -8,7 +8,7 @@
  * environments without a database).
  */
 
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import postgres from "postgres";
@@ -223,6 +223,20 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
   it("rejects bad credentials without revealing account existence", async () => {
     await expect(loginAccount(sql, { email: `alice-${suffix}@example.com`, password: "wrong-password-1", ipKey: "test-ip" })).rejects.toMatchObject({ code: "credentials" });
     await expect(loginAccount(sql, { email: `nobody-${suffix}@example.com`, password: "wrong-password-1", ipKey: "test-ip" })).rejects.toMatchObject({ code: "credentials" });
+  });
+
+  it("still signs in an account whose hash the synchronous implementation stored", async () => {
+    // Byte-for-byte the format and parameters the earlier scryptSync code
+    // stored, so accounts created before async derivation keep working.
+    const salt = randomBytes(16);
+    const key = scryptSync("Legacy-password-1".normalize("NFKC"), salt, 64, { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    const legacyHash = ["scrypt", "32768", "8", "1", salt.toString("base64"), key.toString("base64")].join("$");
+    const handle = `legacy-${suffix}`;
+    await sql`INSERT INTO network_accounts (email, password_hash, handle) VALUES (${`${handle}@example.com`}, ${legacyHash}, ${handle})`;
+    const signedIn = await loginAccount(sql, { email: `${handle}@example.com`, password: "Legacy-password-1", ipKey: handle });
+    expect(signedIn.account.handle).toBe(handle);
+    expect((await accountForSessionToken(sql, signedIn.sessionToken))?.account.handle).toBe(handle);
+    await expect(loginAccount(sql, { email: `${handle}@example.com`, password: "Wrong-password-1", ipKey: handle })).rejects.toMatchObject({ code: "credentials" });
   });
 
   it("supports session revocation (sign out)", async () => {
