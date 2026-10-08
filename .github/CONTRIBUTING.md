@@ -33,13 +33,41 @@ A contribution must not weaken these boundaries:
 | Platform contract | [`docs/platform/README.md`](../docs/platform/README.md) | Feature registry, ownership anchors, release-state checks |
 | Infrastructure | [`docs/deployment.md`](../docs/deployment.md) | Static configuration and operational contract tests only unless a dedicated environment is authorized |
 
-From the repository root, run the checks that cover your change. CI gates these repository commands:
+## Local checks
+
+The repository root is not a project. There is no root `package.json`, `pyproject.toml`, `pytest.ini`, or `setup.cfg`, so run each command from the directory CI uses for that job (the `working-directory` set in `.github/workflows/ci.yml`).
+
+From the repository root, CI gates these repository commands:
 
 ```bash
 python tools/secret_scan.py
 python tools/check_standalone_site.py
-python -m unittest tools.tests.test_source_distribution tools.tests.test_check_dependency_sboms tools.tests.test_module_size_ratchets
+python -m unittest tools.tests.test_source_distribution tools.tests.test_check_dependency_sboms \
+  tools.tests.test_module_size_ratchets tools.tests.test_with_network_secrets tools.tests.test_secret_scan
 ```
+
+From `apps/web` (Node 22):
+
+```bash
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+From `apps/api` (CPython 3.12):
+
+```bash
+python -m pip install --require-hashes -r requirements-test.lock
+ruff check .
+mypy app
+pytest -q -m "not integration" tests
+```
+
+`requirements-test.lock` is generated for CPython 3.12 on `x86_64-unknown-linux-gnu` only (see its header). On Windows or macOS the hash-locked install fails, starting with the Linux-only `uvloop` pin. Run the API checks in WSL, in a Linux container, or by pushing a branch and reading CI; do not regenerate or edit the lock files to make a local install work.
+
+CI also builds the pinned API image, audits both lockfiles, runs the network acceptance suite and browser journeys against a disposable PostgreSQL, and runs the web production harness under Playwright. Those need Docker, a database, or a browser install and are not a prerequisite for requesting review. `apps/api/README.md` documents the API's own run and verify steps, including `alembic upgrade head`.
 
 `python tools/check_platform_features.py` and its two test modules are retained-platform tooling with known drift (anchors for backend CI jobs retired in #3, the network MVP UI routes, and trust-page markers). They are not a merge gate; see [docs/platform/README.md](../docs/platform/README.md).
 
@@ -60,4 +88,4 @@ Do not place vulnerability details in a public issue or pull request. Follow the
 
 ## License
 
-Contributions accepted into this repository are distributed under the [Apache License 2.0](../LICENSE).
+Contributions accepted into this repository are distributed under the [MIT License](../LICENSE).

@@ -17,6 +17,7 @@ It is source, not a live service. Discovery is information, never permission.
 
 - FastAPI authority boundary in apps/api
 - Next.js human/Markdown UI in apps/web
+- Optional consent-first network routes in apps/web (/api/network/v1): private-by-default profiles, contact requests, messaging, and owner-issued agent grants that are scoped, expiring, and revocable
 - Versioned canonical Markdown contracts
 
 ## What this tree is not
