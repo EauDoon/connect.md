@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AGENT_SCOPES,
+  DEFAULT_GRANT_TTL_DAYS,
   grantIsLive,
   mintAgentToken,
   scopeAllows,
@@ -175,9 +176,16 @@ describe("contact state machine", () => {
 
 describe("agent grants", () => {
   it("validates scope subsets without wildcards", () => {
-    expect(validateGrantDefinition({ name: "reader", scopes: ["profile:read"] })).toEqual({
+    const now = new Date("2026-10-01T12:00:00.000Z");
+    const defaultExpiry = "2026-12-30T12:00:00.000Z";
+    expect(DEFAULT_GRANT_TTL_DAYS).toBe(90);
+    expect(validateGrantDefinition({ name: "reader", scopes: ["profile:read"] }, now)).toEqual({
       ok: true,
-      definition: { name: "reader", scopes: ["profile:read"], expiresAt: null },
+      definition: { name: "reader", scopes: ["profile:read"], expiresAt: defaultExpiry },
+    });
+    expect(validateGrantDefinition({ name: "reader", scopes: ["profile:read"], expiresAt: null }, now)).toEqual({
+      ok: true,
+      definition: { name: "reader", scopes: ["profile:read"], expiresAt: defaultExpiry },
     });
     expect(validateGrantDefinition({ name: "x", scopes: [] }).ok).toBe(false);
     expect(validateGrantDefinition({ name: "x", scopes: ["*"] }).ok).toBe(false);
@@ -185,6 +193,19 @@ describe("agent grants", () => {
     expect(validateGrantDefinition({ name: "", scopes: ["profile:read"] }).ok).toBe(false);
     expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: "not-a-date" }).ok).toBe(false);
     expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: "2000-01-01T00:00:00Z" }).ok).toBe(false);
+  });
+
+  it("bounds explicit expiries to one year and keeps them exact", () => {
+    const now = new Date("2026-10-01T12:00:00.000Z");
+    const days = (count: number) => new Date(now.getTime() + count * 24 * 3600_000).toISOString();
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: days(400) }, now).ok).toBe(false);
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: days(367) }, now).ok).toBe(false);
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: now.toISOString() }, now).ok).toBe(false);
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: days(7) }, now)).toEqual({
+      ok: true,
+      definition: { name: "x", scopes: ["profile:read"], expiresAt: days(7) },
+    });
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: days(366) }, now).ok).toBe(true);
   });
 
   it("grants live only while unrevoked and unexpired", () => {

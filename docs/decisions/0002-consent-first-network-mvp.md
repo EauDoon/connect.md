@@ -71,6 +71,9 @@ rather than its code volume:
 - Production requires one Postgres database. Until it is provisioned
   (owner action queued), network routes answer 503 with an explicit
   configuration contract; guest routes are unaffected.
+- Agent grants expire by default: a grant created without an explicit expiry
+  lasts 90 days, and an explicit expiry may be at most one year out. Grants
+  created before this default with no expiry remain valid until revoked.
 - Secrets (database URL, API-key pepper) are stored in the operator vault
   (gringotts) and injected at deploy time; only non-secret references live
   in configuration.

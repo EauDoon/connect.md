@@ -32,6 +32,8 @@ const { decideContactRequest, listContactRequests, sendContactRequest, blockAcco
 );
 const { listConversations, listMessages, sendMessage } = await import("@/lib/network/conversations");
 const { createAgentGrant, resolveAgentToken, revokeAgentGrant } = await import("@/lib/network/agent-service");
+const { DEFAULT_GRANT_TTL_DAYS, mintAgentToken } = await import("@/lib/network/agent-grants");
+const { tokenDigest, tokenDisplayPrefix } = await import("@/lib/network/secrets");
 const { migrate, closeDatabase } = await import("@/lib/network/db");
 const { starterFor } = await import("@/lib/markdown");
 
@@ -185,6 +187,10 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
       scopes: ["profile:read", "profile:write"],
     });
     expect(token.startsWith("cnag_")).toBe(true);
+    // Created without expiresAt, the grant takes the default lifetime.
+    const lifetimeDays = (Date.parse(record.expiresAt!) - Date.now()) / (24 * 3600_000);
+    expect(lifetimeDays).toBeGreaterThan(DEFAULT_GRANT_TTL_DAYS - 0.1);
+    expect(lifetimeDays).toBeLessThanOrEqual(DEFAULT_GRANT_TTL_DAYS + 0.01);
 
     const agent = await resolveAgentToken(sql, `Bearer ${token}`);
     expect(agent?.accountHandle).toBe(`alice-${suffix}`);
@@ -207,6 +213,18 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     // Revocation ends access immediately.
     await revokeAgentGrant(sql, alice.id, record.id);
     expect(await resolveAgentToken(sql, `Bearer ${token}`)).toBeNull();
+  });
+
+  it("keeps honouring grants stored with no expiry before the default existed", async () => {
+    const legacyToken = mintAgentToken();
+    await sql`
+      INSERT INTO network_agent_grants (account_id, name, token_hash, token_prefix, scopes, expires_at)
+      VALUES (${alice.id}, 'legacy-agent', ${tokenDigest(legacyToken)}, ${tokenDisplayPrefix(legacyToken)},
+              ${sql.array(["profile:read"])}, NULL)
+    `;
+    const resolved = await resolveAgentToken(sql, `Bearer ${legacyToken}`);
+    expect(resolved?.accountId).toBe(alice.id);
+    expect(resolved?.scopes).toEqual(["profile:read"]);
   });
 
   it("survives a restart: sessions, profiles, and conversations persist", async () => {
