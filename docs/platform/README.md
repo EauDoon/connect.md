@@ -9,6 +9,14 @@ This directory makes cross-domain feature integration reviewable without changin
 - [Release matrix](release-matrix.md) records the required coverage axes and release evidence.
 - [Coverage gaps and manual gates](coverage-gaps.md) states what the checker cannot prove.
 - [Decision records](../decisions/README.md) preserve consequential architecture decisions.
-- The [platform feature contract](../../packages/platform-contract/README.md) makes this coverage machine-checkable in CI.
+- The [platform feature contract](../../packages/platform-contract/README.md) makes this coverage machine-checkable on demand.
+
+The platform checker (`tools/check_platform_features.py`) and its two test modules (`tools/tests/test_check_platform_features.py` and `tools/tests/test_platform_route_test_ownership.py`) are retained-platform tooling and are **not a merge gate**. They carry known drift that is documented rather than repaired: anchors for the backend CI jobs retired in #3, the network MVP UI routes, and trust-page markers. The checker is also frozen by its module-size ratchet. CI gates these repository commands instead:
+
+```bash
+python tools/secret_scan.py
+python tools/check_standalone_site.py
+python -m unittest tools.tests.test_source_distribution tools.tests.test_check_dependency_sboms tools.tests.test_module_size_ratchets
+```
 
 The scaffold describes how to make future claims. It does not certify a feature, deployment, or release.

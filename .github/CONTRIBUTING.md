@@ -33,12 +33,15 @@ A contribution must not weaken these boundaries:
 | Platform contract | [`docs/platform/README.md`](../docs/platform/README.md) | Feature registry, ownership anchors, release-state checks |
 | Infrastructure | [`docs/deployment.md`](../docs/deployment.md) | Static configuration and operational contract tests only unless a dedicated environment is authorized |
 
-From the repository root, run the checks that cover your change. The platform registry and high-confidence secret scan are useful baseline gates:
+From the repository root, run the checks that cover your change. CI gates these repository commands:
 
 ```bash
-python tools/check_platform_features.py
 python tools/secret_scan.py
+python tools/check_standalone_site.py
+python -m unittest tools.tests.test_source_distribution tools.tests.test_check_dependency_sboms tools.tests.test_module_size_ratchets
 ```
+
+`python tools/check_platform_features.py` and its two test modules are retained-platform tooling with known drift (anchors for backend CI jobs retired in #3, the network MVP UI routes, and trust-page markers). They are not a merge gate; see [docs/platform/README.md](../docs/platform/README.md).
 
 ## Pull request checklist
 
