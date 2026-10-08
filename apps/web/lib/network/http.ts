@@ -2,6 +2,7 @@
  * Server-side session cookie + shared HTTP helpers for network routes.
  */
 
+import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import postgres from "postgres";
 import { PROFILE_RESUME_MAX_UTF8_BYTES } from "@/lib/markdown";
@@ -52,19 +53,45 @@ export const MAX_JSON_BODY_BYTES = 8 * 1024;
 // JSON escaping may use six ASCII bytes for one canonical Markdown byte.
 export const MAX_PROFILE_JSON_BYTES = 6 * PROFILE_RESUME_MAX_UTF8_BYTES + 128;
 
+type NetworkOriginEnv = { CONNECTMD_NETWORK_ORIGIN?: string; NEXT_PUBLIC_SITE_URL?: string };
+
+/**
+ * The browser origin that cookie mutations must come from, or null when none
+ * can be trusted. A non-empty CONNECTMD_NETWORK_ORIGIN wins; a blank one falls
+ * back to NEXT_PUBLIC_SITE_URL. Surrounding whitespace and a bare trailing "/"
+ * are normalized away. A path, query, fragment, credentials, or a non-HTTP(S)
+ * scheme makes the value untrusted, and a malformed explicit override never
+ * falls back to the site URL.
+ */
+export function configuredNetworkOrigin(env: NetworkOriginEnv = {
+  CONNECTMD_NETWORK_ORIGIN: process.env.CONNECTMD_NETWORK_ORIGIN,
+  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+}): string | null {
+  const override = env.CONNECTMD_NETWORK_ORIGIN?.trim();
+  const raw = override ? override : env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (
+    !["https:", "http:"].includes(url.protocol)
+    || url.username
+    || url.password
+    || url.pathname !== "/"
+    || url.search
+    || url.hash
+  ) return null;
+  return url.origin;
+}
+
 /** Cookie mutations require an exact configured origin, including bodyless actions. */
 export function rejectCrossOrigin(request: Request): Response | null {
-  const configured = process.env.CONNECTMD_NETWORK_ORIGIN ?? process.env.NEXT_PUBLIC_SITE_URL;
+  const configured = configuredNetworkOrigin();
   const origin = request.headers.get("origin");
-  if (configured === undefined || origin !== configured || request.headers.get("sec-fetch-site") === "cross-site") {
-    return jsonResponse({ ok: false, reason: "origin-denied" }, 403);
-  }
-  try {
-    const expected = new URL(configured);
-    if (expected.origin !== configured || !["https:", "http:"].includes(expected.protocol)) {
-      return jsonResponse({ ok: false, reason: "origin-denied" }, 403);
-    }
-  } catch {
+  if (configured === null || origin !== configured || request.headers.get("sec-fetch-site") === "cross-site") {
     return jsonResponse({ ok: false, reason: "origin-denied" }, 403);
   }
   return null;
@@ -131,8 +158,23 @@ export function withNetworkUnavailable(handler: () => Promise<Response>): Promis
       if (error.code === "23505") return jsonResponse({ ok: false, reason: "conflict", message: "That operation conflicts with existing data." }, 409);
       if (error.code === "22P02") return jsonResponse({ ok: false, reason: "request-invalid" }, 400);
     }
-    return jsonResponse({ ok: false, reason: "network-unavailable", message: "The network is temporarily unavailable. Try again later." }, 503);
+    // Anything else is unexpected. Log a correlation id with the error class and
+    // code only: messages, details, queries, and parameters can carry personal data.
+    const errorId = randomUUID();
+    console.error("[connectmd-network] unexpected route failure", { errorId, ...errorShape(error) });
+    return jsonResponse(
+      { ok: false, reason: "network-unavailable", message: "The network is temporarily unavailable. Try again later.", errorId },
+      503,
+      { "x-connectmd-error-id": errorId },
+    );
   });
+}
+
+function errorShape(error: unknown): { name: string; code: string | null } {
+  const name = error instanceof Error ? error.name : typeof error;
+  const raw = error !== null && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
+  const code = typeof raw === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(raw) ? raw : null;
+  return { name, code };
 }
 
 export function accountErrorStatus(error: AccountActionError): number {

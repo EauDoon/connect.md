@@ -93,10 +93,21 @@ restore by `gringotts restore` from a passphrase-encrypted backup.
 
 Network activation is a separate operator-approved action. Do not infer that
 it is enabled from a successful guest build or the presence of route source.
-Set CONNECTMD_NETWORK_ORIGIN to the exact canonical browser origin (no path or
-trailing slash); NEXT_PUBLIC_SITE_URL is its fallback. Cookie mutations require
-that Origin, including login, logout, publication, and bodyless contact actions.
-Bearer-agent routes use their explicit scopes instead of browser Origin.
+Set CONNECTMD_NETWORK_ORIGIN to the canonical browser origin. A blank value
+falls back to NEXT_PUBLIC_SITE_URL. Surrounding whitespace and a bare trailing
+slash are normalized away, so `https://host/` and `https://host` are the same
+origin. A path, query, fragment, credentials, or a scheme other than http(s)
+makes the value untrusted and every cookie mutation is refused; a malformed
+CONNECTMD_NETWORK_ORIGIN never falls back to NEXT_PUBLIC_SITE_URL. Cookie
+mutations require that Origin, including login, logout, publication, and
+bodyless contact actions. Bearer-agent routes use their explicit scopes instead
+of browser Origin.
+
+An unexpected network-route failure answers 503 `network-unavailable` with an
+`errorId` in the body and an `x-connectmd-error-id` header. The same id is
+logged as `[connectmd-network] unexpected route failure` with the error class
+and code only, never its message or query parameters, so a support report can
+be matched to the server log without personal data reaching the log.
 
 The app trusts Vercel's overwritten x-vercel-forwarded-for only when VERCEL=1.
 Other hosts share a conservative rate bucket, so a caller cannot choose its own
