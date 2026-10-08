@@ -12,6 +12,7 @@ import {
 } from "@/lib/network/agent-grants";
 import { AUTH_STATE_PRUNE_BATCH, createSession, pruneExpiredAuthState } from "@/lib/network/auth-service";
 import { canRequestContact, contactTransition } from "@/lib/network/contact";
+import { sendMessage } from "@/lib/network/conversations";
 import { normalizeHandleLookup, normalizeHandlePrefix, validateEmail, validateHandle, validatePassword } from "@/lib/network/identity";
 import {
   constantTimeEquals,
@@ -272,5 +273,29 @@ describe("auth state pruning", () => {
     expect(log).toHaveBeenCalledTimes(1);
     expect(log.mock.calls[0]).toEqual(["[connectmd-network] prune failed", { name: "Error", code: "55P03" }]);
     expect(JSON.stringify(log.mock.calls)).not.toContain("ada@example.test");
+  });
+});
+
+describe("message size limits", () => {
+  const untouchable = new Proxy(() => undefined, {
+    apply() { throw new Error("the database must not be touched for an oversized message"); },
+    get() { throw new Error("the database must not be touched for an oversized message"); },
+  }) as unknown as postgres.Sql;
+
+  it("names the byte cap when a short message in a multi-byte script exceeds it", async () => {
+    const cjk = "デ".repeat(1400);
+    expect(cjk.length).toBe(1400);
+    expect(Buffer.byteLength(cjk, "utf8")).toBe(4200);
+    await expect(sendMessage(untouchable, "account", "conversation", cjk)).rejects.toMatchObject({
+      code: "invalid",
+      message: "Message is too long: at most 4096 bytes of UTF-8 (some scripts and emoji use several bytes per character).",
+    });
+  });
+
+  it("names the character cap when a message has too many characters", async () => {
+    await expect(sendMessage(untouchable, "account", "conversation", "a".repeat(2001))).rejects.toMatchObject({
+      code: "invalid",
+      message: "Message must be at most 2000 characters.",
+    });
   });
 });

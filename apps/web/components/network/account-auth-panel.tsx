@@ -1,9 +1,33 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
-type Mode = "register" | "login";
+export type AuthMode = "register" | "login";
+type Mode = AuthMode;
+
+const AUTH_MODES: readonly AuthMode[] = ["register", "login"];
+
+/**
+ * The browser-side mirror of the server handle rule (lib/network/identity.ts):
+ * 3 to 30 lowercase letters, digits, or hyphens, starting and ending with a
+ * letter or digit, with no consecutive hyphens. Browsers compile `pattern`
+ * with the RegExp v flag, where an unescaped "-" in a character class is a
+ * syntax error that silently disables the check, so the hyphen is escaped.
+ */
+export const HANDLE_INPUT_PATTERN = String.raw`(?!.*--)[a-z0-9][a-z0-9\-]{1,28}[a-z0-9]`;
+
+/** WAI-ARIA tabs keyboard model: arrows wrap, Home and End jump to the ends. */
+export function nextAuthMode(mode: AuthMode, key: string): AuthMode | null {
+  const index = AUTH_MODES.indexOf(mode);
+  switch (key) {
+    case "ArrowRight": return AUTH_MODES[(index + 1) % AUTH_MODES.length]!;
+    case "ArrowLeft": return AUTH_MODES[(index - 1 + AUTH_MODES.length) % AUTH_MODES.length]!;
+    case "Home": return AUTH_MODES[0]!;
+    case "End": return AUTH_MODES[AUTH_MODES.length - 1]!;
+    default: return null;
+  }
+}
 
 const inputClass =
   "min-h-12 w-full rounded-xl border border-white/10 bg-white/[.04] px-4 text-white placeholder:text-mist/55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid";
@@ -15,6 +39,20 @@ export function AccountAuthPanel() {
   const [mode, setMode] = useState<Mode>("register");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tabs = useRef<Partial<Record<Mode, HTMLButtonElement | null>>>({});
+
+  function selectMode(next: Mode) {
+    setMode(next);
+    setError(null);
+  }
+
+  function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const next = nextAuthMode(mode, event.key);
+    if (next === null) return;
+    event.preventDefault();
+    selectMode(next);
+    tabs.current[next]?.focus();
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,13 +87,18 @@ export function AccountAuthPanel() {
   return (
     <div className="max-w-xl rounded-3xl border border-white/10 bg-white/[.03] p-8" data-testid="account-auth-panel">
       <div role="tablist" aria-label="Sign in or create an account" className="mb-6 flex gap-2">
-        {(["register", "login"] as const).map((candidate) => (
+        {AUTH_MODES.map((candidate) => (
           <button
             key={candidate}
+            ref={(element) => { tabs.current[candidate] = element; }}
+            id={`account-tab-${candidate}`}
             type="button"
             role="tab"
             aria-selected={mode === candidate}
-            onClick={() => { setMode(candidate); setError(null); }}
+            aria-controls="account-auth-form"
+            tabIndex={mode === candidate ? 0 : -1}
+            onClick={() => selectMode(candidate)}
+            onKeyDown={onTabKeyDown}
             className={
               "min-h-11 rounded-full px-4 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid " +
               (mode === candidate ? "bg-white/10 text-white" : "text-mist hover:bg-white/[.06] hover:text-white")
@@ -65,62 +108,68 @@ export function AccountAuthPanel() {
           </button>
         ))}
       </div>
-      <form onSubmit={submit} noValidate={false}>
-        {mode === "register" ? (
+      <div role="tabpanel" id="account-auth-form" aria-labelledby={`account-tab-${mode}`}>
+        <form onSubmit={submit} noValidate={false}>
+          {mode === "register" ? (
+            <div className="mb-4">
+              <label htmlFor="account-handle" className="mb-1 block text-sm font-medium text-white">
+                Handle
+              </label>
+              <input
+                id="account-handle"
+                name="handle"
+                type="text"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                minLength={3}
+                maxLength={30}
+                pattern={HANDLE_INPUT_PATTERN}
+                placeholder="ada-lovelace"
+                aria-describedby="account-handle-help"
+                className={inputClass}
+              />
+              <p id="account-handle-help" className="mt-1 text-xs text-mist">
+                3 to 30 lowercase letters, digits, or single hyphens, starting and ending with a letter or digit. This is your public address once you publish.
+              </p>
+            </div>
+          ) : null}
           <div className="mb-4">
-            <label htmlFor="account-handle" className="mb-1 block text-sm font-medium text-white">
-              Handle
+            <label htmlFor="account-email" className="mb-1 block text-sm font-medium text-white">
+              Email
+            </label>
+            <input id="account-email" name="email" type="email" autoComplete="email" required className={inputClass} />
+          </div>
+          <div className="mb-6">
+            <label htmlFor="account-password" className="mb-1 block text-sm font-medium text-white">
+              Password
             </label>
             <input
-              id="account-handle"
-              name="handle"
-              type="text"
-              autoComplete="username"
+              id="account-password"
+              name="password"
+              type="password"
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
               required
-              minLength={3}
-              maxLength={30}
-              pattern="[a-zA-Z0-9][a-zA-Z0-9-]{1,28}[a-zA-Z0-9]"
-              placeholder="ada-lovelace"
+              minLength={10}
+              maxLength={200}
+              aria-describedby={mode === "register" ? "account-password-help" : undefined}
               className={inputClass}
             />
-            <p className="mt-1 text-xs text-mist">Lowercase letters, digits, hyphens. This is your public address once you publish.</p>
+            {mode === "register" ? (
+              <p id="account-password-help" className="mt-1 text-xs text-mist">At least 10 characters. Stored only as a salted scrypt hash.</p>
+            ) : null}
           </div>
-        ) : null}
-        <div className="mb-4">
-          <label htmlFor="account-email" className="mb-1 block text-sm font-medium text-white">
-            Email
-          </label>
-          <input id="account-email" name="email" type="email" autoComplete="email" required className={inputClass} />
-        </div>
-        <div className="mb-6">
-          <label htmlFor="account-password" className="mb-1 block text-sm font-medium text-white">
-            Password
-          </label>
-          <input
-            id="account-password"
-            name="password"
-            type="password"
-            autoComplete={mode === "register" ? "new-password" : "current-password"}
-            required
-            minLength={10}
-            maxLength={200}
-            className={inputClass}
-          />
-          {mode === "register" ? (
-            <p className="mt-1 text-xs text-mist">At least 10 characters. Stored only as a salted scrypt hash.</p>
-          ) : null}
-        </div>
-        <div aria-live="polite">
           {error !== null ? (
             <p role="alert" className="mb-4 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200" data-testid="account-error">
               {error}
             </p>
           ) : null}
-        </div>
-        <button type="submit" disabled={pending} className={submitClass} data-testid="account-submit">
-          {pending ? "Working…" : mode === "register" ? "Create account" : "Sign in"}
-        </button>
-      </form>
+          <button type="submit" disabled={pending} className={submitClass} data-testid="account-submit">
+            {pending ? "Working…" : mode === "register" ? "Create account" : "Sign in"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

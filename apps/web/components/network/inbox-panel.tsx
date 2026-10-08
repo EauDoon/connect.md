@@ -20,6 +20,18 @@ type Conversation = {
   lastMessagePreview: string | null;
 };
 
+/**
+ * The notice for a failed inbox load, or null when both reads succeeded. A
+ * failed read must never look like an empty inbox: an expired session asks
+ * the owner to sign in again, and any other failure says the load failed.
+ */
+export function inboxLoadNotice(contactsStatus: number, conversationsStatus: number): string | null {
+  const ok = (status: number) => status >= 200 && status < 300;
+  if (ok(contactsStatus) && ok(conversationsStatus)) return null;
+  if (contactsStatus === 401 || conversationsStatus === 401) return "Your session ended. Sign in again.";
+  return "Could not load your inbox. Try again.";
+}
+
 const secondaryButton =
   "inline-flex min-h-11 items-center rounded-full border border-white/15 px-4 text-xs font-semibold text-white transition hover:bg-white/[.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acid disabled:opacity-60";
 
@@ -49,6 +61,10 @@ export function InboxPanel() {
       const body = (await conversationsResponse.json()) as { conversations: Conversation[] };
       setConversations(body.conversations);
     }
+    // Only a failure sets a notice, so a successful reload after an action
+    // keeps that action's confirmation.
+    const failure = inboxLoadNotice(contactsResponse.status, conversationsResponse.status);
+    if (failure !== null) setNotice({ kind: "error", message: failure });
   }, []);
 
   useEffect(() => {
