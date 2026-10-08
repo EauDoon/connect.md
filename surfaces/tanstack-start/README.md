@@ -3,6 +3,12 @@
 **Status:** experimental parallel live-preview surface (v2.20.1).
 **Not** a replacement for `apps/web` (Next.js) or `apps/api` (FastAPI).
 
+> **Version labels.** The 2.20.x and 2.21.x numbers in this directory (this
+> README, `RESTORE.md`, `DIRECTORY.md`, `CHANGELOG.md`, and
+> `public/.well-known/agent-card.json`) are historical labels of the archived
+> preview build. They are not connect.md versions. The repository version is
+> the root `VERSION` file; see `docs/versioning.md`.
+
 This directory archives the Grok-built TanStack Start (React + Vite + Tailwind v4) preview used during the 2026-08-27 perfection loops. It demonstrates:
 
 - Paper light design (`#F6F5F1` paper / `#141413` ink, Newsreader + Inter)

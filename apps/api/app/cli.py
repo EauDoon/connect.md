@@ -19,6 +19,7 @@ from sqlalchemy.exc import ArgumentError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app import __version__
 from app.config import get_settings
 from app.db import build_engine, build_session_factory
 from app.models import (
@@ -879,6 +880,7 @@ async def inspect_post_moderation_case(args: Namespace) -> int:
 
 def parse_args() -> Namespace:
     parser = ArgumentParser(prog="python -m app.cli")
+    parser.add_argument("--version", action="version", version=f"connect.md API {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("rebuild-search")
     taxonomy = commands.add_parser("taxonomy")
