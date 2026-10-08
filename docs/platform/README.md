@@ -16,8 +16,10 @@ The platform checker (`tools/check_platform_features.py`) and its two test modul
 ```bash
 python tools/secret_scan.py
 python tools/check_standalone_site.py
+python tools/release_version.py check
 python -m unittest tools.tests.test_source_distribution tools.tests.test_check_dependency_sboms \
-  tools.tests.test_module_size_ratchets tools.tests.test_with_network_secrets tools.tests.test_secret_scan
+  tools.tests.test_module_size_ratchets tools.tests.test_with_network_secrets tools.tests.test_secret_scan \
+  tools.tests.test_release_version
 ```
 
 The scaffold describes how to make future claims. It does not certify a feature, deployment, or release.

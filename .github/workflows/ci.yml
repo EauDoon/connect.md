@@ -43,6 +43,10 @@ jobs:
           archive="$RUNNER_TEMP/connectmd-source.tar.gz"
           python tools/source_distribution.py export --repo . --output "$archive"
           python tools/source_distribution.py verify --archive "$archive" --repo .
+      # VERSION, the web and API component versions, and the CHANGELOG section
+      # and compare links must agree, so a version bump cannot merge half done.
+      - name: Release metadata consistency
+        run: python tools/release_version.py check
       # Runs after the export so the exporter sees a clean checkout. The
       # retained platform checker and its two test modules are not gated:
       # they carry known drift (see docs/platform/README.md).
@@ -54,6 +58,7 @@ jobs:
           tools.tests.test_module_size_ratchets
           tools.tests.test_with_network_secrets
           tools.tests.test_secret_scan
+          tools.tests.test_release_version
 
   backend:
     name: API checks (pytest, ruff, mypy, pip-audit)
