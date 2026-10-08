@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-09
+
 ### Added
 
 - Consent-first network MVP in `apps/web` ([ADR 0002](docs/decisions/0002-consent-first-network-mvp.md), #23): accounts with server-side sessions, private-by-default Markdown profiles with explicit publish and unpublish at `/p/{handle}`, contact requests that the recipient accepts, rejects, or blocks, conversations between accepted contacts, and owner-issued agent grants with explicit scopes, all under `/api/network/v1` on one PostgreSQL database. Without a configured database the network answers 503 and the guest workflow is unaffected.
@@ -139,7 +141,8 @@ This is a source-version upgrade of the pre-launch foundation. It is not a produ
 
 First recorded pre-launch foundation (commit `55cfc6e`). Immutable document versions live at runtime under `storage/` (gitignored) and in PostgreSQL. This version records the published source; it is not a production-deployment claim.
 
-[unreleased]: https://github.com/EauDoon/connect.md/compare/v0.2.4...HEAD
+[unreleased]: https://github.com/EauDoon/connect.md/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/EauDoon/connect.md/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/EauDoon/connect.md/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/EauDoon/connect.md/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/EauDoon/connect.md/compare/v0.2.1...v0.2.2
