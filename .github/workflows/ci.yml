@@ -52,6 +52,7 @@ jobs:
           tools.tests.test_source_distribution
           tools.tests.test_check_dependency_sboms
           tools.tests.test_module_size_ratchets
+          tools.tests.test_with_network_secrets
 
   backend:
     name: API checks (pytest, ruff, mypy, pip-audit)

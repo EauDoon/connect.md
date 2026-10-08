@@ -77,6 +77,14 @@ Deploy with vault-resolved secrets:
 
     deploy/with-network-secrets.sh -- vercel deploy --prod --skip-domain
 
+The wrapper refuses to run unless it is called as `-- <command> [args...]`
+(exit 64 with usage otherwise) and unless every non-comment line of
+deploy/gringotts.env (or `GRINGOTTS_ENV_FILE`) is exactly
+`NAME=gringotts://path`. A plaintext value or a connection string stops the
+deploy before gringotts runs, and the error names the line number without
+printing the value. deploy/gringotts.env is gitignored; commit only the
+`.example` template.
+
 Apply migrations against the production database (run from a machine with
 network access to it):
 
