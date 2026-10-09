@@ -27,7 +27,7 @@
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.468.0",
     "monaco-editor": "0.56.0",
-    "next": "15.5.25",
+    "next": "15.5.27",
     "postgres": "^3.4.7",
     "react": "19.1.4",
     "react-dom": "19.1.4",
@@ -46,7 +46,7 @@
     "autoprefixer": "^10.4.20",
     "axe-core": "4.12.1",
     "eslint": "^9.33.0",
-    "eslint-config-next": "15.5.25",
+    "eslint-config-next": "15.5.27",
     "postcss": "8.5.25",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
@@ -60,7 +60,7 @@
     "nanoid": "3.3.18",
     "js-yaml": "4.3.2",
     "next": {
-      "sharp": "0.35.4"
+      "sharp": "0.35.5"
     }
   }
 }
