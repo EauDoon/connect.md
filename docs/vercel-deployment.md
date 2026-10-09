@@ -77,6 +77,14 @@ Deploy with vault-resolved secrets:
 
     deploy/with-network-secrets.sh -- vercel deploy --prod --skip-domain
 
+The wrapper refuses to run unless it is called as `-- <command> [args...]`
+(exit 64 with usage otherwise) and unless every non-comment line of
+deploy/gringotts.env (or `GRINGOTTS_ENV_FILE`) is exactly
+`NAME=gringotts://path`. A plaintext value or a connection string stops the
+deploy before gringotts runs, and the error names the line number without
+printing the value. deploy/gringotts.env is gitignored; commit only the
+`.example` template.
+
 Apply migrations against the production database (run from a machine with
 network access to it):
 
@@ -93,14 +101,36 @@ restore by `gringotts restore` from a passphrase-encrypted backup.
 
 Network activation is a separate operator-approved action. Do not infer that
 it is enabled from a successful guest build or the presence of route source.
-Set CONNECTMD_NETWORK_ORIGIN to the exact canonical browser origin (no path or
-trailing slash); NEXT_PUBLIC_SITE_URL is its fallback. Cookie mutations require
-that Origin, including login, logout, publication, and bodyless contact actions.
-Bearer-agent routes use their explicit scopes instead of browser Origin.
+Set CONNECTMD_NETWORK_ORIGIN to the canonical browser origin. A blank value
+falls back to NEXT_PUBLIC_SITE_URL. Surrounding whitespace and a bare trailing
+slash are normalized away, so `https://host/` and `https://host` are the same
+origin. A path, query, fragment, credentials, or a scheme other than http(s)
+makes the value untrusted and every cookie mutation is refused; a malformed
+CONNECTMD_NETWORK_ORIGIN never falls back to NEXT_PUBLIC_SITE_URL. Cookie
+mutations require that Origin, including login, logout, publication, and
+bodyless contact actions. Bearer-agent routes use their explicit scopes instead
+of browser Origin.
+
+An unexpected network-route failure answers 503 `network-unavailable` with an
+`errorId` in the body and an `x-connectmd-error-id` header. The same id is
+logged as `[connectmd-network] unexpected route failure` with the error class
+and code only, never its message or query parameters, so a support report can
+be matched to the server log without personal data reaching the log.
 
 The app trusts Vercel's overwritten x-vercel-forwarded-for only when VERCEL=1.
 Other hosts share a conservative rate bucket, so a caller cannot choose its own
 IP quota by setting a forwarded header. See the [Vercel header contract](https://vercel.com/docs/headers/request-headers#x-vercel-forwarded-for).
+
+Expired auth state is pruned automatically. Every successful sign-in or
+registration deletes, in batches of at most 500 rows per table, rate-limit
+buckets whose window started more than a day ago and sessions that expired or
+were revoked more than a day ago. Bucket keys embed SHA-256 digests of email
+addresses, including addresses that never became accounts, so on an active
+deployment those digests and dead sessions are retained for about one day
+after their window or session ends. Migration
+0003_network_retention_indexes adds the indexes that keep the prune cheap;
+pruning is correct without it, and a prune failure is logged as
+`[connectmd-network] prune failed` without failing the sign-in.
 
 Before accepting real network accounts, the operator must document and review:
 

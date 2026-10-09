@@ -1,18 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { randomBytes, scryptSync } from "node:crypto";
+import type postgres from "postgres";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AGENT_SCOPES,
+  DEFAULT_GRANT_TTL_DAYS,
   grantIsLive,
   mintAgentToken,
   scopeAllows,
   validateGrantDefinition,
 } from "@/lib/network/agent-grants";
+import { AUTH_STATE_PRUNE_BATCH, createSession, pruneExpiredAuthState } from "@/lib/network/auth-service";
 import { canRequestContact, contactTransition } from "@/lib/network/contact";
-import { validateEmail, validateHandle, validatePassword } from "@/lib/network/identity";
+import { sendMessage } from "@/lib/network/conversations";
+import { normalizeHandleLookup, normalizeHandlePrefix, validateEmail, validateHandle, validatePassword } from "@/lib/network/identity";
 import {
   constantTimeEquals,
   generateToken,
   hashPassword,
+  scryptParametersAcceptable,
   tokenDigest,
   verifyPassword,
 } from "@/lib/network/secrets";
@@ -33,6 +39,24 @@ describe("network identity validation", () => {
     expect(validateHandle(42)).toEqual({ ok: false, reason: expect.stringContaining("string") });
   });
 
+  it("normalizes public handle lookups without widening the handle alphabet", () => {
+    expect(normalizeHandleLookup(" Ada-Lovelace ")).toBe("ada-lovelace");
+    expect(normalizeHandleLookup("ada-lovelace")).toBe("ada-lovelace");
+    for (const raw of ["", "a", "Ada!", "%", "ada_lovelace", "-ada", "a".repeat(31), 42, null]) {
+      expect(normalizeHandleLookup(raw)).toBeNull();
+    }
+  });
+
+  it("accepts only literal handle fragments as discovery prefixes", () => {
+    expect(normalizeHandlePrefix(" Ada ")).toBe("ada");
+    expect(normalizeHandlePrefix("a")).toBe("a");
+    expect(normalizeHandlePrefix("-")).toBe("-");
+    expect(normalizeHandlePrefix("a".repeat(30))).toBe("a".repeat(30));
+    for (const raw of ["", "   ", "_", "%", "a_", "a%", "a b", "a".repeat(31), "x".repeat(200), undefined]) {
+      expect(normalizeHandlePrefix(raw)).toBeNull();
+    }
+  });
+
   it("validates emails conservatively", () => {
     expect(validateEmail("ada@example.com")).toEqual({ ok: true, email: "ada@example.com" });
     expect(validateEmail("ada@")).toEqual({ ok: false, reason: expect.stringContaining("6-254") });
@@ -49,27 +73,66 @@ describe("network identity validation", () => {
 });
 
 describe("password hashing", () => {
-  it("round-trips a password and never stores it", () => {
-    const stored = hashPassword("GoodPassword123");
+  it("round-trips a password and never stores it", async () => {
+    const stored = await hashPassword("GoodPassword123");
     expect(stored).not.toContain("GoodPassword123");
-    expect(stored.startsWith("scrypt$")).toBe(true);
-    expect(verifyPassword("GoodPassword123", stored)).toBe(true);
-    expect(verifyPassword("WrongPassword123", stored)).toBe(false);
-    expect(verifyPassword("goodpassword123", stored)).toBe(false);
+    expect(stored.startsWith("scrypt$32768$8$1$")).toBe(true);
+    expect(await verifyPassword("GoodPassword123", stored)).toBe(true);
+    expect(await verifyPassword("WrongPassword123", stored)).toBe(false);
+    expect(await verifyPassword("goodpassword123", stored)).toBe(false);
   });
 
-  it("produces unique salts for equal passwords", () => {
-    const first = hashPassword("GoodPassword123");
-    const second = hashPassword("GoodPassword123");
+  it("produces unique salts for equal passwords", async () => {
+    const first = await hashPassword("GoodPassword123");
+    const second = await hashPassword("GoodPassword123");
     expect(first).not.toBe(second);
   });
 
-  it("rejects tampered stored hashes", () => {
-    const stored = hashPassword("GoodPassword123");
+  it("keeps verifying hashes stored by the synchronous implementation", async () => {
+    // Byte-for-byte what the previous scryptSync code stored, so existing
+    // accounts keep signing in after the move to async derivation.
+    const salt = randomBytes(16);
+    const key = scryptSync("Légacy Password 1".normalize("NFKC"), salt, 64, { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    const legacy = ["scrypt", "32768", "8", "1", salt.toString("base64"), key.toString("base64")].join("$");
+    expect(await verifyPassword("Légacy Password 1", legacy)).toBe(true);
+    expect(await verifyPassword("Legacy Password 1", legacy)).toBe(false);
+  });
+
+  it("rejects tampered stored hashes", async () => {
+    const stored = await hashPassword("GoodPassword123");
     const parts = stored.split("$");
     parts[4] = Buffer.from("tampered-salt-bits").toString("base64");
-    expect(verifyPassword("GoodPassword123", parts.join("$"))).toBe(false);
-    expect(verifyPassword("GoodPassword123", "nonsense")).toBe(false);
+    expect(await verifyPassword("GoodPassword123", parts.join("$"))).toBe(false);
+    expect(await verifyPassword("GoodPassword123", "nonsense")).toBe(false);
+  });
+
+  it("refuses out-of-bounds stored parameters without deriving or throwing", async () => {
+    const stored = await hashPassword("GoodPassword123");
+    const withParams = (n: string, r: string, p: string) => {
+      const parts = stored.split("$");
+      parts[1] = n;
+      parts[2] = r;
+      parts[3] = p;
+      return parts.join("$");
+    };
+    for (const [n, r, p] of [
+      ["3", "8", "1"],
+      [String(2 ** 30), "8", "1"],
+      ["32768", "99", "1"],
+      ["32768", "8", "99"],
+      ["16384", "0", "1"],
+      ["8192", "8", "1"],
+      ["65536", "16", "1"],
+      ["32768abc", "8", "1"],
+      ["-32768", "8", "1"],
+    ]) {
+      await expect(verifyPassword("GoodPassword123", withParams(n!, r!, p!))).resolves.toBe(false);
+    }
+    expect(scryptParametersAcceptable(2 ** 15, 8, 1)).toBe(true);
+    expect(scryptParametersAcceptable(2 ** 14, 16, 4)).toBe(true);
+    expect(scryptParametersAcceptable(2 ** 16, 8, 1)).toBe(true);
+    expect(scryptParametersAcceptable(2 ** 17, 8, 1)).toBe(false);
+    expect(scryptParametersAcceptable(3 * 2 ** 14, 8, 1)).toBe(false);
   });
 });
 
@@ -114,9 +177,16 @@ describe("contact state machine", () => {
 
 describe("agent grants", () => {
   it("validates scope subsets without wildcards", () => {
-    expect(validateGrantDefinition({ name: "reader", scopes: ["profile:read"] })).toEqual({
+    const now = new Date("2026-10-01T12:00:00.000Z");
+    const defaultExpiry = "2026-12-30T12:00:00.000Z";
+    expect(DEFAULT_GRANT_TTL_DAYS).toBe(90);
+    expect(validateGrantDefinition({ name: "reader", scopes: ["profile:read"] }, now)).toEqual({
       ok: true,
-      definition: { name: "reader", scopes: ["profile:read"], expiresAt: null },
+      definition: { name: "reader", scopes: ["profile:read"], expiresAt: defaultExpiry },
+    });
+    expect(validateGrantDefinition({ name: "reader", scopes: ["profile:read"], expiresAt: null }, now)).toEqual({
+      ok: true,
+      definition: { name: "reader", scopes: ["profile:read"], expiresAt: defaultExpiry },
     });
     expect(validateGrantDefinition({ name: "x", scopes: [] }).ok).toBe(false);
     expect(validateGrantDefinition({ name: "x", scopes: ["*"] }).ok).toBe(false);
@@ -124,6 +194,19 @@ describe("agent grants", () => {
     expect(validateGrantDefinition({ name: "", scopes: ["profile:read"] }).ok).toBe(false);
     expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: "not-a-date" }).ok).toBe(false);
     expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: "2000-01-01T00:00:00Z" }).ok).toBe(false);
+  });
+
+  it("bounds explicit expiries to one year and keeps them exact", () => {
+    const now = new Date("2026-10-01T12:00:00.000Z");
+    const days = (count: number) => new Date(now.getTime() + count * 24 * 3600_000).toISOString();
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: days(400) }, now).ok).toBe(false);
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: days(367) }, now).ok).toBe(false);
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: now.toISOString() }, now).ok).toBe(false);
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: days(7) }, now)).toEqual({
+      ok: true,
+      definition: { name: "x", scopes: ["profile:read"], expiresAt: days(7) },
+    });
+    expect(validateGrantDefinition({ name: "x", scopes: ["profile:read"], expiresAt: days(366) }, now).ok).toBe(true);
   });
 
   it("grants live only while unrevoked and unexpired", () => {
@@ -148,5 +231,71 @@ describe("agent grants", () => {
   it("never offers messaging scopes to agents", () => {
     expect(AGENT_SCOPES).not.toContain("contacts:write");
     expect(AGENT_SCOPES).not.toContain("messages:send");
+  });
+});
+
+describe("auth state pruning", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function stubSql(failDeletes: boolean) {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join("$");
+      statements.push({ text, values });
+      if (failDeletes && text.includes("DELETE")) {
+        return Promise.reject(Object.assign(new Error("lock timeout for ada@example.test"), { code: "55P03" }));
+      }
+      return Promise.resolve(Object.assign([], { count: text.includes("DELETE") ? 2 : 1 }));
+    }) as unknown as postgres.Sql;
+    return { sql, statements };
+  }
+
+  it("deletes only state past a one-day grace, in bounded batches", async () => {
+    const { sql, statements } = stubSql(false);
+    expect(await pruneExpiredAuthState(sql)).toEqual({ buckets: 2, sessions: 2 });
+    expect(statements).toHaveLength(2);
+    const [buckets, sessions] = statements;
+    expect(buckets!.text).toContain("DELETE FROM network_auth_buckets");
+    expect(buckets!.text.match(/window_started_at < now\(\) - INTERVAL '1 day'/g)).toHaveLength(2);
+    expect(sessions!.text).toContain("DELETE FROM network_sessions");
+    expect(sessions!.text.match(/expires_at < now\(\) - INTERVAL '1 day' OR revoked_at < now\(\) - INTERVAL '1 day'/g)).toHaveLength(2);
+    expect(buckets!.values).toEqual([AUTH_STATE_PRUNE_BATCH]);
+    expect(sessions!.values).toEqual([AUTH_STATE_PRUNE_BATCH]);
+  });
+
+  it("prunes after creating a session and never fails a sign-in because pruning failed", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { sql, statements } = stubSql(true);
+    const token = await createSession(sql, "00000000-0000-4000-8000-000000000001");
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(statements[0]!.text).toContain("INSERT INTO network_sessions");
+    expect(statements.slice(1).every((statement) => statement.text.includes("DELETE"))).toBe(true);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0]).toEqual(["[connectmd-network] prune failed", { name: "Error", code: "55P03" }]);
+    expect(JSON.stringify(log.mock.calls)).not.toContain("ada@example.test");
+  });
+});
+
+describe("message size limits", () => {
+  const untouchable = new Proxy(() => undefined, {
+    apply() { throw new Error("the database must not be touched for an oversized message"); },
+    get() { throw new Error("the database must not be touched for an oversized message"); },
+  }) as unknown as postgres.Sql;
+
+  it("names the byte cap when a short message in a multi-byte script exceeds it", async () => {
+    const cjk = "デ".repeat(1400);
+    expect(cjk.length).toBe(1400);
+    expect(Buffer.byteLength(cjk, "utf8")).toBe(4200);
+    await expect(sendMessage(untouchable, "account", "conversation", cjk)).rejects.toMatchObject({
+      code: "invalid",
+      message: "Message is too long: at most 4096 bytes of UTF-8 (some scripts and emoji use several bytes per character).",
+    });
+  });
+
+  it("names the character cap when a message has too many characters", async () => {
+    await expect(sendMessage(untouchable, "account", "conversation", "a".repeat(2001))).rejects.toMatchObject({
+      code: "invalid",
+      message: "Message must be at most 2000 characters.",
+    });
   });
 });

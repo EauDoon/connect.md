@@ -1,16 +1,26 @@
 name: Release
 
+# Manual release path: a maintainer pushes an annotated v* tag. The usual path
+# is automatic: mint-source-tags.yml tags and releases VERSION after CI passes
+# on main. Its tag is pushed with GITHUB_TOKEN, which does not trigger this
+# workflow, so the two paths never both create the same Release.
+
 on:
   push:
     tags:
       - "v*"
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   release:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref_name }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -19,34 +29,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 <<'PY'
-          from __future__ import annotations
-
-          import os
-          import re
-          import sys
-          from pathlib import Path
-
-          tag = os.environ["GITHUB_REF_NAME"]
-          if re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", tag) is None:
-              sys.exit(f"unsupported source tag: {tag}")
-          version = tag[1:]
-          recorded = Path("VERSION").read_text(encoding="utf-8").strip()
-          if recorded != version:
-              sys.exit(f"VERSION {recorded!r} does not match tag {tag}")
-          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-          heading = re.compile(
-              rf"^## \[{re.escape(version)}\](?:\s+-.*)?\s*$",
-              re.MULTILINE,
-          )
-          match = heading.search(changelog)
-          if match is None:
-              sys.exit(f"CHANGELOG.md has no section for {version}")
-          rest = changelog[match.end() :]
-          nxt = re.search(r"^## ", rest, re.MULTILINE)
-          section = changelog[match.start() : match.end() + (nxt.start() if nxt else len(rest))]
-          Path("release-notes.md").write_text(section.strip() + "\n", encoding="utf-8")
-          PY
-          gh release create "${GITHUB_REF_NAME}" \
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release ${GITHUB_REF_NAME} already exists"
+            exit 0
+          fi
+          python3 tools/release_version.py check --tag "$GITHUB_REF_NAME"
+          notes="$RUNNER_TEMP/release-notes.md"
+          python3 tools/release_version.py notes --tag "$GITHUB_REF_NAME" --output "$notes"
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" \
+            --verify-tag \
             --title "connect.md ${GITHUB_REF_NAME#v}" \
-            --notes-file release-notes.md
+            --notes-file "$notes"

@@ -27,6 +27,7 @@ export function NetworkDashboard({ handle }: { handle: string }) {
   const [busy, setBusy] = useState(false);
   const [grants, setGrants] = useState<Array<{ id: string; name: string; tokenPrefix: string; scopes: string[]; revokedAt: string | null; expiresAt: string | null }>>([]);
   const [newGrantToken, setNewGrantToken] = useState<string | null>(null);
+  const [newGrantExpiresAt, setNewGrantExpiresAt] = useState<string | null>(null);
   const [newGrantName, setNewGrantName] = useState("");
 
   const loadProfile = useCallback(async () => {
@@ -110,15 +111,17 @@ export function NetworkDashboard({ handle }: { handle: string }) {
     setBusy(true);
     setStatus(null);
     setNewGrantToken(null);
+    setNewGrantExpiresAt(null);
     try {
       const response = await fetch("/api/network/v1/agent-grants", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: newGrantName.trim(), scopes: ["profile:read", "profile:write"] }),
       });
-      const body = (await response.json()) as { ok?: boolean; token?: string; message?: string };
+      const body = (await response.json()) as { ok?: boolean; token?: string; message?: string; grant?: { expiresAt?: string | null } };
       if (response.ok && body.ok === true) {
         setNewGrantToken(body.token!);
+        setNewGrantExpiresAt(typeof body.grant?.expiresAt === "string" ? body.grant.expiresAt : null);
         setNewGrantName("");
         await loadGrants();
       } else {
@@ -251,6 +254,11 @@ export function NetworkDashboard({ handle }: { handle: string }) {
             <div className="mt-4 rounded-xl border border-acid/40 bg-acid/10 p-4" data-testid="grant-token-shown">
               <p className="text-xs font-semibold uppercase tracking-wide text-acid">Token — shown once, copy it now</p>
               <code className="mt-2 block break-all font-mono text-sm text-white">{newGrantToken}</code>
+              <p className="mt-2 text-xs text-mist" data-testid="grant-token-expiry">
+                {newGrantExpiresAt !== null
+                  ? `Expires ${newGrantExpiresAt.slice(0, 10)} (UTC). Revoke it here at any time before then.`
+                  : "Revoke it here at any time."}
+              </p>
             </div>
           ) : null}
           <ul className="mt-4 grid gap-2" data-testid="grant-list">

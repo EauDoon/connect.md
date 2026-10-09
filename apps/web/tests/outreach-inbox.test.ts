@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 import { appendCursorPage as appendPrivateCursorPage } from "../lib/cursor-page";
 import { beginLogicalMutationAttempt } from "../lib/logical-mutation";
 
+// Hoisted by Vitest either way; declared at module level so its scope is explicit.
+vi.mock("@/components/auth-provider", () => ({ useConnectmdAuth: vi.fn() }));
+
 const source = readFileSync(new URL("../components/outreach-inbox.tsx", import.meta.url), "utf8");
 
 describe("outreach inbox race safety", () => {
@@ -96,7 +99,6 @@ describe("outreach inbox race safety", () => {
   });
 
   it("keeps a newer refresh in flight when an older request settles", async () => {
-    vi.mock("@/components/auth-provider", () => ({ useConnectmdAuth: vi.fn() }));
     const { beginPrivateRead, createPrivateReadEpoch, finishPrivateRead, privateReadAllowsDependentWrite } = await import("../components/outreach-inbox");
     const state = createPrivateReadEpoch();
     let releaseFirst!: () => void;

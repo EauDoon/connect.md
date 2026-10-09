@@ -118,8 +118,16 @@ export async function sendMessage(
   if (typeof body !== "string") throw new ConversationError("invalid", "Message must be text.");
   const trimmed = body.trim();
   if (trimmed.length === 0) throw new ConversationError("invalid", "Message must not be empty.");
-  if (trimmed.length > MAX_MESSAGE_LENGTH || Buffer.byteLength(trimmed, "utf8") > MAX_MESSAGE_BYTES) {
+  if (trimmed.length > MAX_MESSAGE_LENGTH) {
     throw new ConversationError("invalid", `Message must be at most ${String(MAX_MESSAGE_LENGTH)} characters.`);
+  }
+  // Fewer than 2000 characters can still exceed the byte cap: most CJK and
+  // Indic characters take three bytes of UTF-8, so say which limit was hit.
+  if (Buffer.byteLength(trimmed, "utf8") > MAX_MESSAGE_BYTES) {
+    throw new ConversationError(
+      "invalid",
+      `Message is too long: at most ${String(MAX_MESSAGE_BYTES)} bytes of UTF-8 (some scripts and emoji use several bytes per character).`,
+    );
   }
   const bucket = await takeRateBucket(sql, `message:account:${accountId}`, 120, 3600);
   if (!bucket.allowed) throw new ConversationError("rate-limited", "You are sending messages too quickly. Try again later.");

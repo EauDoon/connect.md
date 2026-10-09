@@ -77,13 +77,28 @@ describe("UI route destination source contracts", () => {
 
   it("proves /p/{handle} renders only explicitly published profiles and fails closed", () => {
     const publicProfilePageSource = readFileSync(new URL("../app/p/[handle]/page.tsx", import.meta.url), "utf8");
+    const publicProfileLoaderSource = readFileSync(new URL("../app/p/[handle]/published-profile.ts", import.meta.url), "utf8");
+    const publicProfileLayoutSource = readFileSync(new URL("../app/p/[handle]/layout.tsx", import.meta.url), "utf8");
+    const publicProfileNotFoundSource = readFileSync(new URL("../app/p/not-found.tsx", import.meta.url), "utf8");
 
-    expect(publicProfilePageSource).toContain("getPublishedProfile");
-    expect(publicProfilePageSource).toContain("ProfileError");
+    // One cached lookup decides; anything unpublished is a real not-found.
+    expect(publicProfileLoaderSource).toContain("export const loadPublishedProfile = cache(async (rawHandle: string) => {");
+    expect(publicProfileLoaderSource).toContain("getPublishedProfile");
+    expect(publicProfileLoaderSource).toContain("ProfileError");
+    expect(publicProfileLoaderSource).toContain("normalizeHandleLookup");
+    expect(publicProfileLoaderSource).toContain("notFound();");
+    // The layout runs it outside loading.tsx's Suspense boundary so the status is 404.
+    expect(publicProfileLayoutSource).toContain("await loadPublishedProfile(handle);");
+    // Metadata awaits the same lookup, so only a published profile is indexable,
+    // under its normalized canonical handle.
+    expect(publicProfilePageSource).toContain("const profile = await loadPublishedProfile(handle);");
     expect(publicProfilePageSource).toContain("robots: { index: true, follow: true }");
-    expect(publicProfilePageSource).toContain('alternates: { canonical: `/p/${handle}` }');
+    expect(publicProfilePageSource).toContain('alternates: { canonical: `/p/${profile.handle}` }');
+    expect(publicProfilePageSource).not.toContain('alternates: { canonical: `/p/${handle}` }');
     expect(publicProfilePageSource).toContain("<MarkdownPreview markdown={profile.markdown} />");
-    expect(publicProfilePageSource).toContain("No published profile for");
+    expect(publicProfilePageSource).not.toContain("No published profile for");
+    expect(publicProfileNotFoundSource).toContain("No published profile at this address.");
+    expect(publicProfileNotFoundSource).toContain('href="/discover"');
   });
 
   it("proves /r/{slug} fetches a cached resume and preserves notFound rendering", () => {

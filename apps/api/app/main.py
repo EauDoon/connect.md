@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
+from app import __version__
 from app.auth import (
     AGENT_GRANT_RESOURCE_SCOPES,
     IMPERSONATION_READ_ONLY_CODE,
@@ -1358,7 +1359,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.require_api_runtime_configuration()
     app = FastAPI(
         title="connect.md API",
-        version="0.3.0",
+        version=__version__,
         description=(
             "Markdown-native profiles, resumes, and human-only professional posts with "
             "organization-owned JSON jobs."

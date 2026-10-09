@@ -15,6 +15,20 @@ PATTERNS = {
     "Slack token": re.compile(rb"\bxox[baprs]-[A-Za-z0-9-]{20,}\b"),
     "Stripe secret": re.compile(rb"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{20,}\b"),
     "Clerk secret": re.compile(rb"\bsk_(?:live|test)_[A-Za-z0-9]{20,}\b"),
+    # Appended after the originals so existing label tuples keep their order.
+    # connect.md's own bearer tokens: web agent grants (cnag_) and API keys and
+    # agent grants (cnd_, cng_), each a prefix plus 32 random bytes base64url.
+    "connect.md bearer token": re.compile(
+        rb"(?<![A-Za-z0-9_-])(?:cnag|cnd|cng)_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])"
+    ),
+    "GitHub fine-grained token": re.compile(
+        rb"(?<![A-Za-z0-9_])github_pat_[A-Za-z0-9_]{60,255}"
+    ),
+    "npm token": re.compile(rb"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9_])"),
+    # Unencrypted PKCS#8 and the classic PEM key types are matched above.
+    "private key block": re.compile(
+        rb"-----BEGIN (?:ENCRYPTED |PGP )PRIVATE KEY(?: BLOCK)?-----"
+    ),
 }
 
 

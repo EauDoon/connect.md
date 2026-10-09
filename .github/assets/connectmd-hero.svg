@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" role="img" aria-labelledby="title description" focusable="false">
   <title id="title">connect.md human and agent architecture</title>
   <desc id="description">Human Mode, Markdown Mode, and agent protocols connect through a FastAPI authority boundary to canonical Markdown, with PostgreSQL and Meilisearch as surrounding projections. This is a pre-launch source architecture view.</desc>
-  <metadata>Original vector artwork for connect.md, distributed under the Apache License 2.0 with this repository.</metadata>
+  <metadata>Original vector artwork for connect.md, distributed under the MIT License with this repository.</metadata>
   <defs>
     <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
       <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#1B3048" stroke-width="1"/>

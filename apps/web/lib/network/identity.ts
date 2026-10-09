@@ -37,6 +37,30 @@ export function validateHandle(raw: unknown): HandleValidation {
   return { ok: true, handle };
 }
 
+const HANDLE_PREFIX_PATTERN = /^[a-z0-9-]{1,30}$/;
+
+/**
+ * Normalize an untrusted handle for a public read, or null when it cannot name
+ * any stored handle. Reads are lenient about case and surrounding whitespace;
+ * writes stay strict through validateHandle.
+ */
+export function normalizeHandleLookup(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const handle = raw.trim().toLowerCase();
+  return HANDLE_PATTERN.test(handle) ? handle : null;
+}
+
+/**
+ * Normalize an untrusted discovery prefix, or null when it is not a plain
+ * handle fragment. The alphabet excludes the LIKE wildcards % and _, so a
+ * normalized prefix is always a literal match and needs no ESCAPE clause.
+ */
+export function normalizeHandlePrefix(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const prefix = raw.trim().toLowerCase();
+  return HANDLE_PREFIX_PATTERN.test(prefix) ? prefix : null;
+}
+
 export type EmailValidation =
   | { ok: true; email: string }
   | { ok: false; reason: string };

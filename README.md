@@ -1,6 +1,7 @@
 # connect.md
 
 [![build](https://img.shields.io/github/actions/workflow/status/EauDoon/connect.md/ci.yml?branch=main)](https://github.com/EauDoon/connect.md/actions)
+[![release](https://img.shields.io/github/v/release/EauDoon/connect.md?sort=semver)](https://github.com/EauDoon/connect.md/releases)
 [![license](https://img.shields.io/github/license/EauDoon/connect.md)](https://github.com/EauDoon/connect.md/blob/main/LICENSE)
 [![last commit](https://img.shields.io/github/last-commit/EauDoon/connect.md)](https://github.com/EauDoon/connect.md)
 
@@ -139,4 +140,4 @@ configuration; this repository alone is not evidence of their live availability.
 
 ## License
 
-Licensed under the [Apache License 2.0](LICENSE).
+Licensed under the [MIT License](LICENSE).

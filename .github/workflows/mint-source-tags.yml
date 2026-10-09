@@ -1,32 +1,54 @@
 name: Mint source tags
 
-# The Grok connector can commit files but cannot create git tags.
-# This job mints the missing annotated source tags and GitHub Releases.
-# GITHUB_TOKEN tag pushes do not retrigger release.yml, so releases are created here.
+# Tags and releases the current VERSION once CI has passed on main, so a
+# release can never be published from a red commit. It also re-mints the two
+# historical tags (v0.1.0, v0.2.0) if they are ever missing. The tag is pushed
+# with GITHUB_TOKEN, which does not retrigger release.yml, so the Release is
+# created here. Release notes come from the CHANGELOG section for VERSION via
+# tools/release_version.py; a missing or inconsistent section fails this job.
+# Fallback: `gh workflow run "Mint source tags" --ref main` mints at main HEAD.
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
+
+concurrency:
+  group: mint-source-tags
+  cancel-in-progress: false
 
 jobs:
   mint:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Mint annotated tags and releases
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          notes="$RUNNER_TEMP/release-notes.md"
 
           mint() {
             local tag="$1"
@@ -43,8 +65,8 @@ jobs:
               echo "release ${tag} already exists"
               return 0
             fi
-            python3 scripts/extract-changelog-section.py "$tag"
-            gh release create "$tag" --target "$sha" --title "connect.md ${tag#v}" --notes-file release-notes.md
+            python3 tools/release_version.py notes --tag "$tag" --output "$notes"
+            gh release create "$tag" --verify-tag --target "$sha" --title "connect.md ${tag#v}" --notes-file "$notes"
           }
 
           mint v0.1.0 55cfc6e6f0e80e7c657320cd9b455dfeadee65a1 "Release v0.1.0: pre-launch foundation"
@@ -54,10 +76,9 @@ jobs:
           case "$current" in
             v0.1.0|v0.2.0) echo "current VERSION ${current} is a historical pin" ;;
             v*)
-              if grep -qE "^## \[${current#v}\]" CHANGELOG.md; then
-                mint "$current" "$GITHUB_SHA" "connect.md ${current} source"
-              else
-                echo "CHANGELOG.md has no section for ${current}; skip mint"
-              fi
+              # Fails the job, instead of skipping, when VERSION, the
+              # components, or the CHANGELOG section and links disagree.
+              python3 tools/release_version.py check --tag "$current"
+              mint "$current" "$TARGET_SHA" "connect.md ${current} source"
               ;;
           esac

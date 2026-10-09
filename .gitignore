@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Deploy-time gringotts references; only the .example template is committed.
+deploy/gringotts.env
 .connectmd-release.env
 .connectmd-staged-release.env
 .connectmd-restore-state.env

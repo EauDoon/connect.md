@@ -14,6 +14,7 @@ import postgres from "postgres";
 import { hasValidationErrors, validateDraft } from "@/lib/validation";
 import { EMPTY_DRAFT_ISSUE, PROFILE_RESUME_MAX_UTF8_BYTES } from "@/lib/markdown";
 import type { AccountRecord } from "./auth-service";
+import { normalizeHandleLookup, normalizeHandlePrefix } from "./identity";
 
 export type ProfileRecord = {
   markdown: string;
@@ -140,13 +141,20 @@ export type PublishedProfileSummary = {
   updatedAt: string;
 };
 
-/** Discovery: explicitly published profiles only, newest first. */
+/**
+ * Discovery: explicitly published profiles only, newest first. A prefix must
+ * be a plain handle fragment; anything else is refused before it can reach
+ * LIKE as a wildcard pattern.
+ */
 export async function listPublishedProfiles(
   sql: postgres.Sql,
   options: { prefix?: string; limit?: number } = {},
 ): Promise<PublishedProfileSummary[]> {
   const limit = Math.max(1, Math.min(100, options.limit ?? 50));
-  const prefix = options.prefix === undefined ? null : options.prefix.toLowerCase();
+  const prefix = options.prefix === undefined ? null : normalizeHandlePrefix(options.prefix);
+  if (options.prefix !== undefined && prefix === null) {
+    throw new ProfileError("invalid", "Prefix must be 1-30 lowercase letters, digits, or hyphens.");
+  }
   const rows = prefix === null
     ? await sql`
         SELECT a.handle, p.etag, p.published_at, p.updated_at
@@ -168,15 +176,20 @@ export async function listPublishedProfiles(
   }));
 }
 
-/** Public read: published profile of one handle; fails closed to not-found. */
-export async function getPublishedProfile(sql: postgres.Sql, handle: string): Promise<ProfileRecord & { handle: string }> {
+/**
+ * Public read: published profile of one handle; fails closed to not-found.
+ * A value that cannot be a handle is not-found without querying.
+ */
+export async function getPublishedProfile(sql: postgres.Sql, rawHandle: string): Promise<ProfileRecord & { handle: string }> {
+  const handle = normalizeHandleLookup(rawHandle);
+  if (handle === null) throw new ProfileError("not-found", "No published profile for that handle.");
   const rows = await sql`
     SELECT p.markdown, p.etag, p.visibility, p.published_at, p.updated_at, p.created_at
     FROM network_profiles p JOIN network_accounts a ON a.id = p.account_id
-    WHERE a.handle = ${handle.toLowerCase()} AND p.visibility = 'public' AND a.status = 'active'
+    WHERE a.handle = ${handle} AND p.visibility = 'public' AND a.status = 'active'
     LIMIT 1
   `;
   const row = rows[0];
   if (row === undefined) throw new ProfileError("not-found", "No published profile for that handle.");
-  return { handle: handle.toLowerCase(), ...serializeProfile(row) };
+  return { handle, ...serializeProfile(row) };
 }

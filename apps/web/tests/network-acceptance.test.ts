@@ -8,7 +8,7 @@
  * environments without a database).
  */
 
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import postgres from "postgres";
@@ -32,6 +32,8 @@ const { decideContactRequest, listContactRequests, sendContactRequest, blockAcco
 );
 const { listConversations, listMessages, sendMessage } = await import("@/lib/network/conversations");
 const { createAgentGrant, resolveAgentToken, revokeAgentGrant } = await import("@/lib/network/agent-service");
+const { DEFAULT_GRANT_TTL_DAYS, mintAgentToken } = await import("@/lib/network/agent-grants");
+const { tokenDigest, tokenDisplayPrefix } = await import("@/lib/network/secrets");
 const { migrate, closeDatabase } = await import("@/lib/network/db");
 const { starterFor } = await import("@/lib/markdown");
 
@@ -92,6 +94,16 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     const draft = await getProfile(sql, alice.id);
     expect(draft?.markdown).toContain("## About");
     await setProfileVisibility(sql, { id: alice.id, email: "", handle: "x", status: "active", created_at: new Date().toISOString() }, "public", (await getProfile(sql, alice.id))!.etag);
+  });
+
+  it("treats discovery prefixes as literal handle fragments, never LIKE wildcards", async () => {
+    await expect(listPublishedProfiles(sql, { prefix: "_" })).rejects.toMatchObject({ code: "invalid" });
+    await expect(listPublishedProfiles(sql, { prefix: "%" })).rejects.toMatchObject({ code: "invalid" });
+    expect((await listPublishedProfiles(sql, { prefix: "alice-" })).map((profile) => profile.handle)).toContain(`alice-${suffix}`);
+    expect((await listPublishedProfiles(sql, { prefix: `ALICE-${suffix}` })).map((profile) => profile.handle)).toEqual([`alice-${suffix}`]);
+    expect(await listPublishedProfiles(sql, { prefix: `bob-${suffix}` })).toEqual([]);
+    expect((await getPublishedProfile(sql, ` ALICE-${suffix} `)).handle).toBe(`alice-${suffix}`);
+    await expect(getPublishedProfile(sql, "alice_%")).rejects.toMatchObject({ code: "not-found" });
   });
 
   it("runs the contact consent journey: request, accept, converse", async () => {
@@ -175,6 +187,10 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
       scopes: ["profile:read", "profile:write"],
     });
     expect(token.startsWith("cnag_")).toBe(true);
+    // Created without expiresAt, the grant takes the default lifetime.
+    const lifetimeDays = (Date.parse(record.expiresAt!) - Date.now()) / (24 * 3600_000);
+    expect(lifetimeDays).toBeGreaterThan(DEFAULT_GRANT_TTL_DAYS - 0.1);
+    expect(lifetimeDays).toBeLessThanOrEqual(DEFAULT_GRANT_TTL_DAYS + 0.01);
 
     const agent = await resolveAgentToken(sql, `Bearer ${token}`);
     expect(agent?.accountHandle).toBe(`alice-${suffix}`);
@@ -199,6 +215,18 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     expect(await resolveAgentToken(sql, `Bearer ${token}`)).toBeNull();
   });
 
+  it("keeps honouring grants stored with no expiry before the default existed", async () => {
+    const legacyToken = mintAgentToken();
+    await sql`
+      INSERT INTO network_agent_grants (account_id, name, token_hash, token_prefix, scopes, expires_at)
+      VALUES (${alice.id}, 'legacy-agent', ${tokenDigest(legacyToken)}, ${tokenDisplayPrefix(legacyToken)},
+              ${sql.array(["profile:read"])}, NULL)
+    `;
+    const resolved = await resolveAgentToken(sql, `Bearer ${legacyToken}`);
+    expect(resolved?.accountId).toBe(alice.id);
+    expect(resolved?.scopes).toEqual(["profile:read"]);
+  });
+
   it("survives a restart: sessions, profiles, and conversations persist", async () => {
     // Sessions survive (server-side, durable).
     const restored = await accountForSessionToken(sql, alice.session);
@@ -213,6 +241,20 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
   it("rejects bad credentials without revealing account existence", async () => {
     await expect(loginAccount(sql, { email: `alice-${suffix}@example.com`, password: "wrong-password-1", ipKey: "test-ip" })).rejects.toMatchObject({ code: "credentials" });
     await expect(loginAccount(sql, { email: `nobody-${suffix}@example.com`, password: "wrong-password-1", ipKey: "test-ip" })).rejects.toMatchObject({ code: "credentials" });
+  });
+
+  it("still signs in an account whose hash the synchronous implementation stored", async () => {
+    // Byte-for-byte the format and parameters the earlier scryptSync code
+    // stored, so accounts created before async derivation keep working.
+    const salt = randomBytes(16);
+    const key = scryptSync("Legacy-password-1".normalize("NFKC"), salt, 64, { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    const legacyHash = ["scrypt", "32768", "8", "1", salt.toString("base64"), key.toString("base64")].join("$");
+    const handle = `legacy-${suffix}`;
+    await sql`INSERT INTO network_accounts (email, password_hash, handle) VALUES (${`${handle}@example.com`}, ${legacyHash}, ${handle})`;
+    const signedIn = await loginAccount(sql, { email: `${handle}@example.com`, password: "Legacy-password-1", ipKey: handle });
+    expect(signedIn.account.handle).toBe(handle);
+    expect((await accountForSessionToken(sql, signedIn.sessionToken))?.account.handle).toBe(handle);
+    await expect(loginAccount(sql, { email: `${handle}@example.com`, password: "Wrong-password-1", ipKey: handle })).rejects.toMatchObject({ code: "credentials" });
   });
 
   it("supports session revocation (sign out)", async () => {
@@ -231,6 +273,39 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     }
     return accounts as [typeof accounts[number], typeof accounts[number]];
   }
+
+  it("prunes expired auth state on sign-in and keeps live state", async () => {
+    const [owner] = await pair("prune");
+    await sql`INSERT INTO network_auth_buckets (bucket_key, window_started_at, count) VALUES
+      (${`stale:${suffix}`}, now() - INTERVAL '2 days', 3),
+      (${`fresh:${suffix}`}, now() - INTERVAL '2 hours', 3)`;
+    const session = async (label: string, expiresInSeconds: number, revokedSecondsAgo: number | null) => (await sql`
+      INSERT INTO network_sessions (account_id, token_hash, expires_at, revoked_at)
+      VALUES (
+        ${owner.id},
+        ${`${label}-${suffix}`},
+        now() + (${expiresInSeconds} * INTERVAL '1 second'),
+        CASE WHEN ${revokedSecondsAgo}::integer IS NULL THEN NULL
+          ELSE now() - (${revokedSecondsAgo}::integer * INTERVAL '1 second') END
+      )
+      RETURNING id`)[0]!.id as string;
+    const day = 24 * 3600;
+    const expiredLongAgo = await session("expired", -2 * day, null);
+    const revokedLongAgo = await session("revoked", day, 2 * day);
+    const expiredRecently = await session("recent", -3600, null);
+    const live = await session("live", day, null);
+
+    const signedIn = await loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey: `prune-${suffix}` });
+
+    const buckets = await sql`SELECT bucket_key FROM network_auth_buckets WHERE bucket_key IN (${`stale:${suffix}`}, ${`fresh:${suffix}`})`;
+    expect(buckets.map((row) => row.bucket_key)).toEqual([`fresh:${suffix}`]);
+    const remaining = new Set((await sql`SELECT id FROM network_sessions WHERE account_id = ${owner.id}`).map((row) => row.id as string));
+    expect(remaining.has(expiredLongAgo)).toBe(false);
+    expect(remaining.has(revokedLongAgo)).toBe(false);
+    expect(remaining.has(expiredRecently)).toBe(true);
+    expect(remaining.has(live)).toBe(true);
+    expect((await accountForSessionToken(sql, signedIn.sessionToken))?.account.id).toBe(owner.id);
+  });
 
   it("requires current ETags and preserves public bytes until a human unpublishes", async () => {
     const [owner] = await pair("profile");
