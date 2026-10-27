@@ -55,7 +55,7 @@
   "overrides": {
     "postcss": "$postcss",
     "monaco-editor": {
-      "dompurify": "3.4.16"
+      "dompurify": "3.4.17"
     },
     "nanoid": "3.3.18",
     "js-yaml": "4.3.2",
