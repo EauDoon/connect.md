@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The API README names the real post-moderation operator commands instead of a form the argument parser rejects. The initial case decision is `python -m app.cli post-moderation decide dismiss|withhold --case-id ... --post-id ... --reason-code ... --subject-explanation ...`, and a withheld post is restored by the independent appeal decision `python -m app.cli post-moderation appeal uphold|overturn --appeal-id ... --subject-explanation ...`. The previous `post-moderation withhold|restore --post-id ...` form was rejected with `invalid choice`, and post moderation has no `restore` action.
+
 ## [0.3.0] - 2026-10-09
 
 ### Added
