@@ -69,7 +69,7 @@ pytest -q -m "not integration" tests
 
 `requirements-test.lock` is generated for CPython 3.12 on `x86_64-unknown-linux-gnu` only (see its header). On Windows or macOS the hash-locked install fails, starting with the Linux-only `uvloop` pin. Run the API checks in WSL, in a Linux container, or by pushing a branch and reading CI; do not regenerate or edit the lock files to make a local install work.
 
-CI also builds the pinned API image, audits both lockfiles, runs the network acceptance suite and browser journeys against a disposable PostgreSQL, and runs the web production harness under Playwright. Those need Docker, a database, or a browser install and are not a prerequisite for requesting review. `apps/api/README.md` documents the API's own run and verify steps, including `alembic upgrade head`.
+CI also builds the pinned API image, audits both lockfiles, runs the network acceptance suite and browser journeys against a disposable PostgreSQL, and runs the web production harness under Playwright. Those need Docker, a database, or a browser install and are not a prerequisite for requesting review. The scheduled `Dependency audit` workflow (`.github/workflows/audit.yml`) repeats the two production audits on `main` every Monday, so an advisory published between pushes fails there instead of first appearing on an unrelated pull request. `apps/api/README.md` documents the API's own run and verify steps, including `alembic upgrade head`.
 
 `python tools/check_platform_features.py` and its two test modules are retained-platform tooling with known drift (anchors for backend CI jobs retired in #3, the network MVP UI routes, and trust-page markers). They are not a merge gate; see [docs/platform/README.md](../docs/platform/README.md).
 

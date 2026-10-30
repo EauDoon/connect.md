@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A weekly `Dependency audit` workflow repeats the production npm audit and the production pip-audit against `main`, so advisories published between pushes fail on `main` instead of first appearing on unrelated pull requests.
+
+### Fixed
+
+- The inbox's last-message preview is cut at 120 characters by code point, so an emoji at the cut no longer turns into a replacement character.
+
 ### Security
 
 - The web runtime moves to Next.js 15.5.28 (GHSA-2464-fhr4-w9xw, GHSA-p3m5-59mp-jv5r) and the Monaco DOMPurify override to 3.4.17 (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f), so the production npm audit passes again.

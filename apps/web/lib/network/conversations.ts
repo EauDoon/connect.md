@@ -62,7 +62,8 @@ export async function listConversations(sql: postgres.Sql, accountId: string): P
     createdAt: (row.created_at as Date).toISOString(),
     messageCount: Number(row.message_count ?? 0),
     lastMessageAt: row.last_message_at === null ? null : (row.last_message_at as Date).toISOString(),
-    lastMessagePreview: row.last_message_preview === null ? null : String(row.last_message_preview).slice(0, 120),
+    // Count code points, not UTF-16 units, so the cut never leaves half an emoji.
+    lastMessagePreview: row.last_message_preview === null ? null : Array.from(String(row.last_message_preview)).slice(0, 120).join(""),
   }));
 }
 

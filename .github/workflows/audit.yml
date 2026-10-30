@@ -1,0 +1,75 @@
+name: Dependency audit
+
+# CI runs the production dependency audits only when a pull request or a push
+# triggers it, so an advisory published between pushes leaves main failing
+# those required checks with no signal until the next change. On 30-10-2026
+# every pull request failed on advisories published 22-10-2026 while main's
+# last run, on 16-10-2026, was still green. This workflow repeats the same two
+# production audits weekly against main, so that drift fails here and notifies
+# instead of first showing up on an unrelated pull request. It installs nothing
+# from the npm tree, builds nothing, and deploys nothing.
+
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web production npm audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      # npm audit reads package-lock.json directly; no install is needed.
+      # Same command and retry bound as the CI Frontend checks job.
+      - name: Audit production dependency advisories
+        run: |
+          audit_with_retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              if timeout 120 npm audit "$@"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                sleep $((attempt * 10))
+              fi
+            done
+            return 1
+          }
+          audit_with_retry --omit=dev
+
+  api:
+    name: API production pip-audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      # pip-audit itself comes from the hash-locked test lock, as in CI.
+      - name: Install the hash-locked audit tool
+        run: python -m pip install --require-hashes -r requirements-test.lock
+      - name: pip-audit on production lockfile
+        run: python -m pip_audit -r requirements.lock

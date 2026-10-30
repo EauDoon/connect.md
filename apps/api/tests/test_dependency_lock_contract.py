@@ -98,6 +98,15 @@ def test_build_and_ci_require_authenticated_locks() -> None:
     assert "pip install pip-audit" not in workflow
 
 
+def test_scheduled_audit_repeats_the_ci_production_lock_audit() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "audit.yml").read_text(encoding="utf-8")
+
+    assert "schedule:" in workflow
+    assert "python -m pip install --require-hashes -r requirements-test.lock" in workflow
+    assert "python -m pip_audit -r requirements.lock" in workflow
+    assert "pip install pip-audit" not in workflow
+
+
 def test_audit_tool_is_part_of_the_authenticated_test_lock() -> None:
     pyproject = tomllib.loads((API_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     test_dependencies = pyproject["project"]["optional-dependencies"]["test"]
