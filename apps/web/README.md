@@ -20,7 +20,9 @@ The same app also ships an optional, consent-first network
 ([ADR 0002](../../docs/decisions/0002-consent-first-network-mvp.md)): accounts,
 private-by-default profiles with explicit publish (`/p/{handle}`), contact
 requests, conversations, and owner-issued agent grants that are scoped,
-expiring, and revocable. Its route handlers live under `/api/network/v1` and
+expiring, and revocable. A signed-in owner can change the password, which signs
+out every other browser, and sign out other sessions from `/account`. Its route
+handlers live under `/api/network/v1` and
 its pages are `/account`, `/network`, `/discover`, `/inbox`, `/conversations`,
 and `/p`. Without a database, database-dependent network operations answer
 503 `network-database-not-configured` and every `/p` address is a 404; the

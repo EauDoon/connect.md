@@ -145,3 +145,60 @@ test("first save, conflict preservation, publication, and contact termination wo
     await secondContext.close();
   }
 });
+
+test("changing the password signs out every other browser and keeps this one", async ({ browser, page }) => {
+  const suffix = randomUUID().slice(0, 8);
+  const handle = `security-${suffix}`;
+  const email = `${handle}@example.com`;
+  await page.goto("http://127.0.0.1:3210/account");
+  await page.getByLabel("Handle", { exact: true }).fill(handle);
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("SecurityPassword123");
+  await page.getByTestId("account-submit").click();
+  await expect(page.getByTestId("profile-save")).toBeEnabled();
+  const otherContext = await browser.newContext();
+  const other = await otherContext.newPage();
+  const signIn = async (password: string) => {
+    await other.goto("http://127.0.0.1:3210/account");
+    await other.getByRole("tab", { name: "Sign in", exact: true }).click();
+    await other.getByLabel("Email", { exact: true }).fill(email);
+    await other.getByLabel("Password", { exact: true }).fill(password);
+    await other.getByTestId("account-submit").click();
+  };
+  try {
+    await signIn("SecurityPassword123");
+    await expect(other.getByTestId("profile-save")).toBeEnabled();
+
+    await page.goto("/account");
+    await expect(page.getByTestId("security-other-sessions")).toHaveText("Signed in on 1 other session.");
+    await page.getByLabel("Current password", { exact: true }).fill("WrongPassword123");
+    await page.getByLabel("New password", { exact: true }).fill("ChangedPassword456");
+    await page.getByLabel("Confirm new password", { exact: true }).fill("ChangedPassword456");
+    await page.getByTestId("security-change-password").click();
+    await expect(page.getByTestId("security-notice")).toHaveText("The current password is incorrect.");
+    await expect(page.getByLabel("New password", { exact: true })).toHaveValue("ChangedPassword456");
+    await page.getByLabel("Current password", { exact: true }).fill("SecurityPassword123");
+    await page.getByTestId("security-change-password").click();
+    await expect(page.getByTestId("security-notice")).toHaveText("Password changed. Signed out 1 other session. This browser stays signed in.");
+    await expect(page.getByTestId("security-other-sessions")).toHaveText("No other browser is signed in to this account.");
+    await expect(page.getByLabel("Current password", { exact: true })).toHaveValue("");
+
+    await other.goto("http://127.0.0.1:3210/account");
+    await expect(other.getByTestId("account-auth-panel")).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId("account-signed-in")).toBeVisible();
+
+    await signIn("SecurityPassword123");
+    await expect(other.getByTestId("account-error")).toContainText("Email or password is incorrect.");
+    await signIn("ChangedPassword456");
+    await expect(other.getByTestId("profile-save")).toBeEnabled();
+    await page.reload();
+    await expect(page.getByTestId("security-other-sessions")).toHaveText("Signed in on 1 other session.");
+    await page.getByTestId("security-revoke-others").click();
+    await expect(page.getByTestId("security-notice")).toHaveText("Signed out 1 other session.");
+    await other.goto("http://127.0.0.1:3210/account");
+    await expect(other.getByTestId("account-auth-panel")).toBeVisible();
+  } finally {
+    await otherContext.close();
+  }
+});

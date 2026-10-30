@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AccountAuthPanel, AccountSignOut } from "@/components/network/account-auth-panel";
+import { AccountSecurityPanel } from "@/components/network/account-security-panel";
+import { countOtherSessions } from "@/lib/network/auth-service";
+import { database } from "@/lib/network/db";
 import { currentSession } from "@/lib/network/http";
 
 export const metadata: Metadata = {
@@ -15,6 +18,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
   const session = await currentSession();
+  const otherSessions = session === null ? 0 : await countOtherSessions(database(), session.account.id, session.sessionId);
   return (
     <main className="pb-16">
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(216,255,114,.14),_transparent_34%)]">
@@ -45,6 +49,7 @@ export default async function AccountPage() {
                 Guest builder
               </Link>
             </div>
+            <AccountSecurityPanel otherSessions={otherSessions} />
             <AccountSignOut />
           </div>
         )}
