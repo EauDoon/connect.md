@@ -62,7 +62,9 @@ flowchart LR
 The guest workflow at `/human` and `/md` runs entirely in the browser. The
 optional account, profile, contact, and messaging product uses Next.js route
 handlers under `/api/network/v1` and one PostgreSQL database. It does not call
-FastAPI, Clerk, Meilisearch, or the retained worker services.
+FastAPI, Clerk, Meilisearch, or the retained worker services. Agents act for an
+account only through owner-issued scoped grants; the
+[network agent API reference](docs/network-agent-api.md) is their contract.
 
 `apps/api`, `infra`, `compose.yaml`, and `compose.prod.yaml` retain the older
 reference platform and its tests. Their deployment and acceptance documents

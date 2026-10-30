@@ -26,7 +26,8 @@ handlers live under `/api/network/v1` and
 its pages are `/account`, `/network`, `/discover`, `/inbox`, `/conversations`,
 and `/p`. Without a database, database-dependent network operations answer
 503 `network-database-not-configured` and every `/p` address is a 404; the
-guest workflow is unaffected.
+guest workflow is unaffected. Agents holding a grant follow the
+[network agent API reference](../../docs/network-agent-api.md).
 
 ## Run locally
 

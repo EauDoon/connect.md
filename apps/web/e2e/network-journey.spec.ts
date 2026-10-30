@@ -88,6 +88,11 @@ test("first save, conflict preservation, publication, and contact termination wo
       () => expect(page.getByLabel("Grant name", { exact: true })).toBeDisabled());
     await expect(page.getByTestId("grant-token-shown")).toBeVisible();
     await expect(page.getByLabel("Grant name", { exact: true })).toHaveValue("");
+    const grantList = page.getByTestId("grant-list");
+    await expect(grantList).toContainText("journey-agent (active)");
+    await expect(grantList).toContainText("profile:read");
+    await expect(grantList).not.toContainText("profile:write");
+    await expect(grantList).toContainText("never used");
     const revoke = page.getByRole("button", { name: "Revoke", exact: true });
     await page.route("**/api/network/v1/agent-grants/*", (route) => route.fulfill({ status: 503, json: { ok: false } }), { times: 1 });
     await revoke.click();
@@ -100,6 +105,31 @@ test("first save, conflict preservation, publication, and contact termination wo
     await revoke.click();
     await expect(page.getByTestId("network-status")).toContainText("Agent grant revoked");
     await expect(revoke).toHaveCount(0);
+    await expect(grantList).toContainText("journey-agent (revoked)");
+
+    await page.getByLabel("Grant name", { exact: true }).fill("journey-inbox");
+    await page.getByRole("checkbox", { name: /Read your profile/u }).uncheck();
+    await expect(page.getByTestId("grant-scope-required")).toBeVisible();
+    await expect(page.getByTestId("grant-create")).toBeDisabled();
+    await page.getByRole("checkbox", { name: /Read contact requests/u }).check();
+    await page.locator("#new-grant-lifetime").selectOption("7");
+    await page.getByTestId("grant-create").click();
+    await expect(page.getByTestId("grant-token-shown")).toBeVisible();
+    const inboxGrant = grantList.getByRole("listitem").filter({ hasText: "journey-inbox" });
+    await expect(inboxGrant).toContainText("journey-inbox (active)");
+    await expect(inboxGrant).toContainText("contacts:read");
+    await expect(inboxGrant).not.toContainText("profile:read");
+    const inboxToken = (await page.getByTestId("grant-token-shown").locator("code").textContent()) ?? "";
+    const introspection = await page.request.get("/api/network/v1/agent/grant", { headers: { authorization: `Bearer ${inboxToken}` } });
+    expect(introspection.status()).toBe(200);
+    const described = await introspection.json() as { grant: { name: string; scopes: string[]; expiresAt: string } };
+    expect(described.grant).toMatchObject({ name: "journey-inbox", scopes: ["contacts:read"] });
+    const lifetimeDays = (Date.parse(described.grant.expiresAt) - Date.now()) / (24 * 3600_000);
+    expect(lifetimeDays).toBeGreaterThan(6.9);
+    expect(lifetimeDays).toBeLessThanOrEqual(7);
+    expect((await page.request.get("/api/network/v1/agent/profile", { headers: { authorization: `Bearer ${inboxToken}` } })).status()).toBe(403);
+    await inboxGrant.getByRole("button", { name: "Revoke", exact: true }).click();
+    await expect(inboxGrant).toContainText("journey-inbox (revoked)");
 
     await page.goto("/inbox");
     await page.getByLabel("Handle to contact").fill(secondHandle);

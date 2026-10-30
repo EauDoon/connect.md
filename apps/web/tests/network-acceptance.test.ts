@@ -9,7 +9,7 @@
  */
 
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import postgres from "postgres";
 
@@ -36,6 +36,13 @@ const { DEFAULT_GRANT_TTL_DAYS, mintAgentToken } = await import("@/lib/network/a
 const { tokenDigest, tokenDisplayPrefix } = await import("@/lib/network/secrets");
 const { migrate, closeDatabase } = await import("@/lib/network/db");
 const { starterFor } = await import("@/lib/markdown");
+// Agent routes import the cookie helpers; they never read cookies.
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+const { GET: introspectGrant } = await import("@/app/api/network/v1/agent/grant/route");
+const { GET: agentContacts } = await import("@/app/api/network/v1/agent/contacts/route");
+const { GET: agentProfile } = await import("@/app/api/network/v1/agent/profile/route");
+const agentCall = (route: (request: Request) => Promise<Response>, path: string, token: string) =>
+  route(new Request(`http://127.0.0.1/api/network/v1/${path}`, { headers: { authorization: `Bearer ${token}` } }));
 
 const PROFILE_FIXTURE = starterFor("profile");
 
@@ -225,6 +232,49 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     const resolved = await resolveAgentToken(sql, `Bearer ${legacyToken}`);
     expect(resolved?.accountId).toBe(alice.id);
     expect(resolved?.scopes).toEqual(["profile:read"]);
+  });
+
+  it("scopes agent routes: a contacts-only grant introspects and reads contacts, never the profile", async () => {
+    const [owner] = await pair("grantscope");
+    const { record, token } = await createAgentGrant(sql, owner.id, {
+      name: "inbox-reader",
+      scopes: ["contacts:read"],
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600_000).toISOString(),
+    });
+    expect(await resolveAgentToken(sql, `Bearer ${token}`)).toMatchObject({
+      accountId: owner.id, accountHandle: owner.handle, scopes: ["contacts:read"],
+      name: "inbox-reader", createdAt: record.createdAt, expiresAt: record.expiresAt,
+    });
+    const described = await agentCall(introspectGrant, "agent/grant", token);
+    expect(described.status).toBe(200);
+    const body = await described.json();
+    expect(body).toEqual({ ok: true, account: { handle: owner.handle }, grant: { name: "inbox-reader", scopes: ["contacts:read"], createdAt: record.createdAt, expiresAt: record.expiresAt } });
+    for (const secret of [token, record.tokenPrefix, tokenDigest(token), record.id]) expect(JSON.stringify(body)).not.toContain(secret);
+    expect((await agentCall(agentContacts, "agent/contacts", token)).status).toBe(200);
+    const profile = await agentCall(agentProfile, "agent/profile", token);
+    expect(profile.status).toBe(403);
+    expect(await profile.json()).toEqual({ ok: false, reason: "scope-denied", required: "profile:read" });
+    await revokeAgentGrant(sql, owner.id, record.id);
+    const revoked = await agentCall(introspectGrant, "agent/grant", token);
+    expect(revoked.status).toBe(401);
+    expect(revoked.headers.get("www-authenticate")).toBe("Bearer");
+  });
+
+  it("refuses expired grants and describes legacy grants that have no expiry", async () => {
+    const [owner] = await pair("grantexpiry");
+    const { record, token } = await createAgentGrant(sql, owner.id, { name: "short-lived", scopes: ["profile:read"] });
+    await sql`UPDATE network_agent_grants SET expires_at = now() - INTERVAL '1 second' WHERE id = ${record.id}`;
+    expect(await resolveAgentToken(sql, `Bearer ${token}`)).toBeNull();
+    expect((await agentCall(introspectGrant, "agent/grant", token)).status).toBe(401);
+    const legacyToken = mintAgentToken();
+    await sql`
+      INSERT INTO network_agent_grants (account_id, name, token_hash, token_prefix, scopes, expires_at)
+      VALUES (${owner.id}, 'legacy-introspect', ${tokenDigest(legacyToken)}, ${tokenDisplayPrefix(legacyToken)},
+              ${sql.array(["profile:read"])}, NULL)
+    `;
+    const legacy = await agentCall(introspectGrant, "agent/grant", legacyToken);
+    expect(legacy.status).toBe(200);
+    expect((await legacy.json()).grant).toMatchObject({ name: "legacy-introspect", scopes: ["profile:read"], expiresAt: null });
   });
 
   it("survives a restart: sessions, profiles, and conversations persist", async () => {

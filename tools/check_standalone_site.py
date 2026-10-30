@@ -38,6 +38,7 @@ NETWORK_API_ROUTES = [
     "agent-grants",
     "agent/profile",
     "agent/contacts",
+    "agent/grant",
     "public/profiles",
 ]
 

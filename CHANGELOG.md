@@ -15,12 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Writing review checks reference-style links: references to undefined labels, definitions with empty, unsupported, relative, or broken in-document destinations, and definitions nothing uses. A `#fragment` link is reported only when no heading creates that anchor (GitHub's slug rule), instead of every fragment link getting the same warning. Links inside inline code are no longer reported.
 - Preview headings carry GitHub-style anchors, so in-document links work in the Markdown preview, on published profile pages, and in conversations.
 - Network accounts can change their password from `/account` (`POST /api/network/v1/accounts/password`). The current password must verify; on success every session of the account is revoked and this browser gets a fresh session, so a leaked password or a shared computer loses access at once. Attempts are rate-limited per account. The same panel shows how many other sessions are signed in and can sign them all out (`POST /api/network/v1/sessions/revoke-others`). Both routes accept the session cookie only, never an agent token. Account recovery and email verification are still not implemented.
+- Agent access on `/network` lets the owner choose a grant's scopes (`profile:read`, `profile:write`, `contacts:read`, each described in plain words) and lifetime (7, 30, 90, or 365 days), so a read-only or contacts-only grant no longer needs the API. New grants default to `profile:read` alone; the API default is unchanged. The grant list shows each grant as active, expired, or revoked, with its created date and last use.
+- `GET /api/network/v1/agent/grant` lets an agent read its own grant (owner handle, name, scopes, created and expiry times) with any live token and no scope; token material is never returned. The new [network agent API reference](docs/network-agent-api.md) documents authentication, scopes, every agent endpoint with its ETag rules, and the error reasons.
 
 ### Fixed
 
 - The inbox's last-message preview is cut at 120 characters by code point, so an emoji at the cut no longer turns into a replacement character.
 - The replacement review no longer hides replacements: a replace-all with matches far apart showed one region cut at 80 lines, so later replacements could not be reviewed before Apply.
 - Clicking an in-document `#fragment` link in the preview scrolled nowhere and wrote document text into the address bar and history. It now moves focus to the heading and leaves the URL unchanged.
+- Expired agent grants were listed as live with a Revoke button. They are now labelled expired, and Revoke is offered only for active grants.
 
 ### Security
 
