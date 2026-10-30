@@ -93,7 +93,8 @@ network boundary and its separate launch checks.
 - Review-to-source navigation, focused editor layouts, custom export names, and comparison with the last Markdown download.
 - Case/word/body search filters with reviewed, undoable replacements.
 - Filtered outlines, direct source-line navigation, and reviewed section excerpts.
-- Heading and link portability review, plus unfinished Markdown source backups.
+- Heading and link portability review, including reference-style links and broken in-document anchors, plus unfinished Markdown source backups.
+- In-document heading links that work in the preview without changing the address bar.
 
 See [Guest drafting tools](docs/guest-drafting.md) for recovery limits and the complete local workflow.
 

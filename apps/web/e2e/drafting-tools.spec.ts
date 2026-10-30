@@ -265,6 +265,22 @@ test("validation issues link to the exact source line that caused them", async (
   expect(await source.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd))).toBe("##  Experience");
 });
 
+test("preview fragment links focus their heading without writing the address bar", async ({ page }) => {
+  await page.goto("/md");
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  const draft = profileStarter.replace("## Experience", "Jump to [the skills section](#skills).\n\n## Experience");
+  await page.getByRole("textbox", { name: "Canonical Markdown source" }).fill(draft);
+  const preview = page.getByLabel("Sanitized Markdown preview");
+  const before = page.url();
+  const historyLength = await page.evaluate(() => history.length);
+  await preview.getByRole("link", { name: "the skills section", exact: true }).click();
+  await expect(preview.locator("[data-md-anchor=skills]")).toBeFocused();
+  expect(page.url()).toBe(before);
+  expect(await page.evaluate(() => history.length)).toBe(historyLength);
+  await page.getByText(/^Writing review \(/u).click();
+  await expect(page.getByText("No heading in this document creates")).toHaveCount(0);
+});
+
 test("pasted imports fail closed and detect resume kind without uploading", async ({ page }) => {
   const writes: string[] = [];
   page.on("request", (request) => { if (request.method() !== "GET") writes.push(request.url()); });

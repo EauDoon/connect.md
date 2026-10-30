@@ -12,11 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A weekly `Dependency audit` workflow repeats the production npm audit and the production pip-audit against `main`, so advisories published between pushes fail on `main` instead of first appearing on unrelated pull requests.
 - Checkpoint comparisons, the comparison with the last Markdown download, and replacement reviews show a multi-hunk line diff: each separate edit is its own hunk with previous and current line numbers, three lines of context, -/+ markers, and screen-reader labels. Past 1,000 separate line changes the view falls back to the changed-region comparison and says so. The download comparison is computed only while it is open.
 - Validation issues link to the source line that caused them, as Sharing and Writing review findings already did: the key of a failing frontmatter field, the line a YAML error names, the first unknown field, the first malformed heading, a wrong or extra level-one heading, a duplicated or out-of-order required heading, and the first unsafe HTML tag. `ValidationIssue` gains an optional `line`; every message is unchanged.
+- Writing review checks reference-style links: references to undefined labels, definitions with empty, unsupported, relative, or broken in-document destinations, and definitions nothing uses. A `#fragment` link is reported only when no heading creates that anchor (GitHub's slug rule), instead of every fragment link getting the same warning. Links inside inline code are no longer reported.
+- Preview headings carry GitHub-style anchors, so in-document links work in the Markdown preview, on published profile pages, and in conversations.
 
 ### Fixed
 
 - The inbox's last-message preview is cut at 120 characters by code point, so an emoji at the cut no longer turns into a replacement character.
 - The replacement review no longer hides replacements: a replace-all with matches far apart showed one region cut at 80 lines, so later replacements could not be reviewed before Apply.
+- Clicking an in-document `#fragment` link in the preview scrolled nowhere and wrote document text into the address bar and history. It now moves focus to the heading and leaves the URL unchanged.
 
 ### Security
 
