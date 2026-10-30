@@ -40,13 +40,13 @@ In Markdown Mode, choose **Source only**, **Preview and checks**, or **Split vie
 
 ## Compare an updated export
 
-After a Markdown download, **Changes since last Markdown download** compares the current bytes with the exact source used for that download request, including changes of document kind. The display is bounded to 80 lines and 12,000 characters per side; it is a changed-region comparison rather than a full multi-hunk diff. Only another Markdown download updates this baseline. Clipboard copies, checkpoint downloads, and recovery/review files do not move it. The app cannot verify that the browser actually saved a file on disk.
+After a Markdown download, **Changes since last Markdown download** compares the current bytes with the exact source used for that download request, including changes of document kind. Separate edits appear as separate hunks, each headed with its previous and current line numbers and showing three unchanged lines of context; removed and added lines carry -/+ markers and screen-reader labels, so colour is never the only signal. The display is bounded to 200 lines and 12,000 characters. Drafts with more than 1,000 separate line changes fall back to the earlier changed-region view, which says so and may include unchanged lines between edits. Only another Markdown download updates this baseline. Clipboard copies, checkpoint downloads, and recovery/review files do not move it. The app cannot verify that the browser actually saved a file on disk.
 
 Search can optionally ignore case or require whole words. Word boundaries include Unicode letters, marks, numbers, and underscores. Literal punctuation remains literal.
 
 Choose **Body only** to exclude opening YAML frontmatter from matching and replacement. An unclosed frontmatter block yields no body matches; fix the delimiter before replacing.
 
-Replacement actions first open a bounded before/after review. Apply the reviewed result or cancel without changes. Edits to the source or search settings disable an old review until it is regenerated.
+Replacement actions first open a bounded review that lists every changed place as its own hunk, so a replace-all whose matches are hundreds of lines apart shows each replacement before you apply it. Apply the reviewed result or cancel without changes. Edits to the source or search settings disable an old review until it is regenerated.
 
 Applied search replacements now keep the prior source in **Session recovery**, using the same single-step undo as imports. Undo preserves checkpoints but replaces later edits; keep named checkpoints for multiple versions.
 

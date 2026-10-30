@@ -351,6 +351,25 @@ test("reviewed replacements can be undone without losing checkpoints", async ({ 
   await expect(source).toHaveValue("# Cat\nCat\n");
 });
 
+test("replacement reviews show every far-apart change before applying", async ({ page }) => {
+  await page.goto("/md");
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  const source = page.getByRole("textbox", { name: "Canonical Markdown source" });
+  const draft = Array.from({ length: 300 }, (_, index) => index === 1 || index === 289 ? `line ${index + 1} Marker` : `line ${index + 1} text`).join("\n");
+  await source.fill(draft);
+  await page.getByText("Find and replace source text", { exact: true }).click();
+  await page.getByLabel("Find text", { exact: true }).fill("Marker");
+  await page.getByLabel("Replace with", { exact: true }).fill("Replaced");
+  await page.getByRole("button", { name: "Review all replacements", exact: true }).click();
+  const review = page.getByRole("group", { name: "Replacement changes", exact: true });
+  await expect(page.getByLabel("Replacement review")).toContainText("Changes in 2 places: 2 lines added, 2 removed.");
+  await expect(review).toContainText("Added line 2: line 2 Replaced");
+  await expect(review).toContainText("Added line 290: line 290 Replaced");
+  await expect(review).not.toContainText("line 150 text");
+  await page.getByRole("button", { name: "Apply reviewed replacement", exact: true }).click();
+  await expect(source).toHaveValue(draft.replaceAll("Marker", "Replaced"));
+});
+
 test("unfinished source downloads preserve invalid work without clearing validation or unload warnings", async ({ page }) => {
   await page.goto("/md");
   await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
@@ -388,7 +407,7 @@ test("search options protect metadata and stale replacement reviews", async ({ p
   await page.getByLabel("Body only", { exact: true }).check();
   await page.getByLabel("Replace with", { exact: true }).fill("Dog");
   await page.getByRole("button", { name: "Review all replacements", exact: true }).click();
-  await expect(page.getByLabel("After replacement", { exact: true })).toContainText("# Dog");
+  await expect(page.getByRole("group", { name: "Replacement changes", exact: true })).toContainText("Added line 4: # Dog");
   await source.fill(draft + "New work\n");
   await expect(page.getByRole("button", { name: "Apply reviewed replacement", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Review all replacements", exact: true }).click();

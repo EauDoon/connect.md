@@ -80,6 +80,7 @@ network boundary and its separate launch checks.
 - A bounded agent drafting runbook at /agent-readme.md.
 - A concise machine-readable site map at /llms.txt.
 - Five named, in-memory checkpoints with comparison and deliberate restoration.
+- Multi-hunk line comparisons for checkpoints, the last download, and replacement reviews.
 - Local import of complete pasted profile or resume Markdown.
 - A plain-text editor alternative and a clickable source outline.
 - Draft length, advisory writing suggestions, and sensitive-sharing pattern checks.

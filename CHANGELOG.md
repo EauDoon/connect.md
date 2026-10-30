@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - A weekly `Dependency audit` workflow repeats the production npm audit and the production pip-audit against `main`, so advisories published between pushes fail on `main` instead of first appearing on unrelated pull requests.
+- Checkpoint comparisons, the comparison with the last Markdown download, and replacement reviews show a multi-hunk line diff: each separate edit is its own hunk with previous and current line numbers, three lines of context, -/+ markers, and screen-reader labels. Past 1,000 separate line changes the view falls back to the changed-region comparison and says so. The download comparison is computed only while it is open.
 
 ### Fixed
 
 - The inbox's last-message preview is cut at 120 characters by code point, so an emoji at the cut no longer turns into a replacement character.
+- The replacement review no longer hides replacements: a replace-all with matches far apart showed one region cut at 80 lines, so later replacements could not be reviewed before Apply.
 
 ### Security
 
