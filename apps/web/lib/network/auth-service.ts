@@ -232,6 +232,84 @@ export async function revokeSession(sql: postgres.Sql, sessionId: string): Promi
   await sql`UPDATE network_sessions SET revoked_at = now() WHERE id = ${sessionId} AND revoked_at IS NULL`;
 }
 
+/** Password changes per account per window, counted whether or not they succeed. */
+export const PASSWORD_CHANGE_LIMIT = 10;
+export const PASSWORD_CHANGE_WINDOW_SECONDS = 900;
+
+/**
+ * Change a signed-in account's password. The current password must verify,
+ * and the new one must pass the registration rule and differ from it. On
+ * success every session of the account is revoked, including the caller's,
+ * and the caller gets a fresh session token, so a leaked password or a
+ * forgotten shared computer loses access at once. Agent grants are separate
+ * owner-issued credentials and are left alone.
+ */
+export async function changePassword(
+  sql: postgres.Sql,
+  session: SessionContext,
+  input: { currentPassword: unknown; newPassword: unknown },
+): Promise<{ sessionToken: string; revokedSessions: number }> {
+  const accountId = session.account.id;
+  const bucket = await takeRateBucket(sql, `password:account:${accountId}`, PASSWORD_CHANGE_LIMIT, PASSWORD_CHANGE_WINDOW_SECONDS);
+  if (!bucket.allowed) throw new AccountActionError("rate-limited", "Too many password change attempts. Try again later.");
+  const next = validatePassword(input.newPassword);
+  if (!next.ok) throw new AccountActionError("invalid", next.reason);
+  const current = input.currentPassword;
+  const rows = await sql`SELECT password_hash FROM network_accounts WHERE id = ${accountId} AND status = 'active' LIMIT 1`;
+  const stored = typeof rows[0]?.password_hash === "string" ? rows[0].password_hash as string : null;
+  if (stored === null || typeof current !== "string" || current.length === 0 || current.length > 200 || !(await verifyPassword(current, stored))) {
+    throw new AccountActionError("credentials", "The current password is incorrect.");
+  }
+  if (next.password.normalize("NFKC") === current.normalize("NFKC")) throw new AccountActionError("invalid", "Choose a new password that differs from the current one.");
+
+  // scrypt is slow, so derive before the transaction holds any row lock.
+  const passwordHash = await hashPassword(next.password);
+  const sessionToken = generateToken();
+  const revokedSessions = await sql.begin(async (tx) => {
+    // The stored hash must still be the one just verified, so two concurrent
+    // changes cannot both succeed.
+    const updated = await tx`
+      UPDATE network_accounts SET password_hash = ${passwordHash}, updated_at = now()
+      WHERE id = ${accountId} AND password_hash = ${stored} AND status = 'active'
+      RETURNING id
+    `;
+    if (updated.length === 0) throw new AccountActionError("conflict", "The password was changed in another session. Sign in again.");
+    const revoked = await tx`
+      UPDATE network_sessions SET revoked_at = now()
+      WHERE account_id = ${accountId} AND revoked_at IS NULL AND expires_at > now()
+      RETURNING id
+    `;
+    // Inserted directly: createSession's best-effort prune must not run here,
+    // because a failed statement aborts the whole Postgres transaction.
+    await tx`
+      INSERT INTO network_sessions (account_id, token_hash, expires_at)
+      VALUES (${accountId}, ${tokenDigest(sessionToken)}, now() + (${SESSION_TTL_MILLISECONDS / 1000} * INTERVAL '1 second'))
+    `;
+    return revoked.filter((row) => row.id !== session.sessionId).length;
+  });
+  await pruneExpiredAuthStateBestEffort(sql);
+  return { sessionToken, revokedSessions };
+}
+
+/** Revoke every live session of the account except the caller's. Returns how many were revoked. */
+export async function revokeOtherSessions(sql: postgres.Sql, accountId: string, currentSessionId: string): Promise<number> {
+  const rows = await sql`
+    UPDATE network_sessions SET revoked_at = now()
+    WHERE account_id = ${accountId} AND id <> ${currentSessionId} AND revoked_at IS NULL AND expires_at > now()
+    RETURNING id
+  `;
+  return rows.length;
+}
+
+/** Live (unrevoked, unexpired) sessions of the account other than the caller's. */
+export async function countOtherSessions(sql: postgres.Sql, accountId: string, currentSessionId: string): Promise<number> {
+  const rows = await sql`
+    SELECT count(*)::int AS count FROM network_sessions
+    WHERE account_id = ${accountId} AND id <> ${currentSessionId} AND revoked_at IS NULL AND expires_at > now()
+  `;
+  return Number(rows[0]?.count ?? 0);
+}
+
 function serializeAccount(row: Record<string, unknown>): AccountRecord {
   return {
     id: row.id as string,

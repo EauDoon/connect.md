@@ -140,6 +140,9 @@ Before accepting real network accounts, the operator must document and review:
   do not apply to deliberately submitted account/profile/message data.
 - Account recovery and email verification. They are not implemented in this
   MVP; do not represent email ownership as verified or promise password reset.
+  A signed-in owner can change the password on /account, which revokes every
+  other session of the account, and can sign out every other session; neither
+  helps someone who has lost the password.
 - The bounded registration enumeration risk: responses do not identify which
   account detail conflicts, but successful registration necessarily differs
   from a conflict until a verified email onboarding flow is implemented.

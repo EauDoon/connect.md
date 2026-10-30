@@ -1,8 +1,10 @@
-import { MISSING_FRONTMATTER_ISSUE, type DocumentKind, frontmatterParseIssue, scanMarkdownHeadings, scanMarkdownHeadingSyntaxIssues, splitFrontmatter } from "@/lib/markdown";
+import { MISSING_FRONTMATTER_ISSUE, type DocumentKind, frontmatterParseIssueDetail, normaliseMarkdown, scanMarkdownHeadings, scanMarkdownHeadingSyntaxIssues, splitFrontmatter } from "@/lib/markdown";
 
 export type ValidationIssue = {
   level: "error" | "warning" | "success";
   message: string;
+  /** 1-based line in the LF-normalised editor source that the issue points at, when known. */
+  line?: number;
 };
 
 export const SCHEMA_LIMITS = {
@@ -329,6 +331,7 @@ function validateUnknownFrontmatterKeys(issues: ValidationIssue[], attributes: R
   const allowed = allowedFrontmatterKeys(kind, schemaVersion);
   const unknown = Object.keys(attributes).filter((key) => !allowed.has(key));
   if (unknown.length) issues.push({ level: "error", message: `unknown frontmatter fields: ${unknown.join(", ")}.` });
+  return unknown;
 }
 
 function validateOptionalServerFields(issues: ValidationIssue[], attributes: Record<string, unknown>) {
@@ -346,86 +349,142 @@ function validateOptionalServerFields(issues: ValidationIssue[], attributes: Rec
   }
 }
 
+/** Top-level block-style frontmatter keys mapped to the editor line that defines them. */
+function frontmatterKeyLines(source: string) {
+  const lines = new Map<string, number>();
+  const match = source.match(/^---\n([\s\S]*?)\n---(?:\n|$)/u);
+  if (!match) return lines;
+  match[1].split("\n").forEach((text, index) => {
+    const key = /^([A-Za-z_][A-Za-z0-9_]*)[ \t]*:/u.exec(text)?.[1];
+    if (key && !lines.has(key)) lines.set(key, index + 2);
+  });
+  return lines;
+}
+
+function lineAt(source: string, offset: number) {
+  let line = 1;
+  for (let index = source.indexOf("\n"); index >= 0 && index < offset; index = source.indexOf("\n", index + 1)) line++;
+  return line;
+}
+
 export function validateDraft(markdown: string, kind: DocumentKind): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const parseIssue = frontmatterParseIssue(markdown);
+  const parseIssue = frontmatterParseIssueDetail(markdown);
   if (parseIssue) {
-    issues.push({
+    const issue: ValidationIssue = {
       level: "error",
-      message: parseIssue === MISSING_FRONTMATTER_ISSUE
+      message: parseIssue.message === MISSING_FRONTMATTER_ISSUE
         ? "Start with YAML frontmatter delimited by --- lines, or restore the starter template."
-        : parseIssue
-    });
+        : parseIssue.message
+    };
+    if (parseIssue.line !== null) issue.line = parseIssue.line;
+    issues.push(issue);
     return issues;
   }
   const { attributes, body } = splitFrontmatter(markdown);
+  // Issues raised while checking one top-level field point at that field's key line.
+  const fields = new Map<ValidationIssue, string>();
+  const forField = (key: string | ((issue: ValidationIssue) => string), run: () => void) => {
+    const start = issues.length;
+    run();
+    for (const issue of issues.slice(start)) fields.set(issue, typeof key === "string" ? key : key(issue));
+  };
 
-  if (attributes.schema !== `connect.md/${kind}`) {
-    issues.push({ level: "error", message: `schema must be connect.md/${kind}.` });
-  }
+  forField("schema", () => {
+    if (attributes.schema !== `connect.md/${kind}`) {
+      issues.push({ level: "error", message: `schema must be connect.md/${kind}.` });
+    }
+  });
   const schemaVersion = attributes.schema_version;
   if (schemaVersion !== 1 && schemaVersion !== 2) {
-    issues.push({ level: "error", message: "schema_version must be the supported integer 1 or 2." });
+    forField("schema_version", () => issues.push({ level: "error", message: "schema_version must be the supported integer 1 or 2." }));
   } else {
-    validateUnknownFrontmatterKeys(issues, attributes, kind, schemaVersion);
-    validateOptionalServerFields(issues, attributes);
+    let unknown: string[] = [];
+    forField(() => unknown[0] ?? "", () => { unknown = validateUnknownFrontmatterKeys(issues, attributes, kind, schemaVersion); });
+    // Each server-field message starts with its key: id, owner_id, version, updated_at.
+    forField((issue) => issue.message.split(" ")[0], () => validateOptionalServerFields(issues, attributes));
   }
-  validateStructuredText(issues, attributes.name, "name", SCHEMA_LIMITS.name);
-  if (typeof attributes.name === "string" && attributes.name.endsWith("#")) issues.push({ level: "error", message: "name cannot end with # because it cannot be represented exactly as a Markdown title." });
-  validateStructuredText(issues, attributes.headline, "headline", SCHEMA_LIMITS.headline);
-  if (schemaVersion !== 2) validateStructuredText(issues, attributes.location, "location", SCHEMA_LIMITS.location);
+  forField("name", () => {
+    validateStructuredText(issues, attributes.name, "name", SCHEMA_LIMITS.name);
+    if (typeof attributes.name === "string" && attributes.name.endsWith("#")) issues.push({ level: "error", message: "name cannot end with # because it cannot be represented exactly as a Markdown title." });
+  });
+  forField("headline", () => validateStructuredText(issues, attributes.headline, "headline", SCHEMA_LIMITS.headline));
+  if (schemaVersion !== 2) forField("location", () => validateStructuredText(issues, attributes.location, "location", SCHEMA_LIMITS.location));
   const identifierPattern = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
   if (kind === "profile" && (typeof attributes.handle !== "string" || !identifierPattern.test(attributes.handle))) {
-    issues.push({ level: "error", message: "Profiles need a lowercase handle using letters, numbers, and hyphens." });
+    forField("handle", () => issues.push({ level: "error", message: "Profiles need a lowercase handle using letters, numbers, and hyphens." }));
   }
   if (kind === "resume" && (typeof attributes.slug !== "string" || !identifierPattern.test(attributes.slug))) {
-    issues.push({ level: "error", message: "Resumes need a lowercase slug using letters, numbers, and hyphens." });
+    forField("slug", () => issues.push({ level: "error", message: "Resumes need a lowercase slug using letters, numbers, and hyphens." }));
   }
-  if (kind === "resume") validateStructuredText(issues, attributes.title, "title", SCHEMA_LIMITS.title);
+  if (kind === "resume") forField("title", () => validateStructuredText(issues, attributes.title, "title", SCHEMA_LIMITS.title));
   if (attributes.visibility !== "private" && attributes.visibility !== "public") {
-    issues.push({ level: "error", message: "visibility must be private or public." });
+    forField("visibility", () => issues.push({ level: "error", message: "visibility must be private or public." }));
   }
   if (schemaVersion === 2) {
-    validateReferenceList(issues, attributes.occupations, "occupations", true, SCHEMA_LIMITS.occupations);
-    validateReferenceList(issues, attributes.industries, "industries", false, SCHEMA_LIMITS.industries);
-    validateLocation(issues, attributes.location);
-    validateReferenceList(issues, attributes.skills, "skills", true, SCHEMA_LIMITS.v2Skills);
-    validateLanguageList(issues, attributes.languages);
-    validateReference(issues, attributes.seniority, "seniority");
-    validateWorkModes(issues, attributes.work_modes);
-    validateAvailability(issues, attributes.availability);
-    validateReferenceList(issues, attributes.open_to, "open_to", false, SCHEMA_LIMITS.openTo);
-    validateOrganizationList(issues, attributes.organizations);
-    validatePublicRepresentation(issues, attributes.public_representation);
-    validateContact(issues, attributes.contact);
-    validatePublicStarterPlaceholders(issues, attributes);
-  } else if (!Array.isArray(attributes.skills) || !attributes.skills.length || attributes.skills.some((skill) => typeof skill !== "string" || !skill.trim())) {
-    issues.push({ level: "error", message: "skills must be a non-empty YAML list of text values." });
-  } else {
-    if (attributes.skills.length > SCHEMA_LIMITS.skills) issues.push({ level: "error", message: `skills can contain at most ${SCHEMA_LIMITS.skills} items.` });
-    if (attributes.skills.some((skill) => skill !== skill.trim())) issues.push({ level: "error", message: "skills cannot contain leading or trailing whitespace." });
-    if (attributes.skills.some((skill) => /[\r\n]/u.test(skill))) issues.push({ level: "error", message: "skills cannot contain line breaks." });
-    if (attributes.skills.some((skill) => skill.length > SCHEMA_LIMITS.skill)) issues.push({ level: "error", message: `Each skill must be ${SCHEMA_LIMITS.skill} characters or fewer.` });
+    forField("occupations", () => validateReferenceList(issues, attributes.occupations, "occupations", true, SCHEMA_LIMITS.occupations));
+    forField("industries", () => validateReferenceList(issues, attributes.industries, "industries", false, SCHEMA_LIMITS.industries));
+    forField("location", () => validateLocation(issues, attributes.location));
+    forField("skills", () => validateReferenceList(issues, attributes.skills, "skills", true, SCHEMA_LIMITS.v2Skills));
+    forField("languages", () => validateLanguageList(issues, attributes.languages));
+    forField("seniority", () => validateReference(issues, attributes.seniority, "seniority"));
+    forField("work_modes", () => validateWorkModes(issues, attributes.work_modes));
+    forField("availability", () => validateAvailability(issues, attributes.availability));
+    forField("open_to", () => validateReferenceList(issues, attributes.open_to, "open_to", false, SCHEMA_LIMITS.openTo));
+    forField("organizations", () => validateOrganizationList(issues, attributes.organizations));
+    forField("public_representation", () => validatePublicRepresentation(issues, attributes.public_representation));
+    forField("contact", () => validateContact(issues, attributes.contact));
+    forField((issue) => /occupation/u.test(issue.message) ? "occupations" : /location/u.test(issue.message) ? "location" : "skills", () => validatePublicStarterPlaceholders(issues, attributes));
+  } else forField("skills", () => {
+    if (!Array.isArray(attributes.skills) || !attributes.skills.length || attributes.skills.some((skill) => typeof skill !== "string" || !skill.trim())) {
+      issues.push({ level: "error", message: "skills must be a non-empty YAML list of text values." });
+    } else {
+      if (attributes.skills.length > SCHEMA_LIMITS.skills) issues.push({ level: "error", message: `skills can contain at most ${SCHEMA_LIMITS.skills} items.` });
+      if (attributes.skills.some((skill) => skill !== skill.trim())) issues.push({ level: "error", message: "skills cannot contain leading or trailing whitespace." });
+      if (attributes.skills.some((skill) => /[\r\n]/u.test(skill))) issues.push({ level: "error", message: "skills cannot contain line breaks." });
+      if (attributes.skills.some((skill) => skill.length > SCHEMA_LIMITS.skill)) issues.push({ level: "error", message: `Each skill must be ${SCHEMA_LIMITS.skill} characters or fewer.` });
+    }
+  });
+
+  const source = normaliseMarkdown(markdown);
+  const keyLines = frontmatterKeyLines(source);
+  for (const [issue, key] of fields) {
+    const line = keyLines.get(key);
+    if (line !== undefined) issue.line = line;
   }
+  const bodyOffset = source.length - body.length;
+  const bodyLine = (offset: number) => lineAt(source, bodyOffset + offset);
+  const firstBodyContent = body.search(/\S/u);
+  const bodyStartLine = bodyLine(firstBodyContent < 0 ? 0 : firstBodyContent);
+
   const expectedTitle = typeof attributes.name === "string" ? attributes.name.trim() : "";
-  if (scanMarkdownHeadingSyntaxIssues(body).length) {
-    issues.push({ level: "error", message: "Markdown headings require exactly one space after the # markers and no surrounding heading whitespace." });
+  const invalidHeadings = scanMarkdownHeadingSyntaxIssues(body);
+  if (invalidHeadings.length) {
+    issues.push({ level: "error", message: "Markdown headings require exactly one space after the # markers and no surrounding heading whitespace.", line: bodyLine(invalidHeadings[0]) });
   }
   const scannedHeadings = scanMarkdownHeadings(body);
-  const h1Headings = scannedHeadings.filter((heading) => heading.level === 1).map((heading) => heading.text);
-  if (h1Headings.length !== 1 || h1Headings[0] !== expectedTitle) {
-    issues.push({ level: "error", message: "The document needs exactly one level-one heading matching name." });
+  const h1Headings = scannedHeadings.filter((heading) => heading.level === 1);
+  if (h1Headings.length !== 1 || h1Headings[0].text !== expectedTitle) {
+    const culprit = h1Headings.find((heading) => heading.text !== expectedTitle) ?? h1Headings[1];
+    issues.push({ level: "error", message: "The document needs exactly one level-one heading matching name.", line: culprit ? bodyLine(culprit.start) : bodyStartLine });
   }
   const requiredHeadings = kind === "profile" ? ["About", "Experience", "Skills"] : ["Summary", "Experience", "Education", "Skills"];
-  const h2Headings = scannedHeadings.filter((heading) => heading.level === 2).map((heading) => heading.text);
-  const requiredPositions = requiredHeadings.map((heading) => h2Headings.reduce<number[]>((positions, current, index) => current === heading ? [...positions, index] : positions, []));
+  const h2Headings = scannedHeadings.filter((heading) => heading.level === 2);
+  const requiredPositions = requiredHeadings.map((heading) => h2Headings.reduce<number[]>((positions, current, index) => current.text === heading ? [...positions, index] : positions, []));
   if (requiredPositions.some((positions) => positions.length !== 1)) {
-    issues.push({ level: "error", message: `Required headings must appear exactly once: ${requiredHeadings.join(", ")}.` });
-  } else if (requiredPositions.some((positions, index) => index > 0 && positions[0] < requiredPositions[index - 1][0])) {
-    issues.push({ level: "error", message: `Required headings must follow this order: ${requiredHeadings.join(" → ")}.` });
+    const duplicate = requiredPositions.find((positions) => positions.length > 1);
+    const issue: ValidationIssue = { level: "error", message: `Required headings must appear exactly once: ${requiredHeadings.join(", ")}.` };
+    if (duplicate) issue.line = bodyLine(h2Headings[duplicate[1]].start);
+    issues.push(issue);
+  } else {
+    const outOfOrder = requiredPositions.findIndex((positions, index) => index > 0 && positions[0] < requiredPositions[index - 1][0]);
+    if (outOfOrder > 0) {
+      issues.push({ level: "error", message: `Required headings must follow this order: ${requiredHeadings.join(" → ")}.`, line: bodyLine(h2Headings[requiredPositions[outOfOrder][0]].start) });
+    }
   }
-  if (/<(?:script|iframe|object|embed)\b/i.test(body)) {
-    issues.push({ level: "warning", message: "Unsafe HTML is removed in the preview and public renderer." });
+  const unsafeHtml = body.search(/<(?:script|iframe|object|embed)\b/i);
+  if (unsafeHtml >= 0) {
+    issues.push({ level: "warning", message: "Unsafe HTML is removed in the preview and public renderer.", line: bodyLine(unsafeHtml) });
   }
   if (!issues.length) issues.push({ level: "success", message: "Client validation passed. Download locally; this site does not upload or publish." });
   return issues;

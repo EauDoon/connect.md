@@ -3,6 +3,7 @@
 import { CheckCircle2, CircleAlert, TriangleAlert } from "lucide-react";
 import React from "react";
 
+import { ReviewSourceLink } from "@/components/review-source-link";
 import { type ValidationIssue } from "@/lib/validation";
 
 export function ValidationPanel({ issues }: { issues: ValidationIssue[] }) {
@@ -33,7 +34,7 @@ export function ValidationPanel({ issues }: { issues: ValidationIssue[] }) {
               : issue.level === "warning"
                 ? <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
                 : <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-acid" aria-hidden />}
-            {issue.message}
+            <span className="min-w-0">{issue.line !== undefined && <><ReviewSourceLink line={issue.line} />: </>}{issue.message}</span>
           </li>
         ))}
       </ul>

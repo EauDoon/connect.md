@@ -27,6 +27,8 @@ NETWORK_API_ROUTES = [
     "accounts/register",
     "accounts/login",
     "accounts/logout",
+    "accounts/password",
+    "sessions/revoke-others",
     "session",
     "profile",
     "profile/publish",
@@ -36,6 +38,7 @@ NETWORK_API_ROUTES = [
     "agent-grants",
     "agent/profile",
     "agent/contacts",
+    "agent/grant",
     "public/profiles",
 ]
 

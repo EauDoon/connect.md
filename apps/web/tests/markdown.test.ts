@@ -293,12 +293,12 @@ Legacy experience.
     const defaultHtml = renderToStaticMarkup(createElement(MarkdownPreview, { markdown }));
     const embeddedHtml = renderToStaticMarkup(createElement(MarkdownPreview, { markdown, omitTitle: true, headingOffset: 2 }));
 
-    expect(defaultHtml).toContain('<h1 data-markdown-heading-level="1">Title</h1>');
-    expect(defaultHtml).toContain('<h2 data-markdown-heading-level="2">Section</h2>');
+    expect(defaultHtml).toContain('<h1 data-markdown-heading-level="1" data-md-anchor="title" tabindex="-1">Title</h1>');
+    expect(defaultHtml).toContain('<h2 data-markdown-heading-level="2" data-md-anchor="section" tabindex="-1">Section</h2>');
     expect(embeddedHtml).not.toContain("Title");
-    expect(embeddedHtml).toContain('<h4 data-markdown-heading-level="2">Section</h4>');
-    expect(embeddedHtml).toContain('<h5 data-markdown-heading-level="3">Detail</h5>');
-    expect(embeddedHtml).toContain('<h6 data-markdown-heading-level="6">Fine print</h6>');
+    expect(embeddedHtml).toContain('<h4 data-markdown-heading-level="2" data-md-anchor="section" tabindex="-1">Section</h4>');
+    expect(embeddedHtml).toContain('<h5 data-markdown-heading-level="3" data-md-anchor="detail" tabindex="-1">Detail</h5>');
+    expect(embeddedHtml).toContain('<h6 data-markdown-heading-level="6" data-md-anchor="fine-print" tabindex="-1">Fine print</h6>');
     expect(embeddedHtml).not.toMatch(/<h[12][ >]/u);
   });
 

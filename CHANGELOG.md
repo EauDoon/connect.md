@@ -10,15 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - A weekly `Dependency audit` workflow repeats the production npm audit and the production pip-audit against `main`, so advisories published between pushes fail on `main` instead of first appearing on unrelated pull requests.
+- Checkpoint comparisons, the comparison with the last Markdown download, and replacement reviews show a multi-hunk line diff: each separate edit is its own hunk with previous and current line numbers, three lines of context, -/+ markers, and screen-reader labels. Past 1,000 separate line changes the view falls back to the changed-region comparison and says so. The download comparison is computed only while it is open.
+- Validation issues link to the source line that caused them, as Sharing and Writing review findings already did: the key of a failing frontmatter field, the line a YAML error names, the first unknown field, the first malformed heading, a wrong or extra level-one heading, a duplicated or out-of-order required heading, and the first unsafe HTML tag. `ValidationIssue` gains an optional `line`; every message is unchanged.
+- Writing review checks reference-style links: references to undefined labels, definitions with empty, unsupported, relative, or broken in-document destinations, and definitions nothing uses. A `#fragment` link is reported only when no heading creates that anchor (GitHub's slug rule), instead of every fragment link getting the same warning. Links inside inline code are no longer reported.
+- Preview headings carry GitHub-style anchors, so in-document links work in the Markdown preview, on published profile pages, and in conversations.
+- Network accounts can change their password from `/account` (`POST /api/network/v1/accounts/password`). The current password must verify; on success every session of the account is revoked and this browser gets a fresh session, so a leaked password or a shared computer loses access at once. Attempts are rate-limited per account. The same panel shows how many other sessions are signed in and can sign them all out (`POST /api/network/v1/sessions/revoke-others`). Both routes accept the session cookie only, never an agent token. Account recovery and email verification are still not implemented.
+- Agent access on `/network` lets the owner choose a grant's scopes (`profile:read`, `profile:write`, `contacts:read`, each described in plain words) and lifetime (7, 30, 90, or 365 days), so a read-only or contacts-only grant no longer needs the API. New grants default to `profile:read` alone; the API default is unchanged. The grant list shows each grant as active, expired, or revoked, with its created date and last use.
+- `GET /api/network/v1/agent/grant` lets an agent read its own grant (owner handle, name, scopes, created and expiry times) with any live token and no scope; token material is never returned. The new [network agent API reference](docs/network-agent-api.md) documents authentication, scopes, every agent endpoint with its ETag rules, and the error reasons.
 
 ### Fixed
 
 - The inbox's last-message preview is cut at 120 characters by code point, so an emoji at the cut no longer turns into a replacement character.
+- The replacement review no longer hides replacements: a replace-all with matches far apart showed one region cut at 80 lines, so later replacements could not be reviewed before Apply.
+- Clicking an in-document `#fragment` link in the preview scrolled nowhere and wrote document text into the address bar and history. It now moves focus to the heading and leaves the URL unchanged.
+- Expired agent grants were listed as live with a Revoke button. They are now labelled expired, and Revoke is offered only for active grants.
 
 ### Security
 
 - The web runtime moves to Next.js 15.5.28 (GHSA-2464-fhr4-w9xw, GHSA-p3m5-59mp-jv5r) and the Monaco DOMPurify override to 3.4.17 (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f), so the production npm audit passes again.
 - The API hash locks move certifi to 2026.10.23, Pillow to 13.0.0, and pypdf to 6.21.4, clearing the 51 advisories that failed the production pip-audit.
+- The CI-only API test lock moves filelock to 4.2.5 and msgpack to 1.2.4 (both through cachecontrol), clearing the 12 filelock advisories and the msgpack advisory GHSA-j586-36cw-2gc2 that pip-audit reported for `requirements-test.lock`. The production `requirements.lock` does not contain either package.
 
 ## [0.3.0] - 2026-10-09
 

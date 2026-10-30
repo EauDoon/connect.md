@@ -32,7 +32,7 @@ The download gate accepts an optional local filename and shows the sanitized `.m
 
 ## Act on review findings
 
-Line links in Sharing and Writing review open the same draft in Markdown Mode, select the corresponding source line, and focus the plain-text editor. The request stays in memory; document text is never put into URLs. Review checks remain advisory and do not redact, approve, or block source content.
+Line links in Validation, Sharing review, and Writing review open the same draft in Markdown Mode, select the corresponding source line, and focus the plain-text editor. Validation links point at the frontmatter key of a failing field, the line a YAML error names, the first unknown field, the first malformed heading, a wrong or extra level-one heading, a duplicated or out-of-order required heading, or the first unsafe HTML tag. Missing fields and flow-style frontmatter have no single line, so those issues carry no link. The request stays in memory; document text is never put into URLs. Review checks remain advisory and do not redact, approve, or block source content.
 
 ## Focus the workspace
 
@@ -40,13 +40,13 @@ In Markdown Mode, choose **Source only**, **Preview and checks**, or **Split vie
 
 ## Compare an updated export
 
-After a Markdown download, **Changes since last Markdown download** compares the current bytes with the exact source used for that download request, including changes of document kind. The display is bounded to 80 lines and 12,000 characters per side; it is a changed-region comparison rather than a full multi-hunk diff. Only another Markdown download updates this baseline. Clipboard copies, checkpoint downloads, and recovery/review files do not move it. The app cannot verify that the browser actually saved a file on disk.
+After a Markdown download, **Changes since last Markdown download** compares the current bytes with the exact source used for that download request, including changes of document kind. Separate edits appear as separate hunks, each headed with its previous and current line numbers and showing three unchanged lines of context; removed and added lines carry -/+ markers and screen-reader labels, so colour is never the only signal. The display is bounded to 200 lines and 12,000 characters. Drafts with more than 1,000 separate line changes fall back to the earlier changed-region view, which says so and may include unchanged lines between edits. Only another Markdown download updates this baseline. Clipboard copies, checkpoint downloads, and recovery/review files do not move it. The app cannot verify that the browser actually saved a file on disk.
 
 Search can optionally ignore case or require whole words. Word boundaries include Unicode letters, marks, numbers, and underscores. Literal punctuation remains literal.
 
 Choose **Body only** to exclude opening YAML frontmatter from matching and replacement. An unclosed frontmatter block yields no body matches; fix the delimiter before replacing.
 
-Replacement actions first open a bounded before/after review. Apply the reviewed result or cancel without changes. Edits to the source or search settings disable an old review until it is regenerated.
+Replacement actions first open a bounded review that lists every changed place as its own hunk, so a replace-all whose matches are hundreds of lines apart shows each replacement before you apply it. Apply the reviewed result or cancel without changes. Edits to the source or search settings disable an old review until it is regenerated.
 
 Applied search replacements now keep the prior source in **Session recovery**, using the same single-step undo as imports. Undo preserves checkpoints but replaces later edits; keep named checkpoints for multiple versions.
 
@@ -56,7 +56,7 @@ Filter headings by case-insensitive text to reach sections beyond the first 60 d
 
 Writing review now flags skipped heading levels and repeated heading labels, with source-line navigation. Fenced examples and frontmatter do not create outline findings. These are suggestions, not schema errors.
 
-Writing review inspects simple inline Markdown links for empty destinations, unsupported schemes, relative/local addresses, and fragment links. Fragment navigation is not wired in the local preview. No address is fetched; reference-style links, nested link syntax, inline code, and destination availability still require manual review.
+Writing review inspects inline links and reference-style links (`[text][label]`, `[label][]`, and `[label]: destination` definitions) for empty destinations, unsupported schemes, and relative/local addresses. A `#fragment` link is reported only when no heading in the document creates that anchor; anchors follow GitHub's rule (lowercase, punctuation removed, spaces as hyphens, repeats suffixed -1, -2). References to undefined labels and definitions nothing uses are reported too. Links inside fences and inline code are ignored. In the preview, a fragment link moves focus to its heading within the same preview and never changes the address bar or history, so document text stays out of URLs. No address is fetched. Nested link syntax, autolinks, headings inside lists or block quotes, and destination availability still require manual review, and other Markdown readers may create anchors differently.
 
 Choose **Review excerpt** beside an outline heading to inspect and download that section with its child sections. Excerpts exclude frontmatter and neighboring sections, retain normalized Markdown, and use an `excerpt-` filename. They are not complete validated documents. Draft edits disable a stale excerpt download until you select it again; excerpts do not update the full-document download receipt or clear reload warnings.
 

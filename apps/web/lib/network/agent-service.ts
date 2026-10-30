@@ -24,6 +24,10 @@ export type ResolvedAgent = {
   accountId: string;
   accountHandle: string;
   scopes: readonly AgentScope[];
+  name: string;
+  createdAt: string;
+  /** Null only for grants stored before expiry became mandatory. */
+  expiresAt: string | null;
 };
 
 export class AgentGrantError extends Error {
@@ -102,7 +106,7 @@ export async function resolveAgentToken(sql: postgres.Sql, authorizationHeader: 
   const token = authorizationHeader.slice("Bearer ".length).trim();
   if (!token.startsWith("cnag_") || token.length < 12 || token.length > 128) return null;
   const rows = await sql`
-    SELECT g.id, g.scopes, g.expires_at, g.revoked_at, a.id AS account_id, a.handle, a.status
+    SELECT g.id, g.name, g.scopes, g.created_at, g.expires_at, g.revoked_at, a.id AS account_id, a.handle, a.status
     FROM network_agent_grants g JOIN network_accounts a ON a.id = g.account_id
     WHERE g.token_hash = ${tokenDigest(token)}
     LIMIT 1
@@ -118,5 +122,8 @@ export async function resolveAgentToken(sql: postgres.Sql, authorizationHeader: 
     accountId: row.account_id as string,
     accountHandle: row.handle as string,
     scopes,
+    name: row.name as string,
+    createdAt: (row.created_at as Date).toISOString(),
+    expiresAt: grant.expiresAt,
   };
 }

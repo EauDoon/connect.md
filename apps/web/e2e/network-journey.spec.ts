@@ -48,25 +48,25 @@ test("first save, conflict preservation, publication, and contact termination wo
       await expect(actor.getByTestId("profile-save")).toBeEnabled();
     }
     const source = starterFor("profile");
-    await page.getByLabel("Profile Markdown").fill(source);
+    await page.getByLabel("Profile Markdown", { exact: true }).fill(source);
     await page.getByTestId("profile-save").click();
     await expect(page.getByTestId("network-status")).toContainText("Profile saved");
     await expect(page.getByTestId("profile-publish")).toBeEnabled();
 
     const staleTab = await page.context().newPage();
     await staleTab.goto("/network");
-    await expect(staleTab.getByLabel("Profile Markdown")).toHaveValue(source);
+    await expect(staleTab.getByLabel("Profile Markdown", { exact: true })).toHaveValue(source);
     const stalePublication = await page.context().newPage();
     await stalePublication.goto("/network");
     await expect(stalePublication.getByTestId("profile-publish")).toBeEnabled();
-    await page.getByLabel("Profile Markdown").fill(source + "\nSaved revision.\n");
+    await page.getByLabel("Profile Markdown", { exact: true }).fill(source + "\nSaved revision.\n");
     await page.getByTestId("profile-save").click();
     await expect(page.getByTestId("network-status")).toContainText("Profile saved");
     const unsaved = source + "\nKeep these unsaved edits.\n";
-    await staleTab.getByLabel("Profile Markdown").fill(unsaved);
+    await staleTab.getByLabel("Profile Markdown", { exact: true }).fill(unsaved);
     await staleTab.getByTestId("profile-save").click();
     await expect(staleTab.getByRole("button", { name: "Discard edits and reload saved profile" })).toBeVisible();
-    await expect(staleTab.getByLabel("Profile Markdown")).toHaveValue(unsaved);
+    await expect(staleTab.getByLabel("Profile Markdown", { exact: true })).toHaveValue(unsaved);
     await staleTab.close();
     await stalePublication.getByTestId("profile-publish").click();
     await expect(stalePublication.getByRole("button", { name: "Discard edits and reload saved profile" })).toBeVisible();
@@ -75,11 +75,11 @@ test("first save, conflict preservation, publication, and contact termination wo
 
     await page.getByTestId("profile-publish").click();
     await expect(page.getByTestId("profile-visibility")).toHaveText("published");
-    await expect(page.getByLabel("Profile Markdown")).toBeDisabled();
+    await expect(page.getByLabel("Profile Markdown", { exact: true })).toBeDisabled();
     const publicResponse = await page.request.get(`/api/network/v1/public/profiles/${firstHandle}`);
     expect(publicResponse.ok()).toBe(true);
     await page.getByTestId("profile-unpublish").click();
-    await expect(page.getByLabel("Profile Markdown")).toBeEnabled();
+    await expect(page.getByLabel("Profile Markdown", { exact: true })).toBeEnabled();
     expect((await page.request.get(`/api/network/v1/public/profiles/${firstHandle}`)).status()).toBe(404);
 
     await page.getByLabel("Grant name", { exact: true }).fill("journey-agent");
@@ -88,6 +88,11 @@ test("first save, conflict preservation, publication, and contact termination wo
       () => expect(page.getByLabel("Grant name", { exact: true })).toBeDisabled());
     await expect(page.getByTestId("grant-token-shown")).toBeVisible();
     await expect(page.getByLabel("Grant name", { exact: true })).toHaveValue("");
+    const grantList = page.getByTestId("grant-list");
+    await expect(grantList).toContainText("journey-agent (active)");
+    await expect(grantList).toContainText("profile:read");
+    await expect(grantList).not.toContainText("profile:write");
+    await expect(grantList).toContainText("never used");
     const revoke = page.getByRole("button", { name: "Revoke", exact: true });
     await page.route("**/api/network/v1/agent-grants/*", (route) => route.fulfill({ status: 503, json: { ok: false } }), { times: 1 });
     await revoke.click();
@@ -100,6 +105,31 @@ test("first save, conflict preservation, publication, and contact termination wo
     await revoke.click();
     await expect(page.getByTestId("network-status")).toContainText("Agent grant revoked");
     await expect(revoke).toHaveCount(0);
+    await expect(grantList).toContainText("journey-agent (revoked)");
+
+    await page.getByLabel("Grant name", { exact: true }).fill("journey-inbox");
+    await page.getByRole("checkbox", { name: /Read your profile/u }).uncheck();
+    await expect(page.getByTestId("grant-scope-required")).toBeVisible();
+    await expect(page.getByTestId("grant-create")).toBeDisabled();
+    await page.getByRole("checkbox", { name: /Read contact requests/u }).check();
+    await page.locator("#new-grant-lifetime").selectOption("7");
+    await page.getByTestId("grant-create").click();
+    await expect(page.getByTestId("grant-token-shown")).toBeVisible();
+    const inboxGrant = grantList.getByRole("listitem").filter({ hasText: "journey-inbox" });
+    await expect(inboxGrant).toContainText("journey-inbox (active)");
+    await expect(inboxGrant).toContainText("contacts:read");
+    await expect(inboxGrant).not.toContainText("profile:read");
+    const inboxToken = (await page.getByTestId("grant-token-shown").locator("code").textContent()) ?? "";
+    const introspection = await page.request.get("/api/network/v1/agent/grant", { headers: { authorization: `Bearer ${inboxToken}` } });
+    expect(introspection.status()).toBe(200);
+    const described = await introspection.json() as { grant: { name: string; scopes: string[]; expiresAt: string } };
+    expect(described.grant).toMatchObject({ name: "journey-inbox", scopes: ["contacts:read"] });
+    const lifetimeDays = (Date.parse(described.grant.expiresAt) - Date.now()) / (24 * 3600_000);
+    expect(lifetimeDays).toBeGreaterThan(6.9);
+    expect(lifetimeDays).toBeLessThanOrEqual(7);
+    expect((await page.request.get("/api/network/v1/agent/profile", { headers: { authorization: `Bearer ${inboxToken}` } })).status()).toBe(403);
+    await inboxGrant.getByRole("button", { name: "Revoke", exact: true }).click();
+    await expect(inboxGrant).toContainText("journey-inbox (revoked)");
 
     await page.goto("/inbox");
     await page.getByLabel("Handle to contact").fill(secondHandle);
@@ -143,5 +173,62 @@ test("first save, conflict preservation, publication, and contact termination wo
     await expect(page.getByTestId("account-auth-panel")).toBeVisible();
   } finally {
     await secondContext.close();
+  }
+});
+
+test("changing the password signs out every other browser and keeps this one", async ({ browser, page }) => {
+  const suffix = randomUUID().slice(0, 8);
+  const handle = `security-${suffix}`;
+  const email = `${handle}@example.com`;
+  await page.goto("http://127.0.0.1:3210/account");
+  await page.getByLabel("Handle", { exact: true }).fill(handle);
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("SecurityPassword123");
+  await page.getByTestId("account-submit").click();
+  await expect(page.getByTestId("profile-save")).toBeEnabled();
+  const otherContext = await browser.newContext();
+  const other = await otherContext.newPage();
+  const signIn = async (password: string) => {
+    await other.goto("http://127.0.0.1:3210/account");
+    await other.getByRole("tab", { name: "Sign in", exact: true }).click();
+    await other.getByLabel("Email", { exact: true }).fill(email);
+    await other.getByLabel("Password", { exact: true }).fill(password);
+    await other.getByTestId("account-submit").click();
+  };
+  try {
+    await signIn("SecurityPassword123");
+    await expect(other.getByTestId("profile-save")).toBeEnabled();
+
+    await page.goto("/account");
+    await expect(page.getByTestId("security-other-sessions")).toHaveText("Signed in on 1 other session.");
+    await page.getByLabel("Current password", { exact: true }).fill("WrongPassword123");
+    await page.getByLabel("New password", { exact: true }).fill("ChangedPassword456");
+    await page.getByLabel("Confirm new password", { exact: true }).fill("ChangedPassword456");
+    await page.getByTestId("security-change-password").click();
+    await expect(page.getByTestId("security-notice")).toHaveText("The current password is incorrect.");
+    await expect(page.getByLabel("New password", { exact: true })).toHaveValue("ChangedPassword456");
+    await page.getByLabel("Current password", { exact: true }).fill("SecurityPassword123");
+    await page.getByTestId("security-change-password").click();
+    await expect(page.getByTestId("security-notice")).toHaveText("Password changed. Signed out 1 other session. This browser stays signed in.");
+    await expect(page.getByTestId("security-other-sessions")).toHaveText("No other browser is signed in to this account.");
+    await expect(page.getByLabel("Current password", { exact: true })).toHaveValue("");
+
+    await other.goto("http://127.0.0.1:3210/account");
+    await expect(other.getByTestId("account-auth-panel")).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId("account-signed-in")).toBeVisible();
+
+    await signIn("SecurityPassword123");
+    await expect(other.getByTestId("account-error")).toContainText("Email or password is incorrect.");
+    await signIn("ChangedPassword456");
+    await expect(other.getByTestId("profile-save")).toBeEnabled();
+    await page.reload();
+    await expect(page.getByTestId("security-other-sessions")).toHaveText("Signed in on 1 other session.");
+    await page.getByTestId("security-revoke-others").click();
+    await expect(page.getByTestId("security-notice")).toHaveText("Signed out 1 other session.");
+    await other.goto("http://127.0.0.1:3210/account");
+    await expect(other.getByTestId("account-auth-panel")).toBeVisible();
+  } finally {
+    await otherContext.close();
   }
 });

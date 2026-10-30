@@ -9,7 +9,7 @@
  */
 
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import postgres from "postgres";
 
@@ -21,7 +21,7 @@ if (DATABASE_URL !== "") {
   }
 }
 
-const { registerAccount, loginAccount, accountForSessionToken, revokeSession } = await import(
+const { registerAccount, loginAccount, accountForSessionToken, revokeSession, changePassword, revokeOtherSessions, countOtherSessions, PASSWORD_CHANGE_LIMIT } = await import(
   "@/lib/network/auth-service"
 );
 const { getProfile, getPublishedProfile, listPublishedProfiles, saveProfile, setProfileVisibility } = await import(
@@ -36,6 +36,13 @@ const { DEFAULT_GRANT_TTL_DAYS, mintAgentToken } = await import("@/lib/network/a
 const { tokenDigest, tokenDisplayPrefix } = await import("@/lib/network/secrets");
 const { migrate, closeDatabase } = await import("@/lib/network/db");
 const { starterFor } = await import("@/lib/markdown");
+// Agent routes import the cookie helpers; they never read cookies.
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+const { GET: introspectGrant } = await import("@/app/api/network/v1/agent/grant/route");
+const { GET: agentContacts } = await import("@/app/api/network/v1/agent/contacts/route");
+const { GET: agentProfile } = await import("@/app/api/network/v1/agent/profile/route");
+const agentCall = (route: (request: Request) => Promise<Response>, path: string, token: string) =>
+  route(new Request(`http://127.0.0.1/api/network/v1/${path}`, { headers: { authorization: `Bearer ${token}` } }));
 
 const PROFILE_FIXTURE = starterFor("profile");
 
@@ -227,6 +234,49 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     expect(resolved?.scopes).toEqual(["profile:read"]);
   });
 
+  it("scopes agent routes: a contacts-only grant introspects and reads contacts, never the profile", async () => {
+    const [owner] = await pair("grantscope");
+    const { record, token } = await createAgentGrant(sql, owner.id, {
+      name: "inbox-reader",
+      scopes: ["contacts:read"],
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600_000).toISOString(),
+    });
+    expect(await resolveAgentToken(sql, `Bearer ${token}`)).toMatchObject({
+      accountId: owner.id, accountHandle: owner.handle, scopes: ["contacts:read"],
+      name: "inbox-reader", createdAt: record.createdAt, expiresAt: record.expiresAt,
+    });
+    const described = await agentCall(introspectGrant, "agent/grant", token);
+    expect(described.status).toBe(200);
+    const body = await described.json();
+    expect(body).toEqual({ ok: true, account: { handle: owner.handle }, grant: { name: "inbox-reader", scopes: ["contacts:read"], createdAt: record.createdAt, expiresAt: record.expiresAt } });
+    for (const secret of [token, record.tokenPrefix, tokenDigest(token), record.id]) expect(JSON.stringify(body)).not.toContain(secret);
+    expect((await agentCall(agentContacts, "agent/contacts", token)).status).toBe(200);
+    const profile = await agentCall(agentProfile, "agent/profile", token);
+    expect(profile.status).toBe(403);
+    expect(await profile.json()).toEqual({ ok: false, reason: "scope-denied", required: "profile:read" });
+    await revokeAgentGrant(sql, owner.id, record.id);
+    const revoked = await agentCall(introspectGrant, "agent/grant", token);
+    expect(revoked.status).toBe(401);
+    expect(revoked.headers.get("www-authenticate")).toBe("Bearer");
+  });
+
+  it("refuses expired grants and describes legacy grants that have no expiry", async () => {
+    const [owner] = await pair("grantexpiry");
+    const { record, token } = await createAgentGrant(sql, owner.id, { name: "short-lived", scopes: ["profile:read"] });
+    await sql`UPDATE network_agent_grants SET expires_at = now() - INTERVAL '1 second' WHERE id = ${record.id}`;
+    expect(await resolveAgentToken(sql, `Bearer ${token}`)).toBeNull();
+    expect((await agentCall(introspectGrant, "agent/grant", token)).status).toBe(401);
+    const legacyToken = mintAgentToken();
+    await sql`
+      INSERT INTO network_agent_grants (account_id, name, token_hash, token_prefix, scopes, expires_at)
+      VALUES (${owner.id}, 'legacy-introspect', ${tokenDigest(legacyToken)}, ${tokenDisplayPrefix(legacyToken)},
+              ${sql.array(["profile:read"])}, NULL)
+    `;
+    const legacy = await agentCall(introspectGrant, "agent/grant", legacyToken);
+    expect(legacy.status).toBe(200);
+    expect((await legacy.json()).grant).toMatchObject({ name: "legacy-introspect", scopes: ["profile:read"], expiresAt: null });
+  });
+
   it("survives a restart: sessions, profiles, and conversations persist", async () => {
     // Sessions survive (server-side, durable).
     const restored = await accountForSessionToken(sql, alice.session);
@@ -273,6 +323,82 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     }
     return accounts as [typeof accounts[number], typeof accounts[number]];
   }
+
+  it("changes a password, rotates every session, and leaves agent grants alone", async () => {
+    const [owner] = await pair("password");
+    const ipKey = `password-${suffix}`;
+    const first = await loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey });
+    const second = await loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey });
+    const context = (await accountForSessionToken(sql, first.sessionToken))!;
+    const grant = await createAgentGrant(sql, owner.id, { name: "survives-password-change", scopes: ["profile:read"] });
+    const storedHash = async () => (await sql`SELECT password_hash FROM network_accounts WHERE id = ${owner.id}`)[0]!.password_hash as string;
+    const hashBefore = await storedHash();
+
+    await expect(changePassword(sql, context, { currentPassword: "WrongPassword123", newPassword: "FreshPassword456" })).rejects.toMatchObject({ code: "credentials" });
+    await expect(changePassword(sql, context, { currentPassword: "TestPassword123", newPassword: "TestPassword123" })).rejects.toMatchObject({ code: "invalid" });
+    await expect(changePassword(sql, context, { currentPassword: "TestPassword123", newPassword: "weak" })).rejects.toMatchObject({ code: "invalid" });
+    await expect(changePassword(sql, context, { currentPassword: 42, newPassword: "FreshPassword456" })).rejects.toMatchObject({ code: "credentials" });
+    expect(await storedHash()).toBe(hashBefore);
+    expect(await accountForSessionToken(sql, second.sessionToken)).not.toBeNull();
+
+    const changed = await changePassword(sql, context, { currentPassword: "TestPassword123", newPassword: "FreshPassword456" });
+    // The registration session and the second sign-in; the caller's own session is replaced, not counted.
+    expect(changed.revokedSessions).toBe(2);
+    expect(await storedHash()).not.toBe(hashBefore);
+    expect((await storedHash()).startsWith("scrypt$")).toBe(true);
+    expect(await accountForSessionToken(sql, first.sessionToken)).toBeNull();
+    expect(await accountForSessionToken(sql, second.sessionToken)).toBeNull();
+    expect((await accountForSessionToken(sql, changed.sessionToken))?.account.id).toBe(owner.id);
+    expect(await countOtherSessions(sql, owner.id, (await accountForSessionToken(sql, changed.sessionToken))!.sessionId)).toBe(0);
+    await expect(loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey })).rejects.toMatchObject({ code: "credentials" });
+    expect((await loginAccount(sql, { email: owner.email, password: "FreshPassword456", ipKey })).account.id).toBe(owner.id);
+    // Agent grants are separate owner-issued credentials, managed under Agent access.
+    expect((await resolveAgentToken(sql, `Bearer ${grant.token}`))?.accountId).toBe(owner.id);
+  });
+
+  it("lets only one of two concurrent password changes win", async () => {
+    const [owner] = await pair("pwrace");
+    const signedIn = await loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey: `pwrace-${suffix}` });
+    const context = (await accountForSessionToken(sql, signedIn.sessionToken))!;
+    const results = await Promise.allSettled([
+      changePassword(sql, context, { currentPassword: "TestPassword123", newPassword: "RaceWinnerA123" }),
+      changePassword(sql, context, { currentPassword: "TestPassword123", newPassword: "RaceWinnerB123" }),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const failure = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
+    expect(["conflict", "credentials"]).toContain((failure.reason as { code?: string }).code);
+    const winner = (results.find((result) => result.status === "fulfilled") as PromiseFulfilledResult<{ sessionToken: string }>).value;
+    expect((await accountForSessionToken(sql, winner.sessionToken))?.account.id).toBe(owner.id);
+    expect((await sql`SELECT count(*)::int AS live FROM network_sessions WHERE account_id = ${owner.id} AND revoked_at IS NULL AND expires_at > now()`)[0]!.live).toBe(1);
+  });
+
+  it("rate-limits password change attempts per account", async () => {
+    const [owner] = await pair("pwlimit");
+    const signedIn = await loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey: `pwlimit-${suffix}` });
+    const context = (await accountForSessionToken(sql, signedIn.sessionToken))!;
+    for (let attempt = 0; attempt < PASSWORD_CHANGE_LIMIT; attempt++) {
+      await expect(changePassword(sql, context, { currentPassword: "WrongPassword123", newPassword: "FreshPassword456" })).rejects.toMatchObject({ code: "credentials" });
+    }
+    await expect(changePassword(sql, context, { currentPassword: "TestPassword123", newPassword: "FreshPassword456" })).rejects.toMatchObject({ code: "rate-limited" });
+    expect((await accountForSessionToken(sql, signedIn.sessionToken))?.account.id).toBe(owner.id);
+  });
+
+  it("signs out other sessions and counts only live ones", async () => {
+    const [owner] = await pair("others");
+    const ipKey = `others-${suffix}`;
+    const keep = await loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey });
+    const other = await loginAccount(sql, { email: owner.email, password: "TestPassword123", ipKey });
+    const context = (await accountForSessionToken(sql, keep.sessionToken))!;
+    await sql`INSERT INTO network_sessions (account_id, token_hash, expires_at) VALUES (${owner.id}, ${`others-expired-${suffix}`}, now() - INTERVAL '1 hour')`;
+    await sql`INSERT INTO network_sessions (account_id, token_hash, expires_at, revoked_at) VALUES (${owner.id}, ${`others-revoked-${suffix}`}, now() + INTERVAL '1 day', now())`;
+    // The registration session and the second sign-in are live; expired and revoked rows are not.
+    expect(await countOtherSessions(sql, owner.id, context.sessionId)).toBe(2);
+    expect(await revokeOtherSessions(sql, owner.id, context.sessionId)).toBe(2);
+    expect(await countOtherSessions(sql, owner.id, context.sessionId)).toBe(0);
+    expect(await accountForSessionToken(sql, other.sessionToken)).toBeNull();
+    expect((await accountForSessionToken(sql, keep.sessionToken))?.sessionId).toBe(context.sessionId);
+    expect(await revokeOtherSessions(sql, owner.id, context.sessionId)).toBe(0);
+  });
 
   it("prunes expired auth state on sign-in and keeps live state", async () => {
     const [owner] = await pair("prune");

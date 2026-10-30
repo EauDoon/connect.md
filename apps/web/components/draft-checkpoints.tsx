@@ -4,13 +4,12 @@ import React, { useState } from "react";
 import { useDraft } from "@/components/draft-provider";
 import { Button } from "@/components/ui/button";
 import { downloadMarkdown, markdownDownloadName } from "@/components/publish-panel";
-import { compareDrafts } from "@/lib/draft-comparison";
+import { LineDiffView } from "@/components/line-diff-view";
 
 export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => void }) {
   const { checkpoints, saveCheckpoint, renameCheckpoint, restoreCheckpoint, removeCheckpoint, masked, markdown, kind } = useDraft();
   const [comparisonId, setComparisonId] = useState<number | null>(null);
   const selected = checkpoints.find((entry) => entry.id === comparisonId);
-  const comparison = selected ? compareDrafts(selected.markdown, markdown) : null;
   const [renaming, setRenaming] = useState<number | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const [label, setLabel] = useState("");
@@ -73,14 +72,10 @@ export function DraftCheckpoints({ onBeforeAction }: { onBeforeAction?: () => vo
         </form>}
       </li>)}
     </ul>
-    {selected && comparison && <section aria-label="Checkpoint comparison" className="mt-4 min-w-0 rounded-xl border border-white/10 p-3 text-xs leading-5 text-mist">
+    {selected && <section aria-label="Checkpoint comparison" className="mt-4 min-w-0 rounded-xl border border-white/10 p-3 text-xs leading-5 text-mist">
       <h3 className="text-sm font-semibold text-white">{selected.label} compared with the current draft</h3>
       {selected.kind !== kind && <p className="mt-2 text-amber-100">Document type changed from {selected.kind} to {kind}.</p>}
-      <p className="mt-2">{comparison.identical ? "The Markdown bytes match exactly." : `Changed region starts at line ${comparison.firstChangedLine}: ${comparison.removedLines} previous lines, ${comparison.addedLines} current lines. Unchanged lines between separate edits may appear here.`}</p>
-      {!comparison.identical && <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
-        {[ ["Checkpoint", comparison.before], ["Current draft", comparison.after] ].map(([title, text]) => <div key={title} className="min-w-0"><h4 className="font-semibold text-white">{title}</h4><pre tabIndex={0} aria-label={`${title} changed region`} className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-black/20 p-3">{text || "(No lines)"}</pre></div>)}
-      </div>}
-      {comparison.truncated && <p className="mt-2 text-amber-100">Display limited to 80 lines and 12,000 characters per side. Restore or download the full document to inspect all content.</p>}
+      <LineDiffView before={selected.markdown} after={markdown} label={`Changes from ${selected.label} to the current draft`} beforeTitle="Checkpoint" afterTitle="Current draft" />
       <Button variant="ghost" className="mt-2" onClick={() => setComparisonId(null)}>Close comparison</Button>
     </section>}
   </details>;

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { compareDrafts } from "@/lib/draft-comparison";
+import { LineDiffView } from "@/components/line-diff-view";
 import { findSourceMatches, replaceSourceMatches } from "@/lib/source-search";
 
 export function SourceSearch({ markdown, onChange, onSelect }: { markdown: string; onChange: (value: string) => void; onSelect: (start: number, end: number) => void }) {
@@ -14,7 +14,6 @@ export function SourceSearch({ markdown, onChange, onSelect }: { markdown: strin
   const [index, setIndex] = useState(-1);
   const [preview, setPreview] = useState<{ before: string; after: string; settings: string } | null>(null);
   const settings = JSON.stringify([query, replacement, matchCase, wholeWord, bodyOnly]);
-  const comparison = preview ? compareDrafts(preview.before, preview.after) : null;
   const [message, setMessage] = useState("");
   const search = useMemo(() => {
     try { return { ...findSourceMatches(markdown, query, { matchCase, wholeWord, bodyOnly }), error: "" }; }
@@ -52,12 +51,11 @@ export function SourceSearch({ markdown, onChange, onSelect }: { markdown: strin
       <Button variant="secondary" disabled={selected < 0} onClick={() => replace(selected)}>Review match replacement</Button>
       <Button variant="secondary" disabled={!search.matches.length || search.limited} onClick={() => replace("all")}>Review all replacements</Button>
     </div>
-    {preview && comparison && <section aria-label="Replacement review" className="mt-3 text-xs text-mist">
-      <p>{comparison.identical ? "This replacement would not change the source." : `Changed region starts at line ${comparison.firstChangedLine}. Review the source before applying.`}</p>
-      <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">{[["Before replacement", comparison.before], ["After replacement", comparison.after]].map(([title, value]) => <div key={title} className="min-w-0"><h3>{title}</h3><pre tabIndex={0} aria-label={title} className="max-h-48 overflow-auto whitespace-pre-wrap break-all bg-black/20 p-2">{value || "(No lines)"}</pre></div>)}</div>
-      {comparison.truncated && <p>Preview is limited to 80 lines and 12,000 characters per side.</p>}
+    {preview && <section aria-label="Replacement review" className="mt-3 min-w-0 text-xs text-mist">
+      <p>{preview.before === preview.after ? "This replacement would not change the source." : "Review every change before applying."}</p>
+      {preview.before !== preview.after && <LineDiffView before={preview.before} after={preview.after} label="Replacement changes" beforeTitle="Before replacement" afterTitle="After replacement" />}
       {(preview.before !== markdown || preview.settings !== settings) && <p role="alert">Source or search settings changed. Review the replacement again.</p>}
-      <div className="mt-2 flex flex-wrap gap-2"><Button variant="secondary" disabled={comparison.identical || preview.before !== markdown || preview.settings !== settings} onClick={() => {
+      <div className="mt-2 flex flex-wrap gap-2"><Button variant="secondary" disabled={preview.before === preview.after || preview.before !== markdown || preview.settings !== settings} onClick={() => {
         if (preview.before !== markdown || preview.settings !== settings) return;
         onChange(preview.after); setPreview(null); setIndex(-1); setMessage("Reviewed replacement applied. Session recovery can undo this replacement.");
       }}>Apply reviewed replacement</Button><Button variant="ghost" onClick={() => setPreview(null)}>Cancel replacement</Button></div>
