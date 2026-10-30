@@ -397,6 +397,17 @@ describe.skipIf(DATABASE_URL === "")("network MVP acceptance (two-user journey)"
     await expect(sendMessage(sql, first.id, conversation.id, "closed by recipient")).rejects.toMatchObject({ code: "blocked" });
   });
 
+  it("cuts the inbox preview between characters, never inside an emoji", async () => {
+    const [first, second] = await pair("preview");
+    const request = await sendContactRequest(sql, first.id, second.handle);
+    await decideContactRequest(sql, second.id, request.id, "accept");
+    const conversation = (await listConversations(sql, first.id))[0]!;
+    // 119 characters put the emoji's UTF-16 surrogate pair across the 120th code unit.
+    await sendMessage(sql, first.id, conversation.id, `${"a".repeat(119)}\u{1F600} and more`);
+    const [listed] = await listConversations(sql, second.id);
+    expect(listed?.lastMessagePreview).toBe(`${"a".repeat(119)}\u{1F600}`);
+  });
+
   async function queuedTogether(first: string, second: string, actions: (() => Promise<unknown>)[]) {
     const pending: Promise<PromiseSettledResult<unknown>[]>[] = [];
     // Observing waiters must never compete with the barrier and blocked
