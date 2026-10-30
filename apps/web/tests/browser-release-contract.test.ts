@@ -248,6 +248,16 @@ describe("production browser release gate", () => {
     expect(workflow).toContain("audit_with_retry --omit=dev");
   });
 
+  it("repeats the production npm audit on a schedule so advisories fail on main between pushes", () => {
+    const workflow = source(".github/workflows/audit.yml");
+
+    expect(workflow).toContain("schedule:");
+    expect(workflow).toContain("working-directory: apps/web");
+    expect(workflow).toContain('timeout 120 npm audit "$@"');
+    expect(workflow).toContain("audit_with_retry --omit=dev");
+    expect(workflow).not.toContain("npm ci");
+  });
+
   it("binds the browser gate to the exact deterministic build-input receipt and Next BUILD_ID", () => {
     const buildScript = source("apps/web/scripts/build-production-e2e.mjs");
     const harness = harnessSources();
