@@ -48,25 +48,25 @@ test("first save, conflict preservation, publication, and contact termination wo
       await expect(actor.getByTestId("profile-save")).toBeEnabled();
     }
     const source = starterFor("profile");
-    await page.getByLabel("Profile Markdown").fill(source);
+    await page.getByLabel("Profile Markdown", { exact: true }).fill(source);
     await page.getByTestId("profile-save").click();
     await expect(page.getByTestId("network-status")).toContainText("Profile saved");
     await expect(page.getByTestId("profile-publish")).toBeEnabled();
 
     const staleTab = await page.context().newPage();
     await staleTab.goto("/network");
-    await expect(staleTab.getByLabel("Profile Markdown")).toHaveValue(source);
+    await expect(staleTab.getByLabel("Profile Markdown", { exact: true })).toHaveValue(source);
     const stalePublication = await page.context().newPage();
     await stalePublication.goto("/network");
     await expect(stalePublication.getByTestId("profile-publish")).toBeEnabled();
-    await page.getByLabel("Profile Markdown").fill(source + "\nSaved revision.\n");
+    await page.getByLabel("Profile Markdown", { exact: true }).fill(source + "\nSaved revision.\n");
     await page.getByTestId("profile-save").click();
     await expect(page.getByTestId("network-status")).toContainText("Profile saved");
     const unsaved = source + "\nKeep these unsaved edits.\n";
-    await staleTab.getByLabel("Profile Markdown").fill(unsaved);
+    await staleTab.getByLabel("Profile Markdown", { exact: true }).fill(unsaved);
     await staleTab.getByTestId("profile-save").click();
     await expect(staleTab.getByRole("button", { name: "Discard edits and reload saved profile" })).toBeVisible();
-    await expect(staleTab.getByLabel("Profile Markdown")).toHaveValue(unsaved);
+    await expect(staleTab.getByLabel("Profile Markdown", { exact: true })).toHaveValue(unsaved);
     await staleTab.close();
     await stalePublication.getByTestId("profile-publish").click();
     await expect(stalePublication.getByRole("button", { name: "Discard edits and reload saved profile" })).toBeVisible();
@@ -75,11 +75,11 @@ test("first save, conflict preservation, publication, and contact termination wo
 
     await page.getByTestId("profile-publish").click();
     await expect(page.getByTestId("profile-visibility")).toHaveText("published");
-    await expect(page.getByLabel("Profile Markdown")).toBeDisabled();
+    await expect(page.getByLabel("Profile Markdown", { exact: true })).toBeDisabled();
     const publicResponse = await page.request.get(`/api/network/v1/public/profiles/${firstHandle}`);
     expect(publicResponse.ok()).toBe(true);
     await page.getByTestId("profile-unpublish").click();
-    await expect(page.getByLabel("Profile Markdown")).toBeEnabled();
+    await expect(page.getByLabel("Profile Markdown", { exact: true })).toBeEnabled();
     expect((await page.request.get(`/api/network/v1/public/profiles/${firstHandle}`)).status()).toBe(404);
 
     await page.getByLabel("Grant name", { exact: true }).fill("journey-agent");
