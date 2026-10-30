@@ -32,7 +32,7 @@ The download gate accepts an optional local filename and shows the sanitized `.m
 
 ## Act on review findings
 
-Line links in Sharing and Writing review open the same draft in Markdown Mode, select the corresponding source line, and focus the plain-text editor. The request stays in memory; document text is never put into URLs. Review checks remain advisory and do not redact, approve, or block source content.
+Line links in Validation, Sharing review, and Writing review open the same draft in Markdown Mode, select the corresponding source line, and focus the plain-text editor. Validation links point at the frontmatter key of a failing field, the line a YAML error names, the first unknown field, the first malformed heading, a wrong or extra level-one heading, a duplicated or out-of-order required heading, or the first unsafe HTML tag. Missing fields and flow-style frontmatter have no single line, so those issues carry no link. The request stays in memory; document text is never put into URLs. Review checks remain advisory and do not redact, approve, or block source content.
 
 ## Focus the workspace
 

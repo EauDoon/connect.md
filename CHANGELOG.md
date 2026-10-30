@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A weekly `Dependency audit` workflow repeats the production npm audit and the production pip-audit against `main`, so advisories published between pushes fail on `main` instead of first appearing on unrelated pull requests.
 - Checkpoint comparisons, the comparison with the last Markdown download, and replacement reviews show a multi-hunk line diff: each separate edit is its own hunk with previous and current line numbers, three lines of context, -/+ markers, and screen-reader labels. Past 1,000 separate line changes the view falls back to the changed-region comparison and says so. The download comparison is computed only while it is open.
+- Validation issues link to the source line that caused them, as Sharing and Writing review findings already did: the key of a failing frontmatter field, the line a YAML error names, the first unknown field, the first malformed heading, a wrong or extra level-one heading, a duplicated or out-of-order required heading, and the first unsafe HTML tag. `ValidationIssue` gains an optional `line`; every message is unchanged.
 
 ### Fixed
 

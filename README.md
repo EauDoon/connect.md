@@ -74,7 +74,7 @@ network boundary and its separate launch checks.
 
 - Guided profile and resume composition in Human Mode.
 - Local reopening of an existing UTF-8 `.md` file.
-- Direct Markdown editing with the existing schema validation.
+- Direct Markdown editing with the existing schema validation, whose issues link to the source line that caused them.
 - Sanitized local preview.
 - Local .md download after validation.
 - A bounded agent drafting runbook at /agent-readme.md.

@@ -152,43 +152,52 @@ function yamlLinePos(error: unknown): { line: number; column: number } | null {
   return { line, column };
 }
 
-function documentLocationFromYamlLine(line: number, column: number) {
-  return ` at line ${line + 1}, column ${column}`;
+type DocumentPosition = { line: number; column: number };
+
+/** YAML reports lines within the frontmatter; the document adds the opening --- line. */
+function documentPositionFromYamlLine(line: number, column: number): DocumentPosition {
+  return { line: line + 1, column };
 }
 
-function frontmatterYamlLocation(error: unknown) {
+function describePosition(position: DocumentPosition | null) {
+  return position ? ` at line ${position.line}, column ${position.column}` : "";
+}
+
+function frontmatterYamlPosition(error: unknown): DocumentPosition | null {
   const position = yamlLinePos(error);
-  if (position) return documentLocationFromYamlLine(position.line, position.column);
+  if (position) return documentPositionFromYamlLine(position.line, position.column);
   const message = error instanceof Error ? error.message : "";
   const match = message.match(/at line (\d+), column (\d+)/u);
-  if (!match) return "";
+  if (!match) return null;
   const line = Number(match[1]);
   const column = Number(match[2]);
-  if (!Number.isInteger(line) || line < 1 || !Number.isInteger(column) || column < 1) return "";
-  return documentLocationFromYamlLine(line, column);
+  if (!Number.isInteger(line) || line < 1 || !Number.isInteger(column) || column < 1) return null;
+  return documentPositionFromYamlLine(line, column);
 }
 
-function firstYamlAliasLocation(frontmatter: string) {
+function firstYamlAliasPosition(frontmatter: string): DocumentPosition | null {
   const match = /(?:^|[\s[{,])\*([A-Za-z0-9_-]+)/u.exec(frontmatter);
-  if (!match || match.index === undefined) return "";
+  if (!match || match.index === undefined) return null;
   const star = match.index + (match[0].startsWith("*") ? 0 : 1);
   const prefix = frontmatter.slice(0, star);
-  return documentLocationFromYamlLine(prefix.split("\n").length, star - prefix.lastIndexOf("\n"));
+  return documentPositionFromYamlLine(prefix.split("\n").length, star - prefix.lastIndexOf("\n"));
 }
 
-function describeFrontmatterYamlError(error: unknown, frontmatter: string) {
+function describeFrontmatterYamlError(error: unknown, frontmatter: string): { message: string; line: number | null } {
   const message = (error instanceof Error ? error.message.split("\n")[0] : "unknown parser error")
     .replace(/\s+at line \d+, column \d+:?$/u, "")
     .replace(/:$/u, "");
   const isAlias = /alias/iu.test(message);
-  const location = frontmatterYamlLocation(error) || (isAlias ? firstYamlAliasLocation(frontmatter) : "");
-  if (isAlias) return `YAML aliases are not allowed in frontmatter${location}.`;
+  const position = frontmatterYamlPosition(error) ?? (isAlias ? firstYamlAliasPosition(frontmatter) : null);
+  const location = describePosition(position);
+  const line = position?.line ?? null;
+  if (isAlias) return { message: `YAML aliases are not allowed in frontmatter${location}.`, line };
   const duplicate = message.match(/Map keys must be unique(?:; ["']([^"']+)["'] is repeated)?/u);
   if (duplicate) {
     const key = duplicate[1] ? ` '${duplicate[1]}'` : "";
-    return `Frontmatter contains a duplicate YAML key${key}${location}.`;
+    return { message: `Frontmatter contains a duplicate YAML key${key}${location}.`, line };
   }
-  return `Frontmatter YAML is invalid${location}: ${message || "unknown parser error"}`;
+  return { message: `Frontmatter YAML is invalid${location}: ${message || "unknown parser error"}`, line };
 }
 
 type FrontmatterInspection = {
@@ -196,34 +205,37 @@ type FrontmatterInspection = {
   body: string;
   hasFrontmatter: boolean;
   issue: string | null;
+  /** 1-based line of the editor source the issue points at, when known. */
+  issueLine: number | null;
 };
 
 function inspectFrontmatter(markdown: string): FrontmatterInspection {
   const emptyAttributes = {} as Record<string, unknown>;
   if (utf8ByteLength(markdown) > PROFILE_RESUME_MAX_UTF8_BYTES * 2) {
-    return { attributes: emptyAttributes, body: "", hasFrontmatter: false, issue: canonicalSizeMessage() };
+    return { attributes: emptyAttributes, body: "", hasFrontmatter: false, issue: canonicalSizeMessage(), issueLine: null };
   }
   const draftSource = normaliseDraftSource(markdown);
   if (utf8ByteLength(draftSource) > PROFILE_RESUME_MAX_UTF8_BYTES) {
-    return { attributes: emptyAttributes, body: draftSource, hasFrontmatter: false, issue: canonicalSizeMessage() };
+    return { attributes: emptyAttributes, body: draftSource, hasFrontmatter: false, issue: canonicalSizeMessage(), issueLine: null };
   }
   const source = normaliseMarkdown(draftSource);
   if (utf8ByteLength(source) > PROFILE_RESUME_MAX_UTF8_BYTES) {
-    return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: canonicalSizeMessage() };
+    return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: canonicalSizeMessage(), issueLine: null };
   }
   if (isEmptyDraftSource(source)) {
-    return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: EMPTY_DRAFT_ISSUE };
+    return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: EMPTY_DRAFT_ISSUE, issueLine: null };
   }
   const match = source.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: MISSING_FRONTMATTER_ISSUE };
+  if (!match) return { attributes: emptyAttributes, body: source, hasFrontmatter: false, issue: MISSING_FRONTMATTER_ISSUE, issueLine: 1 };
   try {
     const parsed = YAML.parse(match[1], FRONTMATTER_YAML_OPTIONS);
     if (!isRecord(parsed)) {
-      return { attributes: emptyAttributes, body: match[2], hasFrontmatter: true, issue: "Frontmatter must contain a YAML object." };
+      return { attributes: emptyAttributes, body: match[2], hasFrontmatter: true, issue: "Frontmatter must contain a YAML object.", issueLine: 2 };
     }
-    return { attributes: parsed, body: match[2], hasFrontmatter: true, issue: null };
+    return { attributes: parsed, body: match[2], hasFrontmatter: true, issue: null, issueLine: null };
   } catch (error) {
-    return { attributes: emptyAttributes, body: match[2], hasFrontmatter: true, issue: describeFrontmatterYamlError(error, match[1]) };
+    const described = describeFrontmatterYamlError(error, match[1]);
+    return { attributes: emptyAttributes, body: match[2], hasFrontmatter: true, issue: described.message, issueLine: described.line };
   }
 }
 
@@ -251,6 +263,12 @@ export function splitFrontmatter(markdown: string) {
 
 export function frontmatterParseIssue(markdown: string) {
   return inspectFrontmatter(markdown).issue;
+}
+
+/** The frontmatter issue with the editor line it points at, when one is known. */
+export function frontmatterParseIssueDetail(markdown: string): { message: string; line: number | null } | null {
+  const { issue, issueLine } = inspectFrontmatter(markdown);
+  return issue === null ? null : { message: issue, line: issueLine };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -250,6 +250,21 @@ test("review links return from Guided to exact source and layouts remain usable 
   await page.screenshot({ path: test.info().outputPath("revised-authoring-mobile.png"), fullPage: true });
 });
 
+test("validation issues link to the exact source line that caused them", async ({ page }) => {
+  await page.goto("/md");
+  await page.getByRole("radio", { name: "Plain-text editor", exact: true }).check();
+  const source = page.getByRole("textbox", { name: "Canonical Markdown source" });
+  const draft = profileStarter.replace("## Experience", "##  Experience");
+  const line = draft.split("\n").indexOf("##  Experience") + 1;
+  await source.fill(draft);
+  const validation = page.locator("section[aria-labelledby=validation-title]");
+  await expect(validation).toContainText("exactly one space after the # markers");
+  await validation.getByRole("link", { name: `Edit line ${line} in Markdown`, exact: true }).click();
+  await expect(page).toHaveURL(/\/md$/u);
+  await expect(source).toBeFocused();
+  expect(await source.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd))).toBe("##  Experience");
+});
+
 test("pasted imports fail closed and detect resume kind without uploading", async ({ page }) => {
   const writes: string[] = [];
   page.on("request", (request) => { if (request.method() !== "GET") writes.push(request.url()); });
