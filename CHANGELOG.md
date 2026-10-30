@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The web runtime moves to Next.js 15.5.28 (GHSA-2464-fhr4-w9xw, GHSA-p3m5-59mp-jv5r) and the Monaco DOMPurify override to 3.4.17 (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f), so the production npm audit passes again.
 - The API hash locks move certifi to 2026.10.23, Pillow to 13.0.0, and pypdf to 6.21.4, clearing the 51 advisories that failed the production pip-audit.
+- The CI-only API test lock moves filelock to 4.2.5 and msgpack to 1.2.4 (both through cachecontrol), clearing the 12 filelock advisories and the msgpack advisory GHSA-j586-36cw-2gc2 that pip-audit reported for `requirements-test.lock`. The production `requirements.lock` does not contain either package.
 
 ## [0.3.0] - 2026-10-09
 
