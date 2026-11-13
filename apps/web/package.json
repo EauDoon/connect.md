@@ -21,13 +21,13 @@
     "network:migrate": "node --experimental-strip-types scripts/network-migrate.mts"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.9.21",
+    "@clerk/nextjs": "^7.9.25",
     "@monaco-editor/react": "^4.7.0",
     "clsx": "^2.1.1",
-    "framer-motion": "^14.7.1",
-    "lucide-react": "^1.62.0",
+    "framer-motion": "^14.12.0",
+    "lucide-react": "^1.71.0",
     "monaco-editor": "0.56.0",
-    "next": "15.5.28",
+    "next": "15.5.29",
     "postgres": "^3.4.9",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -40,17 +40,17 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
     "@playwright/test": "1.62.1",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.6.2",
     "axe-core": "4.12.1",
     "eslint": "^9.33.0",
-    "eslint-config-next": "15.5.28",
+    "eslint-config-next": "15.5.29",
     "postcss": "8.5.32",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
-    "vitest": "5.0.5"
+    "vitest": "5.1.0"
   },
   "overrides": {
     "postcss": "$postcss",
