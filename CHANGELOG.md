@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Local maintenance
 
+- Update the production and test Python locks to Soup Sieve 4.1.1 to clear dependency audit findings. The guest web application and its dependency lock are unchanged by this dependency update.
+
 - Line comparison rejects negative, fractional and non-finite context sizes before constructing hunks; very large valid context sizes are bounded to the input.
 
 ### Added
