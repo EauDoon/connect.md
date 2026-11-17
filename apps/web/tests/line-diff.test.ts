@@ -139,3 +139,16 @@ describe("bounded line diff", () => {
     ]);
   });
 });
+
+describe("diff context validation", () => {
+  it.each([-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])("rejects invalid context %s before indexing operations", (context) => {
+    expect(() => diffLines("before", "after", { context })).toThrow(RangeError);
+    expect(() => diffLines("same", "same", { context })).toThrow(RangeError);
+  });
+  it("accepts zero and bounds very large integer context without losing edits", () => {
+    expect(diffLines("before", "after", { context: 0 }).exact).toBe(true);
+    const result = diffLines("before", "after", { context: Number.MAX_SAFE_INTEGER });
+    expect(result.exact).toBe(true);
+    expect(applyHunks("before", result.hunks)).toBe("after");
+  });
+});
