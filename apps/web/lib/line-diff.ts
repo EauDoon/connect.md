@@ -98,6 +98,12 @@ function interned(lines: string[], table: Map<string, number>) {
 
 /** Compare two sources line by line. Inputs are expected to be bounded drafts (128 KiB). */
 export function diffLines(before: string, after: string, { context = 3 }: { context?: number } = {}): LineDiff {
+  if (!Number.isSafeInteger(context) || context < 0) {
+    throw new RangeError("Diff context must be a non-negative safe integer.");
+  }
+  // Context beyond the input length adds no information. Bound arithmetic as
+  // well as display work when callers request very large valid values.
+  context = Math.min(context, Math.max(before.length, after.length));
   if (before === after) return { identical: true, exact: true, hunks: [], totalHunks: 0, addedLines: 0, removedLines: 0, truncated: false };
   const previous = before.split("\n");
   const current = after.split("\n");

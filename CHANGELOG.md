@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Local maintenance
+
+- Line comparison rejects negative, fractional and non-finite context sizes before constructing hunks; very large valid context sizes are bounded to the input.
+
 ### Added
 
 - A weekly `Dependency audit` workflow repeats the production npm audit and the production pip-audit against `main`, so advisories published between pushes fail on `main` instead of first appearing on unrelated pull requests.
