@@ -9391,6 +9391,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     digest=receipt_digest,
                 ),
             )
+        except PostModerationConflictError as exc:
+            # A matching request may commit after the last receipt check on
+            # databases without row locks. Discard this attempt before replaying
+            # only the winner's fully validated receipt, if one now exists.
+            await session.rollback()
+            replay = await idempotency_replay(
+                session, request, principal, key, operation, fingerprint
+            )
+            if replay is not None:
+                return replay
+            raise_moderation_review_error(exc)
         except PostModerationError as exc:
             raise_moderation_review_error(exc)
         return Response(status_code=204, headers=moderation_review_headers())

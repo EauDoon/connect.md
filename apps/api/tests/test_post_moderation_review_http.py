@@ -5,8 +5,10 @@ import json
 from base64 import urlsafe_b64encode
 from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import select
 
+import app.main as main_module
 from app.auth import Principal, optional_principal, require_principal
 from app.models import (
     IdempotencyRecord,
@@ -445,6 +447,111 @@ async def test_case_review_replay_fails_closed_on_current_fact_or_storage_tamper
     restored = await decide_case(client, case_id, etag, key)
     assert restored.status_code == 204
     assert restored.headers["idempotency-replayed"] == "true"
+
+
+@pytest.mark.parametrize("second_request", ["matching", "different_key", "different_body"])
+async def test_appeal_review_reconciles_committed_receipt_after_state_conflict(
+    api_client, monkeypatch, second_request: str
+) -> None:
+    """Schedule ordinary requests across SQLite's missing row-lock boundary."""
+    app, client, _post_id, case_id = await seed_open_case(api_client)
+    configured(app)
+    as_principal(app, staff(MODERATOR))
+    detail = await case_detail(client, case_id)
+    decided = await decide_case(client, case_id, detail.headers["etag"], "race-seed-decision")
+    assert decided.status_code == 204
+    as_principal(app, human("subject-private"))
+    created = await client.post(
+        f"/v1/moderation/cases/{case_id}/appeals",
+        json={"rationale": "Please review this fictional decision."},
+        headers={"Idempotency-Key": "race-seed-appeal"},
+    )
+    assert created.status_code == 201
+    appeal_id = created.json()["id"]
+    as_principal(app, staff(APPEAL_REVIEWER))
+    detail = await client.get(f"/v1/internal/post-moderation/appeals/{appeal_id}")
+    assert detail.status_code == 200
+    path = f"/v1/internal/post-moderation/appeals/{appeal_id}/decision"
+    headers = {"If-Match": detail.headers["etag"], "Idempotency-Key": "race-review"}
+    body = {"action": "overturn", "subject_explanation": "A fictional independent review."}
+    second_headers = dict(headers)
+    second_body = dict(body)
+    if second_request == "different_key":
+        second_headers["Idempotency-Key"] = "race-review-other"
+    elif second_request == "different_body":
+        second_body["subject_explanation"] = "A different fictional explanation."
+
+    first_entered = asyncio.Event()
+    both_entered = asyncio.Event()
+    committed = asyncio.Event()
+    original_review = main_module.review_appeal
+    calls = 0
+
+    async def coordinated_review(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            first_entered.set()
+            await asyncio.wait_for(both_entered.wait(), timeout=10)
+        else:
+            both_entered.set()
+            # Both handlers already checked for a receipt. Only the winner
+            # commits before the loser's service refreshes the appeal state.
+            await asyncio.wait_for(committed.wait(), timeout=10)
+        return await original_review(*args, **kwargs)
+
+    monkeypatch.setattr(main_module, "review_appeal", coordinated_review)
+
+    async def first_request():
+        response = await client.post(path, json=body, headers=headers)
+        if response.status_code == 204:
+            committed.set()
+        return response
+
+    tasks = [asyncio.create_task(first_request())]
+    try:
+        await asyncio.wait_for(first_entered.wait(), timeout=10)
+        tasks.append(asyncio.create_task(client.post(path, json=second_body, headers=second_headers)))
+        first, second = await asyncio.wait_for(asyncio.gather(*tasks), timeout=15)
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    assert first.status_code == 204, first.text
+    assert "idempotency-replayed" not in first.headers
+    if second_request == "matching":
+        assert second.status_code == 204, second.text
+        assert second.content == b""
+        assert second.headers["idempotency-replayed"] == "true"
+    else:
+        assert second.status_code == 409, second.text
+        assert "idempotency-replayed" not in second.headers
+        expected = (
+            "Idempotency-Key was already used for a different request"
+            if second_request == "different_body"
+            else "moderation review conflicts with current state"
+        )
+        assert second.json()["detail"] == expected
+
+    async with app.state.session_factory() as session:
+        receipts = list((await session.scalars(
+            select(IdempotencyRecord).where(
+                IdempotencyRecord.idempotency_key.in_(["race-review", "race-review-other"])
+            )
+        )).all())
+        events = list((await session.scalars(
+            select(ModerationAuditEvent).where(
+                ModerationAuditEvent.case_id == case_id,
+                ModerationAuditEvent.event_type == "appeal_overturned",
+            )
+        )).all())
+        appeal_row = await session.get(ModerationAppeal, appeal_id)
+        assert len(receipts) == 1 and receipts[0].idempotency_key == "race-review"
+        assert len(events) == 1
+        assert appeal_row is not None and appeal_row.status == "overturned"
+        assert appeal_row.subject_explanation == body["subject_explanation"]
 
 
 async def test_appeal_review_queue_detail_and_replay(api_client) -> None:
