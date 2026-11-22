@@ -306,6 +306,12 @@ test("outline selects source and downloaded review fingerprints exact bytes", as
   const source = page.getByRole("textbox", { name: "Canonical Markdown source" });
   await expect(source).toBeFocused();
   expect(await source.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd))).toBe("## About");
+  const setext = "Recent\nwork\n----";
+  await source.fill(`${profileStarter}\n${setext}\n`);
+  await page.getByLabel("Filter headings", { exact: true }).fill("recent work");
+  await page.getByRole("button", { name: /^Edit Recent work at line/ }).click();
+  await expect(source).toBeFocused();
+  expect(await source.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd))).toBe(setext);
   const draft = profileStarter.replaceAll("Your Name", "Avery Example") + "\nContact: person@example.invalid\n";
   await source.fill(draft);
   await page.getByText(/^Sharing review \(/).click();

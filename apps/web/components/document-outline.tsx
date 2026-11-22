@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { sourceLineRange } from "@/lib/source-line";
 import { documentMetrics, filterOutline, sectionExcerpt } from "@/lib/document-metrics";
 
-export function DocumentOutline({ markdown, onSelect }: { markdown: string; onSelect: (offset: number) => void }) {
+export function DocumentOutline({ markdown, onSelect }: { markdown: string; onSelect: (start: number, end: number) => void }) {
   const [excerpt, setExcerpt] = useState<{ title: string; markdown: string; source: string } | null>(null);
   const [exportMessage, setExportMessage] = useState("");
   const [filter, setFilter] = useState("");
@@ -23,7 +23,7 @@ export function DocumentOutline({ markdown, onSelect }: { markdown: string; onSe
       event.preventDefault();
       const range = sourceLineRange(markdown, Number(line));
       if (!range) { setError("Choose an existing source line."); return; }
-      setError(""); onSelect(range.start);
+      setError(""); onSelect(range.start, range.end);
     }}>
       <label className="text-xs text-mist">Source line<input type="number" min={1} step={1} required value={line} onChange={(event) => setLine(event.target.value)} className="mt-1 block w-28 rounded-lg border border-white/20 bg-black/20 p-2 text-sm text-white" /></label>
       <Button type="submit" variant="secondary" disabled={metrics.limited}>Go to line</Button>
@@ -33,7 +33,7 @@ export function DocumentOutline({ markdown, onSelect }: { markdown: string; onSe
     {filter && <p role="status" className="mt-2 text-xs text-mist">{headings.length} matching headings. <button type="button" className="min-h-11 underline" onClick={() => setFilter("")}>Clear heading filter</button></p>}
     <nav aria-label="Document outline" className="mt-2 max-h-60 overflow-auto">
       <ol>{headings.slice(0, 60).map((heading) => <li key={heading.start}>
-        <button type="button" onClick={() => onSelect(heading.start)} aria-label={`Edit ${heading.text.slice(0, 120)} at line ${heading.line}`} className="min-h-11 w-full break-words rounded-lg px-2 py-1 text-left text-xs text-mist hover:bg-white/5 hover:text-white">
+        <button type="button" onClick={() => onSelect(heading.start, heading.end)} aria-label={`Edit ${heading.text.slice(0, 120)} at line ${heading.line}`} className="min-h-11 w-full break-words rounded-lg px-2 py-1 text-left text-xs text-mist hover:bg-white/5 hover:text-white">
           <span className="mr-2 font-mono text-acid">H{heading.level} · {heading.line}</span>{heading.text.slice(0, 120)}
         </button>
         <Button variant="ghost" aria-label={`Review excerpt ${heading.text.slice(0, 120)} at line ${heading.line}`} onClick={() => {
