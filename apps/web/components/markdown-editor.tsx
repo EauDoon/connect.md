@@ -81,7 +81,7 @@ export function MarkdownEditor() {
 
           <section hidden={editorLayout === "preview"} aria-labelledby="editor-title" className="min-w-0">
             <SourceSearch markdown={markdown} onChange={replaceMarkdown} onSelect={(start, end) => { setPlainEditor(true); setSelectionOffset(start); setSelectionEnd(end); }} />
-            <DocumentOutline markdown={markdown} onSelect={(offset) => { setPlainEditor(true); setSelectionOffset(offset); }} />
+            <DocumentOutline markdown={markdown} onSelect={(start, end) => { setPlainEditor(true); setSelectionOffset(start); setSelectionEnd(end); }} />
             <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
               <h2 id="editor-title" className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white"><Code2 className="size-4 shrink-0 text-acid" aria-hidden /> Canonical Markdown</h2>
               <span className="min-w-0 break-words text-xs text-mist">UTF-8 · LF normalized</span>

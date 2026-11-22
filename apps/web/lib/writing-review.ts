@@ -1,5 +1,5 @@
 import { documentMetrics } from "@/lib/document-metrics";
-import { documentAnchors } from "@/lib/heading-anchors";
+import { anchorsForHeadings } from "@/lib/heading-anchors";
 import { markdownBody, normaliseMarkdown } from "@/lib/markdown";
 
 export type WritingFinding = { code: string; line: number; message: string };
@@ -26,8 +26,7 @@ export function reviewWriting(markdown: string) {
     if (headingLabels.has(label)) add("repeated-heading", heading.line, "This heading label appears earlier. Consider a more specific label if these sections serve different purposes.");
     headingLabels.add(label);
     const next = metrics.headings[index + 1];
-    const lineEnd = source.indexOf("\n", heading.start);
-    const content = source.slice(lineEnd < 0 ? source.length : lineEnd, next?.start ?? source.length).trim();
+    const content = source.slice(heading.end, next?.start ?? source.length).trim();
     if (!content && (!next || next.level <= heading.level)) add("empty-section", heading.line, "This heading has no content. Add a useful detail or remove the empty section.");
   }
   const body = markdownBody(source);
@@ -40,7 +39,7 @@ export function reviewWriting(markdown: string) {
     if (paragraphWords > 100) add("long-paragraph", paragraphLine, "This paragraph exceeds 100 space-separated words. Consider splitting it into shorter, concrete points.");
     paragraphWords = 0;
   };
-  const anchors = documentAnchors(source);
+  const anchors = anchorsForHeadings(metrics.headings);
   const checkDestination = (destination: string, line: number, noun: string) => {
     if (!destination) add("empty-link", line, `This ${noun} has no destination. Supply an address or remove the link markup.`);
     else if (destination.startsWith("#")) {

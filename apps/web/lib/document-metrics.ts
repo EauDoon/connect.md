@@ -1,4 +1,5 @@
-import { markdownBody, normaliseMarkdown, splitFrontmatter, PROFILE_RESUME_MAX_UTF8_BYTES, scanMarkdownHeadings } from "@/lib/markdown";
+import { bodyHeadings } from "@/lib/heading-anchors";
+import { markdownBody, normaliseMarkdown, splitFrontmatter, PROFILE_RESUME_MAX_UTF8_BYTES } from "@/lib/markdown";
 
 export function documentMetrics(markdown: string) {
   const bytes = new TextEncoder().encode(markdown).length;
@@ -6,20 +7,21 @@ export function documentMetrics(markdown: string) {
   const canonical = normaliseMarkdown(markdown);
   const body = markdownBody(canonical);
   const offset = canonical.length - body.length;
-  let cursor = 0;
-  let line = 1;
-  const headings = scanMarkdownHeadings(body).map((heading) => {
-    const start = offset + heading.start;
-    while (cursor < start) { if (canonical[cursor] === "\n") line++; cursor++; }
-    return { ...heading, start, line };
-  });
+  const firstBodyLine = canonical.slice(0, offset).split("\n").length;
+  const headings = bodyHeadings(body).map((heading) => ({
+    ...heading,
+    line: firstBodyLine + heading.line,
+    start: offset + heading.start,
+    end: offset + heading.end,
+  }));
   const words = (body.match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu) ?? []).length;
   return { bytes, words, readingMinutes: Math.ceil(words / 200), headings, limited: false };
 }
 
 export function filterOutline(headings: ReturnType<typeof documentMetrics>["headings"], query: string) {
-  const needle = query.trim().toLocaleLowerCase("en-US");
-  return headings.filter((heading) => heading.text.toLocaleLowerCase("en-US").includes(needle));
+  const normalize = (text: string) => text.trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
+  const needle = normalize(query);
+  return headings.filter((heading) => normalize(heading.text).includes(needle));
 }
 
 export function sectionExcerpt(markdown: string, start: number) {

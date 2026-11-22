@@ -26,6 +26,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^14.7.1",
     "lucide-react": "^1.62.0",
+    "mdast-util-to-string": "^4.0.0",
     "monaco-editor": "0.56.0",
     "next": "15.5.28",
     "postgres": "^3.4.9",
@@ -34,7 +35,9 @@
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
     "tailwind-merge": "^3.7.0",
+    "unified": "^11.0.5",
     "yaml": "^2.9.1"
   },
   "devDependencies": {

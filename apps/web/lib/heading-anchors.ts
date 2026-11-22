@@ -8,6 +8,10 @@
  * Markdown readers may slug differently, so fragment findings stay advisory.
  */
 
+import { toString } from "mdast-util-to-string";
+import remarkGfm from "remark-gfm";
+import remarkParse from "remark-parse";
+import { unified } from "unified";
 import { markdownBody } from "@/lib/markdown";
 
 export type AnchorRegistry = Map<string, number>;
@@ -40,54 +44,38 @@ export function headingText(source: string): string {
     .replace(/(^|[^\p{L}\p{N}_])_+([^_]+?)_+(?=$|[^\p{L}\p{N}_])/gu, "$1$2");
 }
 
-const FENCE = /^ {0,3}(`{3,}|~{3,})/u;
-const ATX = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$/u;
-const SETEXT = /^ {0,3}(?:=+|-+)[ \t]*$/u;
-const NOT_PARAGRAPH = /^(?: {0,3}(?:[-*+>]|\d{1,9}[.)])(?:[ \t]|$)| {0,3}\|| {4}|\t| {0,3}<| {0,3}(?:[-*_][ \t]*){3,}$)/u;
+// Match the parser and extensions used by MarkdownPreview. Only document-level
+// headings start outline sections; headings nested in lists or quotes do not.
+const parser = unified().use(remarkParse).use(remarkGfm).freeze();
 
-/** Headings in document order with their approximate rendered text. Fences and HTML comments are skipped. */
-export function documentHeadings(markdown: string): Array<{ text: string; line: number }> {
-  const headings: Array<{ text: string; line: number }> = [];
-  const body = markdownBody(markdown);
-  let fence: string | null = null;
-  let inComment = false;
-  let paragraph: { lines: string[]; line: number } | null = null;
-  for (const [index, line] of body.split("\n").entries()) {
-    if (fence) {
-      const closing = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/u)?.[1];
-      if (closing && closing[0] === fence[0] && closing.length >= fence.length) fence = null;
-      continue;
-    }
-    if (inComment) {
-      if (line.includes("-->")) inComment = false;
-      continue;
-    }
-    const opening = line.match(FENCE)?.[1];
-    if (opening) { fence = opening; paragraph = null; continue; }
-    if (/^ {0,3}<!--/u.test(line)) { if (!line.includes("-->")) inComment = true; paragraph = null; continue; }
-    const atx = line.match(ATX);
-    if (atx) {
-      const content = (atx[2] ?? "").replace(/(?:^|[ \t]+)#+$/u, "").trim();
-      headings.push({ text: headingText(content), line: index });
-      paragraph = null;
-      continue;
-    }
-    if (paragraph && SETEXT.test(line)) {
-      headings.push({ text: headingText(paragraph.lines.join("\n").trim()), line: paragraph.line });
-      paragraph = null;
-      continue;
-    }
-    if (!line.trim() || NOT_PARAGRAPH.test(line)) { paragraph = null; continue; }
-    if (paragraph) paragraph.lines.push(line.trim());
-    else paragraph = { lines: [line.trim()], line: index };
-  }
-  return headings;
+export function bodyHeadings(body: string) {
+  return parser.parse(body).children.flatMap((node) => {
+    if (node.type !== "heading" || !node.position) return [];
+    const { start, end } = node.position;
+    if (start.offset === undefined || end.offset === undefined) return [];
+    return [{
+      text: toString(node, { includeHtml: false, includeImageAlt: false }),
+      level: node.depth,
+      line: start.line - 1,
+      // The parser starts at the marker. Source selections include indentation.
+      start: start.offset - (start.column - 1),
+      end: end.offset,
+    }];
+  });
 }
 
-/** Every anchor the preview creates for this document, title included. */
-export function documentAnchors(markdown: string): Set<string> {
+export function documentHeadings(markdown: string) {
+  return bodyHeadings(markdownBody(markdown));
+}
+
+export function anchorsForHeadings(headings: ReadonlyArray<{ text: string }>): Set<string> {
   const seen: AnchorRegistry = new Map();
-  return new Set(documentHeadings(markdown).map((heading) => headingSlug(heading.text, seen)));
+  return new Set(headings.map((heading) => headingSlug(heading.text, seen)));
+}
+
+/** Every top-level heading anchor, title included. */
+export function documentAnchors(markdown: string): Set<string> {
+  return anchorsForHeadings(documentHeadings(markdown));
 }
 
 type HastNode = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] };
