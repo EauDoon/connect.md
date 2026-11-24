@@ -74,6 +74,8 @@ network boundary and its separate launch checks.
 
 ## What works
 
+For the next guest-editor release, review replacements separately in the body or YAML frontmatter before applying them. An empty metadata header does not hide the body; an unclosed header disables scoped replacement. The release check is a round trip through both scopes without changing the other region or its delimiters.
+
 - Guided profile and resume composition in Human Mode.
 - Local reopening of an existing UTF-8 `.md` file.
 - Direct Markdown editing with the existing schema validation, whose issues link to the source line that caused them.

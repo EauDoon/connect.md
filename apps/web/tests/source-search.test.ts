@@ -40,4 +40,14 @@ it("offers a review step before changing source", () => {
   const html = renderToStaticMarkup(React.createElement(SourceSearch, { markdown: "Cat", onChange: () => {}, onSelect: () => {} }));
   expect(html).toContain("Review all replacements");
   expect(html).toContain("Review match replacement");
+  expect(html).toContain("Frontmatter only");
+});
+
+it("scopes replacements without consuming delimiters, even with an empty header, BOM or CRLF", () => {
+  const draft = "\uFEFF---\r\nname: Cat\r\n---\r\nCat";
+  expect(replaceSourceMatches(draft, "Cat", "Dog", "all", { frontmatterOnly: true })).toBe(draft.replace("Cat", "Dog"));
+  expect(findSourceMatches(draft, "---", { frontmatterOnly: true }).matches).toEqual([]);
+  expect(findSourceMatches("---\nname: Cat", "Cat", { frontmatterOnly: true }).matches).toEqual([]);
+  expect(findSourceMatches("Cat", "Cat", { frontmatterOnly: true }).matches).toEqual([]);
+  expect(replaceSourceMatches("---\n---\nCat", "Cat", "Dog", "all", { bodyOnly: true })).toBe("---\n---\nDog");
 });

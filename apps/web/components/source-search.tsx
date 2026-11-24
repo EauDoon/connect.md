@@ -7,18 +7,19 @@ import { findSourceMatches, replaceSourceMatches } from "@/lib/source-search";
 
 export function SourceSearch({ markdown, onChange, onSelect }: { markdown: string; onChange: (value: string) => void; onSelect: (start: number, end: number) => void }) {
   const [bodyOnly, setBodyOnly] = useState(false);
+  const [frontmatterOnly, setFrontmatterOnly] = useState(false);
   const [matchCase, setMatchCase] = useState(true);
   const [wholeWord, setWholeWord] = useState(false);
   const [query, setQuery] = useState("");
   const [replacement, setReplacement] = useState("");
   const [index, setIndex] = useState(-1);
   const [preview, setPreview] = useState<{ before: string; after: string; settings: string } | null>(null);
-  const settings = JSON.stringify([query, replacement, matchCase, wholeWord, bodyOnly]);
+  const settings = JSON.stringify([query, replacement, matchCase, wholeWord, bodyOnly, frontmatterOnly]);
   const [message, setMessage] = useState("");
   const search = useMemo(() => {
-    try { return { ...findSourceMatches(markdown, query, { matchCase, wholeWord, bodyOnly }), error: "" }; }
+    try { return { ...findSourceMatches(markdown, query, { matchCase, wholeWord, bodyOnly, frontmatterOnly }), error: "" }; }
     catch (error) { return { matches: [], limited: false, error: error instanceof Error ? error.message : "Search unavailable." }; }
-  }, [markdown, query, matchCase, wholeWord, bodyOnly]);
+  }, [markdown, query, matchCase, wholeWord, bodyOnly, frontmatterOnly]);
   const selected = Math.min(index, search.matches.length - 1);
   function navigate(direction: number) {
     if (!search.matches.length) return;
@@ -27,7 +28,7 @@ export function SourceSearch({ markdown, onChange, onSelect }: { markdown: strin
   }
   function replace(target: number | "all") {
     try {
-      const after = replaceSourceMatches(markdown, query, replacement, target, { matchCase, wholeWord, bodyOnly });
+      const after = replaceSourceMatches(markdown, query, replacement, target, { matchCase, wholeWord, bodyOnly, frontmatterOnly });
       setPreview({ before: markdown, after, settings }); setMessage("");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Replacement failed; the draft was kept."); }
   }
@@ -38,7 +39,8 @@ export function SourceSearch({ markdown, onChange, onSelect }: { markdown: strin
       <legend>Match options</legend>
       <label className="inline-flex min-h-11 items-center gap-2"><input type="checkbox" checked={matchCase} onChange={(event) => { setMatchCase(event.target.checked); setIndex(-1); }} />Match case</label>
       <label className="inline-flex min-h-11 items-center gap-2"><input type="checkbox" checked={wholeWord} onChange={(event) => { setWholeWord(event.target.checked); setIndex(-1); }} />Whole words</label>
-      <label className="inline-flex min-h-11 items-center gap-2"><input type="checkbox" checked={bodyOnly} onChange={(event) => { setBodyOnly(event.target.checked); setIndex(-1); }} />Body only</label>
+      <label className="inline-flex min-h-11 items-center gap-2"><input type="checkbox" checked={bodyOnly} onChange={(event) => { setBodyOnly(event.target.checked); setFrontmatterOnly(false); setIndex(-1); }} />Body only</label>
+      <label className="inline-flex min-h-11 items-center gap-2"><input type="checkbox" checked={frontmatterOnly} onChange={(event) => { setFrontmatterOnly(event.target.checked); setBodyOnly(false); setIndex(-1); }} />Frontmatter only</label>
     </fieldset>
     <div className="mt-3 grid gap-3 sm:grid-cols-2">
       <label className="text-xs text-mist">Find text<input value={query} maxLength={256} onChange={(event) => { setQuery(event.target.value); setIndex(-1); setMessage(""); }} className="mt-1 block w-full rounded-lg border border-white/20 bg-black/20 p-2 text-sm text-white" /></label>
