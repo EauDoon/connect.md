@@ -49,5 +49,6 @@ it("scopes replacements without consuming delimiters, even with an empty header,
   expect(findSourceMatches(draft, "---", { frontmatterOnly: true }).matches).toEqual([]);
   expect(findSourceMatches("---\nname: Cat", "Cat", { frontmatterOnly: true }).matches).toEqual([]);
   expect(findSourceMatches("Cat", "Cat", { frontmatterOnly: true }).matches).toEqual([]);
+  expect(findSourceMatches("---\nname: a\u2028---\nmore: Cat", "Cat", { bodyOnly: true }).matches).toEqual([]);
   expect(replaceSourceMatches("---\n---\nCat", "Cat", "Dog", "all", { bodyOnly: true })).toBe("---\n---\nDog");
 });

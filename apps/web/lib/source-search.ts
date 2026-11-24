@@ -11,12 +11,14 @@ export function findSourceMatches(source: string, query: string, options: Search
   if (options.bodyOnly || options.frontmatterOnly) {
     const open = /^(?:\uFEFF)?---\r?\n/u.exec(source);
     if (open) {
-      const closeLine = /^---(?:\r?\n|(?![\s\S]))/gmu;
-      closeLine.lastIndex = open[0].length;
+      // Markdown line endings are LF/CRLF here; a Unicode separator inside
+      // a YAML value must not let a body-only replacement touch metadata.
+      const closeLine = /\n---(?:\r?\n|(?![\s\S]))/gu;
+      closeLine.lastIndex = open[0].length - 1;
       const close = closeLine.exec(source);
       if (!close || (options.bodyOnly && options.frontmatterOnly)) return { matches, limited: false };
       if (options.bodyOnly) from = close.index + close[0].length;
-      else { from = open[0].length; to = close.index; }
+      else { from = open[0].length; to = close.index + 1; }
     } else if (options.frontmatterOnly) return { matches, limited: false };
   }
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
