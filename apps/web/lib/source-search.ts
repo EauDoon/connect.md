@@ -1,19 +1,32 @@
 import { PROFILE_RESUME_MAX_UTF8_BYTES } from "@/lib/markdown";
 
-export type SearchOptions = { matchCase?: boolean; wholeWord?: boolean; bodyOnly?: boolean };
+export type SearchOptions = { matchCase?: boolean; wholeWord?: boolean; bodyOnly?: boolean; frontmatterOnly?: boolean };
 
 export function findSourceMatches(source: string, query: string, options: SearchOptions = {}) {
   const matches: number[] = [];
   if (!query) return { matches, limited: false };
   if (query.length > 256) throw new Error("Search text is limited to 256 characters.");
   if (new TextEncoder().encode(source).length > PROFILE_RESUME_MAX_UTF8_BYTES) throw new Error("Find and replace is limited to 128 KiB drafts.");
-  const bodyStart = options.bodyOnly && /^(?:\uFEFF)?---\r?\n/u.test(source)
-    ? (source.match(/^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u)?.[0].length ?? source.length) : 0;
+  let from = 0, to = source.length;
+  if (options.bodyOnly || options.frontmatterOnly) {
+    const open = /^(?:\uFEFF)?---\r?\n/u.exec(source);
+    if (open) {
+      // Markdown line endings are LF/CRLF here; a Unicode separator inside
+      // a YAML value must not let a body-only replacement touch metadata.
+      const closeLine = /\n---(?:\r?\n|(?![\s\S]))/gu;
+      closeLine.lastIndex = open[0].length - 1;
+      const close = closeLine.exec(source);
+      if (!close || (options.bodyOnly && options.frontmatterOnly)) return { matches, limited: false };
+      if (options.bodyOnly) from = close.index + close[0].length;
+      else { from = open[0].length; to = close.index + 1; }
+    } else if (options.frontmatterOnly) return { matches, limited: false };
+  }
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const pattern = new RegExp(escaped, options.matchCase === false ? "gi" : "g");
+  pattern.lastIndex = from;
   for (const match of source.matchAll(pattern)) {
     const start = match.index;
-    if (start < bodyStart) continue;
+    if (start + query.length > to) break;
     if (options.wholeWord && (/[\p{L}\p{N}\p{M}_]$/u.test(source.slice(0, start)) || /^[\p{L}\p{N}\p{M}_]/u.test(source.slice(start + query.length)))) continue;
     if (matches.length === 1000) return { matches, limited: true };
     matches.push(start);
