@@ -31,6 +31,7 @@ a {
 }
 
 button,select {
+  touch-action: manipulation;
   font: inherit;
   color: inherit;
 }
@@ -77,7 +78,7 @@ header a {
 
 .intro {
   max-width: 790px;
-  margin: clamp(32px,6vw,76px) 0 28px;
+  margin: clamp(22px,3vw,42px) 0 24px;
 }
 
 .eyebrow,.legend,code,pre,.source {
@@ -93,7 +94,7 @@ header a {
 }
 
 .intro h1 {
-  font-size: clamp(2.5rem,6vw,5rem);
+  font-size: clamp(2.2rem,5vw,4.2rem);
   letter-spacing: -.06em;
   line-height: 1.03;
   margin: .2em 0;
@@ -168,7 +169,8 @@ button[aria-pressed=true] {
 .plot svg {
   display: block;
   width: 100%;
-  touch-action: pan-y;
+  height: clamp(315px,32vw,440px);
+  touch-action: pan-y pinch-zoom;
   cursor: grab;
 }
 
@@ -195,10 +197,13 @@ button[aria-pressed=true] {
 
 .legend span:nth-child(2):before {
   background: var(--network);
+  border-radius: 1px;
 }
 
 .legend span:nth-child(3):before {
   background: var(--reference);
+  border-radius: 0;
+  transform: rotate(45deg);
 }
 
 aside {
@@ -328,8 +333,20 @@ pre {
     border-top: 1px solid var(--rule);
   }
   .plot svg {
-    max-height: 365px;
+    height: 350px;
   }
+  .plot svg[data-layer="Network"] {height:220px}
+  .plot svg[data-layer="Reference"] {height:160px}
+}
+
+@media(max-width:460px) {
+  .controls {padding:8px;gap:4px}
+  .controls label span {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .camera {gap:4px}
+  .camera button {min-width:44px;padding:5px 9px}
+  select {margin:0;max-width:115px;padding:5px 7px}
+  .intro {margin:20px 0 16px}
+  .intro>p:last-child {font-size:.93rem;margin:.5rem 0}
 }
 
 @media(prefers-reduced-motion:reduce) {

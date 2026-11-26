@@ -10,8 +10,8 @@
 <main>
   <div class="intro"><p class="eyebrow">Architecture map</p><h1>Where your draft goes.</h1><p>Follow a Markdown file from an editor to a local download. Inspect the separate services behind the optional network and the retained reference platform.</p></div>
   <section id="explorer" hidden aria-label="Interactive architecture map">
-    <div class="controls"><label>Show <select id="layer"><option value="">All components</option><option>Guest</option><option>Network</option><option>Reference</option></select></label>
-    <div class="camera"><button id="left" aria-label="Rotate left">↶</button><button id="right" aria-label="Rotate right">↷</button><button id="reset">Reset view</button></div></div>
+    <div class="controls"><label><span>Show</span> <select id="layer"><option value="">All layers</option><option>Guest</option><option>Network</option><option>Reference</option></select></label>
+    <div class="camera"><button id="left" aria-label="Rotate left">↶</button><button id="right" aria-label="Rotate right">↷</button><button id="reset" aria-label="Reset view">Reset</button></div></div>
     <div class="stage"><div class="plot"><svg id="scene" viewBox="-285 -185 570 370" role="img" aria-label="Perspective diagram showing component relationships. Select any component using the adjacent list."></svg>
       <p class="legend"><span>Guest</span><span>Network</span><span>Reference</span></p></div>
     <aside aria-label="Selected component"><p class="eyebrow" id="kind"></p><h2 id="selected"></h2><p id="description"></p>
@@ -62,12 +62,12 @@
           <a class="source" href="https://github.com/EauDoon/connect.md/tree/main/apps/web/lib/network/db.ts">db.ts</a>
 
         </li>
-        <li id="fastapi" data-layer="Reference" data-position="-100,-130,-155">
+        <li id="fastapi" data-layer="Reference" data-position="-100,-200,-155">
           <h3>Reference API</h3><p>The retained FastAPI reference platform and its tests live outside the guest deployment.</p>
           <a class="source" href="https://github.com/EauDoon/connect.md/tree/main/apps/api">apps/api</a>
           <ul class="relations"><li><span>uses</span> <a href="#infra">Reference infra</a></li></ul>
         </li>
-        <li id="infra" data-layer="Reference" data-position="80,-130,-155">
+        <li id="infra" data-layer="Reference" data-position="80,-200,-155">
           <h3>Reference infra</h3><p>Compose, nginx and retained platform operations support the reference stack.</p>
           <a class="source" href="https://github.com/EauDoon/connect.md/tree/main/infra">infra</a>
 
