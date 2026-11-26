@@ -30,6 +30,7 @@ it("exports only the chosen body section including nested content", async () => 
   const source = "---\nname: Private metadata\n---\n# Name\nIntro\n## Work\nFacts\n### Detail\nMore\n## Contact\nPrivate body\n";
   const heading = documentMetrics(source).headings.find((entry) => entry.text === "Work")!;
   expect(sectionExcerpt(source, heading.start)).toEqual({ title: "Work", markdown: "## Work\nFacts\n### Detail\nMore\n" });
+  expect(sectionExcerpt(source, heading.start, false).markdown).toBe("## Work\nFacts\n");
   expect(() => sectionExcerpt(source, 0)).toThrow("body heading");
   expect(() => sectionExcerpt("x".repeat(131073), 0)).toThrow("128 KiB");
 });

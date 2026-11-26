@@ -46,6 +46,8 @@ npm run build
 
 ## Architecture
 
+Open the [architecture map](https://connect-md.vercel.app/architecture.html) to follow a draft through its editor, preview and download. The optional network and retained reference stack have separate paths. Each component links to the code behind it. The map also ships in `apps/web/public/architecture.html`.
+
 The repository is a monorepo. The diagram below shows how the top-level
 directories and compose files relate at runtime.
 
@@ -96,7 +98,7 @@ For the next guest-editor release, review replacements separately in the body or
 - Replacement undo, checkpoint rename/source download, and literal source find/replace.
 - Review-to-source navigation, focused editor layouts, custom export names, and comparison with the last Markdown download.
 - Case/word/body search filters with reviewed, undoable replacements.
-- Filtered outlines, direct source-line navigation, and reviewed section excerpts.
+- In the Markdown editor, filter the outline by label and heading level, page through long outlines, or jump directly to a source line. Review a section excerpt with its descendants or stop at its first child heading before downloading. Long excerpts can be read one page at a time.
 - Heading and link portability review, including reference-style links and broken in-document anchors, plus unfinished Markdown source backups.
 - In-document heading links that work in the preview without changing the address bar.
 

@@ -6,6 +6,7 @@
 - Direct Markdown editor: /md
 - Agent drafting runbook: /agent-readme.md
 - Privacy and data boundary: /trust
+- Source-linked architecture map: /architecture.html
 
 Existing `.md` files can be opened or pasted locally in either editor. Drafts and up to five named checkpoints remain in the current browser session and are downloaded locally. The guest drafting workflow has no publishing API, account, database, messaging system, or agent credential. Optional network routes are separate and require deployment configuration.
 
