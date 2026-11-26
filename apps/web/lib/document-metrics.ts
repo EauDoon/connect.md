@@ -24,7 +24,7 @@ export function filterOutline(headings: ReturnType<typeof documentMetrics>["head
   return headings.filter((heading) => normalize(heading.text).includes(needle));
 }
 
-export function sectionExcerpt(markdown: string, start: number) {
+export function sectionExcerpt(markdown: string, start: number, includeChildren = true) {
   const metrics = documentMetrics(markdown);
   if (metrics.limited) throw new Error("Section export is limited to 128 KiB drafts.");
   const source = normaliseMarkdown(markdown);
@@ -32,6 +32,6 @@ export function sectionExcerpt(markdown: string, start: number) {
   const index = metrics.headings.findIndex((heading) => heading.start === start);
   if (index < 0) throw new Error("Choose an available body heading.");
   const heading = metrics.headings[index];
-  const end = metrics.headings.slice(index + 1).find((next) => next.level <= heading.level)?.start ?? source.length;
+  const end = metrics.headings.slice(index + 1).find((next) => !includeChildren || next.level <= heading.level)?.start ?? source.length;
   return { title: heading.text, markdown: source.slice(start, end) };
 }

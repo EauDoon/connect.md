@@ -150,6 +150,7 @@ export default function HomePage() {
 
       <footer className="border-t border-white/10 px-5 py-8 text-center text-xs text-mist">
         <p>connect.md turns professional facts into portable Markdown, entirely in your browser.</p>
+        <a className="inline-flex min-h-11 items-center text-acid underline" href="/architecture.html">Explore the architecture map</a>
       </footer>
     </main>
   );

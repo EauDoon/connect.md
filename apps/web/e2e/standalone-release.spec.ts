@@ -37,6 +37,17 @@ test("landing is an agent-first standalone site", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 2, name: "Choose what you want done." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Agent README" })).toHaveAttribute("href", `${expectedSiteOrigin}/agent-readme.md`);
   await expect(page.getByRole("link", { name: /sign in/iu })).toHaveCount(0);
+  await page.getByRole("link", { name: "Explore the architecture map" }).click();
+  await expect(page.getByRole("heading", { name: "Where your draft goes." })).toBeVisible();
+  await page.getByRole("combobox", { name: "Show" }).selectOption("Network");
+  await page.getByRole("button", { name: "Network handlers", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("complementary")).toContainText("Next.js route handlers");
+  await page.getByText("Inspect local graph data", { exact: true }).click();
+  const snapshot = JSON.parse(await page.locator("#result").innerText()).data.architecture;
+  expect(snapshot.nodes.map((node: { id: string }) => node.id)).toEqual(["account", "handlers", "postgres"]);
+  expect(snapshot.edges).toHaveLength(2);
+  await expect(page.getByRole("link", { name: "Inspect source" })).toHaveAttribute("href", /apps\/web\/app\/api\/network\/v1$/u);
 });
 
 test("agent presets expose bounded drafting instructions", async ({ page }) => {
