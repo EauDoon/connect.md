@@ -30,6 +30,55 @@ async function seriousAccessibilityViolations(page: Page) {
   });
 }
 
+async function checkPostDragTouchControls(page: Page) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  const scene = page.locator("#scene");
+  const camera = () => scene.locator('[data-id="editor"]').getAttribute("transform");
+  const reset = page.getByRole("button", { name: "Reset view" });
+  await reset.evaluate((button) => {
+    button.dataset.activations = "0";
+    button.addEventListener("click", () => {
+      button.dataset.activations = String(Number(button.dataset.activations) + 1);
+    });
+  });
+  await page.locator("#explorer").evaluate((element) => element.scrollIntoView({ block: "start" }));
+  const start = await camera();
+  const touch = (type: "touchStart" | "touchMove" | "touchEnd", x?: number, y?: number) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: x === undefined || y === undefined ? [] : [{ x, y, id: 1 }] });
+  async function swipe(dx: number, dy: number) {
+    const box = await scene.boundingBox();
+    if (!box) throw new Error("Map must be visible for the gesture check");
+    const x = box.x + box.width * 0.42, y = box.y + box.height * 0.45;
+    await touch("touchStart", x, y);
+    for (let step = 1; step <= 4; step += 1) {
+      await page.waitForTimeout(24);
+      await touch("touchMove", x + dx * step / 4, y + dy * step / 4);
+    }
+    await touch("touchEnd");
+  }
+  try {
+    for (const [index, delay] of [50, 100, 150, 250].entries()) {
+      await swipe(80, 0);
+      expect(await camera()).not.toBe(start);
+      await page.waitForTimeout(delay);
+      const box = await reset.boundingBox();
+      if (!box) throw new Error("Reset must be visible after the horizontal swipe");
+      await touch("touchStart", box.x + box.width / 2, box.y + box.height / 2);
+      await touch("touchEnd");
+      await expect.poll(camera).toBe(start);
+      await page.waitForTimeout(320);
+      await expect(reset).toHaveAttribute("data-activations", String(index + 1));
+    }
+    const y = await page.evaluate(() => window.scrollY);
+    await swipe(0, -105);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(y + 10);
+  } finally {
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await cdp.detach();
+  }
+}
+
 test("landing is an agent-first standalone site", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/connect\.md/u);
@@ -64,6 +113,7 @@ test("landing is an agent-first standalone site", async ({ page }) => {
     await page.getByRole("button", { name: "Rotate right" }).click();
   }
   await page.getByRole("button", { name: "Reset view" }).click();
+  await checkPostDragTouchControls(page);
   await page.getByRole("combobox", { name: "Show" }).selectOption("Network");
   await page.getByRole("button", { name: "Network handlers", exact: true }).focus();
   await page.keyboard.press("Enter");

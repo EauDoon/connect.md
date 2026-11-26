@@ -195,25 +195,63 @@ get("right").addEventListener("click", () => { angle += Math.PI / 10; draw(); })
 get("reset").addEventListener("click", () => { angle = initialAngle; draw(); });
 
 let drag;
+let postDragTapUntil = 0;
 scene.addEventListener("pointerdown", (event) => {
   if (!event.isPrimary || event.button !== 0) return;
-  drag = { id: event.pointerId, startX: event.clientX, startAngle: angle, moved: false, node: event.target.closest("[data-id]")?.dataset.id };
+  drag = { id: event.pointerId, startX: event.clientX, startY: event.clientY, startAngle: angle, moved: false, node: event.target.closest("[data-id]")?.dataset.id };
   scene.setPointerCapture(event.pointerId);
 });
 scene.addEventListener("pointermove", (event) => {
   if (!drag || drag.id !== event.pointerId) return;
   const distance = event.clientX - drag.startX;
-  if (!drag.moved && Math.abs(distance) < 5) return;
+  if (!drag.moved) {
+    const vertical = Math.abs(event.clientY - drag.startY);
+    if (vertical >= 5 && vertical > Math.abs(distance)) { drag = undefined; return; }
+    if (Math.abs(distance) < 5) return;
+  }
   drag.moved = true;
   angle = drag.startAngle + distance * 0.009;
   draw();
 });
 scene.addEventListener("pointerup", (event) => {
   if (!drag || drag.id !== event.pointerId) return;
+  if (drag.moved && event.pointerType === "touch") postDragTapUntil = performance.now() + 650;
   if (!drag.moved && drag.node) select(drag.node);
   drag = undefined;
 });
 scene.addEventListener("lostpointercapture", () => { drag = undefined; });
+// Chromium can send pointerup without click on the first tap following a
+// quick drag. Complete that one tap, while allowing scrolling and keyboard clicks.
+const explorer = get("explorer");
+let pendingTap;
+let activatedButton;
+explorer.addEventListener("pointerdown", (event) => {
+  pendingTap = undefined;
+  activatedButton = undefined;
+  if (!event.isPrimary || event.pointerType !== "touch" || performance.now() > postDragTapUntil) return;
+  const button = event.target.closest("button");
+  if (button && !button.disabled) pendingTap = { button, id: event.pointerId, x: event.clientX, y: event.clientY };
+});
+explorer.addEventListener("pointermove", (event) => {
+  if (pendingTap?.id === event.pointerId && Math.hypot(event.clientX - pendingTap.x, event.clientY - pendingTap.y) > 8) pendingTap = undefined;
+});
+explorer.addEventListener("pointercancel", () => { pendingTap = undefined; });
+explorer.addEventListener("pointerup", (event) => {
+  const tap = pendingTap;
+  pendingTap = undefined;
+  if (!tap || tap.id !== event.pointerId || !tap.button.contains(document.elementFromPoint(event.clientX, event.clientY))) return;
+  postDragTapUntil = 0;
+  activatedButton = tap.button;
+  tap.button.click();
+});
+explorer.addEventListener("click", (event) => {
+  if (event.detail > 0 && activatedButton?.contains(event.target)) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    activatedButton = undefined;
+  }
+}, true);
+
 get("explorer").hidden = false;
 filterNodes();
 new ResizeObserver(draw).observe(scene);

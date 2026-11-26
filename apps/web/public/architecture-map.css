@@ -170,7 +170,7 @@ button[aria-pressed=true] {
   display: block;
   width: 100%;
   height: clamp(315px,32vw,440px);
-  touch-action: pan-y;
+  touch-action: pan-y pinch-zoom;
   cursor: grab;
 }
 
