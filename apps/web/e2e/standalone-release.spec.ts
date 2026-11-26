@@ -43,18 +43,24 @@ test("landing is an agent-first standalone site", async ({ page }) => {
   const scene = page.locator("#scene");
   await expect(scene.locator("[data-id] text")).toHaveCount(10);
   for (let turn = 0; turn < 20; turn += 1) {
-    const labelsFit = await scene.evaluate((svg) => {
+    // A viewport change schedules ResizeObserver after layout. Wait for the diagram
+    // to settle before comparing the rendered extents at each camera stop.
+    await expect.poll(() => scene.evaluate((svg) => {
       const frame = svg.getBoundingClientRect();
-      const labels = [...svg.querySelectorAll("text")].map((text) => text.getBoundingClientRect());
-      return labels.length === 10 && labels.every((label, index) =>
-        label.height >= 14 && label.left >= frame.left && label.right <= frame.right &&
+      const texts = [...svg.querySelectorAll("text")];
+      const labels = texts.map((text) => text.getBoundingClientRect());
+      const readable = texts.every((text) => {
+        const matrix = text.getScreenCTM();
+        return matrix && parseFloat(getComputedStyle(text).fontSize) * Math.hypot(matrix.a, matrix.b) >= 11.99;
+      });
+      return readable && labels.length === 10 && labels.every((label, index) =>
+        label.left >= frame.left && label.right <= frame.right &&
         label.top >= frame.top && label.bottom <= frame.bottom &&
         labels.slice(index + 1).every((other) =>
           label.right <= other.left || label.left >= other.right || label.bottom <= other.top || label.top >= other.bottom
         )
       );
-    });
-    expect(labelsFit).toBe(true);
+    })).toBe(true);
     await page.getByRole("button", { name: "Rotate right" }).click();
   }
   await page.getByRole("button", { name: "Reset view" }).click();

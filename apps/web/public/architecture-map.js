@@ -65,8 +65,10 @@ function placeLabels(points, width, height, fontSize) {
   const taken = points.map(({ x, y, radius }) => ({ x: x - radius - 3, y: y - radius - 3, w: 2 * radius + 6, h: 2 * radius + 6 }));
   const positions = new Map();
   for (const point of points) {
-    const w = Math.ceil(textMeasure.measureText(point.node.label).width) + 10;
-    const h = fontSize + 8;
+    const metrics = textMeasure.measureText(point.node.label);
+    const w = Math.ceil(metrics.width) + 12;
+    const fontHeight = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
+    const h = Math.max(fontSize + 8, Math.ceil(fontHeight || fontSize) + 6);
     let best = null;
     // Try nearby rows first. Side candidates let parallel layers retain their own labels in a tight view.
     for (let row = 0; row <= Math.ceil(height / h); row++) {
