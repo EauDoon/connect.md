@@ -375,6 +375,29 @@ export type MarkdownHeading = {
   end: number;
 };
 
+// Blanks out inline code spans in one pass, so the cost stays linear in the line length.
+// A span opens at a backtick run and closes at the next run of exactly the same length
+// (the CommonMark rule); a run with no such closer on the line is literal text.
+function maskInlineCode(line: string) {
+  if (!line.includes("`")) return line;
+  const runs = Array.from(line.matchAll(/`+/g), (run) => ({ start: run.index, length: run[0].length }));
+  const lastOfLength = new Map<number, number>();
+  runs.forEach((run, index) => lastOfLength.set(run.length, index));
+  let masked = "";
+  let copied = 0;
+  for (let open = 0; open < runs.length; open += 1) {
+    const { start, length } = runs[open];
+    if ((lastOfLength.get(length) ?? open) <= open) continue;
+    let close = open + 1;
+    while (runs[close].length !== length) close += 1;
+    const end = runs[close].start + length;
+    masked += line.slice(copied, start) + " ".repeat(end - start);
+    copied = end;
+    open = close;
+  }
+  return masked + line.slice(copied);
+}
+
 function scanMarkdownStructure(body: string) {
   const headings: MarkdownHeading[] = [];
   const invalidHeadingSyntax: number[] = [];
@@ -398,7 +421,7 @@ function scanMarkdownStructure(body: string) {
     }
 
     // Text inside an inline code span is literal, so it cannot open a comment.
-    const commentStart = line.replace(/(`+)(?:.*?)(?<!`)\1(?!`)/gu, (span) => " ".repeat(span.length)).indexOf("<!--");
+    const commentStart = maskInlineCode(line).indexOf("<!--");
     const candidate = commentStart >= 0 ? line.slice(0, commentStart).trimEnd() : line;
     const openingFence = candidate.match(/^[ \t]{0,3}(`{3,}|~{3,})/);
     if (openingFence) {

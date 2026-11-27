@@ -472,6 +472,20 @@ Legacy experience.
     expect(hasValidationErrors(validateDraft(real, "profile"))).toBe(true);
   });
 
+  it("scans a line of unclosed backtick runs in linear time", () => {
+    const mixed = Array.from({ length: 60 }, (_, index) => "`".repeat(index + 1)).join(" ");
+    for (const noise of ["`".repeat(2000), mixed]) {
+      const draft = profileStarter.replace("Write a concise introduction", `Note ${noise}\n\nWrite a concise introduction`);
+      const started = performance.now();
+      expect(hasValidationErrors(validateDraft(draft, "profile"))).toBe(false);
+      expect(performance.now() - started).toBeLessThan(1000);
+    }
+    const unequal = profileStarter.replace("## About\n\n", "## Overview\n\nThree ``` and one ` <!--\n## About\n-->\n\n");
+    expect(hasValidationErrors(validateDraft(unequal, "profile"))).toBe(true);
+    const nested = profileStarter.replace("Write a concise introduction", "Use `` a ` <!-- `` here. Write a concise introduction");
+    expect(hasValidationErrors(validateDraft(nested, "profile"))).toBe(false);
+  });
+
   it("rejects duplicate real H1 headings while ignoring a fenced H1", () => {
     const fenced = profileStarter.replace("## About", "```md\n# Hidden title\n```\n\n## About");
     const duplicate = profileStarter.replace("## About", "# Another title\n\n## About");
