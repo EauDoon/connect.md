@@ -486,6 +486,16 @@ Legacy experience.
     expect(hasValidationErrors(validateDraft(nested, "profile"))).toBe(false);
   });
 
+  it("pairs backtick runs by equal length only, so the result differs from the old pattern", () => {
+    // Runs of two and one do not pair, so the opener between them is not inside code. The old
+    // pattern shortened the first run until it paired and treated this line as code.
+    const unpaired = profileStarter.replace("Write a concise introduction", "Type `` then <!-- then ` to see it.\n\nWrite a concise introduction");
+    expect(hasValidationErrors(validateDraft(unpaired, "profile"))).toBe(true);
+    // A longer run with no closer is literal text and does not swallow the real span after it.
+    const spanAfterRun = profileStarter.replace("Write a concise introduction", "Fence ``` then ` <!-- ` done\n\nWrite a concise introduction");
+    expect(hasValidationErrors(validateDraft(spanAfterRun, "profile"))).toBe(false);
+  });
+
   it("rejects duplicate real H1 headings while ignoring a fenced H1", () => {
     const fenced = profileStarter.replace("## About", "```md\n# Hidden title\n```\n\n## About");
     const duplicate = profileStarter.replace("## About", "# Another title\n\n## About");
