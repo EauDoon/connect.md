@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { EMPTY_DRAFT_ISSUE, frontmatterParseIssue, humanFieldsFromMarkdown, isEmptyDraft, MISSING_FRONTMATTER_ISSUE, patchHumanFields, PROFILE_RESUME_MAX_UTF8_BYTES, profileStarter, resumeStarter, splitFrontmatter, switchDocumentKind } from "../lib/markdown";
+import { EMPTY_DRAFT_ISSUE, frontmatterParseIssue, humanFieldsFromMarkdown, isEmptyDraft, markdownBody, MISSING_FRONTMATTER_ISSUE, patchHumanFields, PROFILE_RESUME_MAX_UTF8_BYTES, profileStarter, resumeStarter, scanMarkdownHeadings, splitFrontmatter, switchDocumentKind } from "../lib/markdown";
 import { hasValidationErrors, validateDraft } from "../lib/validation";
 import { apiRequest, createApiKey, fetchPublicResumeMarkdown, ingestMetadataFromResponse, listApiKeys, loadDocument, type DocumentResponse, markdownFromIngestResponse, presentApiKeyError, presentSaveError, revokeApiKey, saveDocument, searchIndexingStateFromHeader } from "../lib/api";
 import { maskOwnedDraftSnapshot, requiresDraftReset, resolvedDraftSubject, shouldMaskOwnedDraft, SIGNED_OUT_DRAFT_SUBJECT } from "../lib/draft-security";
@@ -462,6 +462,14 @@ Legacy experience.
 
     expect(hasValidationErrors(issues)).toBe(true);
     expect(issues.map((issue) => issue.message).join(" ")).toContain("Required headings must appear exactly once");
+  });
+
+  it("keeps headings that follow a comment opener written inside inline code", () => {
+    const quoted = profileStarter.replace("Write a concise introduction", "I write `<!--` notes in HTML. Write a concise introduction");
+    expect(hasValidationErrors(validateDraft(quoted, "profile"))).toBe(false);
+    expect(scanMarkdownHeadings(markdownBody(quoted)).map((heading) => heading.text)).toEqual(["Your Name", "About", "Experience", "Current role", "Skills"]);
+    const real = profileStarter.replace("## About\n\n", "## Overview\n\nSee `code` <!--\n## About\n-->\n\n");
+    expect(hasValidationErrors(validateDraft(real, "profile"))).toBe(true);
   });
 
   it("rejects duplicate real H1 headings while ignoring a fenced H1", () => {
