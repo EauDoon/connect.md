@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/assets/banner.svg" alt="connect.md. A private, browser-only builder for portable professional Markdown. A person or their agent drafts a profile or resume, validates it, previews the sanitized Markdown and downloads the file. No account and no upload. Shown as a Markdown page that writes itself line by line while a person and an agent orbit it." width="100%"></p>
+
 # connect.md
 
 [![build](https://img.shields.io/github/actions/workflow/status/EauDoon/connect.md/ci.yml?branch=main)](https://github.com/EauDoon/connect.md/actions)
