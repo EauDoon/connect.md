@@ -18,4 +18,16 @@ describe("local sharing review", () => {
     expect(review.findings).toHaveLength(20);
     expect(review.limited).toBe(true);
   });
+  it("does not read a web address with /users/ or /home/ in its path as a local file path", () => {
+    expect(reviewPrivacy("See https://github.example/users/octocat and https://example.invalid/home/page").findings).toEqual([]);
+    expect(reviewPrivacy("Notes live in /home/example/notes.md").findings.map(({ code }) => code)).toEqual(["local-path"]);
+    expect(reviewPrivacy("[draft](file:///Users/example/draft.md)").findings.map(({ code }) => code)).toEqual(["local-path"]);
+    expect(reviewPrivacy("https://example.invalid/work and /Users/example/cv.md").findings.map(({ code }) => code)).toEqual(["local-path"]);
+  });
+  it("flags every PEM and PGP private key header", () => {
+    for (const label of ["PRIVATE KEY", "RSA PRIVATE KEY", "ENCRYPTED PRIVATE KEY", "DSA PRIVATE KEY", "PGP PRIVATE KEY BLOCK"]) {
+      expect(reviewPrivacy(`-----BEGIN ${label}-----`).findings.map(({ code }) => code), label).toEqual(["credential"]);
+    }
+    expect(reviewPrivacy("-----BEGIN PUBLIC KEY-----").findings).toEqual([]);
+  });
 });
