@@ -397,7 +397,8 @@ function scanMarkdownStructure(body: string) {
       continue;
     }
 
-    const commentStart = line.indexOf("<!--");
+    // Text inside an inline code span is literal, so it cannot open a comment.
+    const commentStart = line.replace(/(`+)(?:.*?)(?<!`)\1(?!`)/gu, (span) => " ".repeat(span.length)).indexOf("<!--");
     const candidate = commentStart >= 0 ? line.slice(0, commentStart).trimEnd() : line;
     const openingFence = candidate.match(/^[ \t]{0,3}(`{3,}|~{3,})/);
     if (openingFence) {
