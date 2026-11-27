@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Sharing review no longer reports a web address whose path contains `/users/` or `/home/` (a public profile link, for example) as a local file path. `file://` links and paths outside a web address are still reported.
+- Sharing review flags every PEM or PGP private key header, including `ENCRYPTED PRIVATE KEY`, `DSA PRIVATE KEY`, and `PGP PRIVATE KEY BLOCK`. Only the unlabelled, RSA, EC, and OpenSSH headers were matched before.
+- A comment opener written inside inline code (`` `<!--` ``) no longer hides every heading after it from validation, Guided Mode, and the title lookup. A valid draft was rejected with "Required headings must appear exactly once".
+- A custom local filename keeps the base letter of an accented one: "Résumé" downloads as `resume.md`, not `r-sum.md`.
 - The inbox's last-message preview is cut at 120 characters by code point, so an emoji at the cut no longer turns into a replacement character.
 - The replacement review no longer hides replacements: a replace-all with matches far apart showed one region cut at 80 lines, so later replacements could not be reviewed before Apply.
 - Clicking an in-document `#fragment` link in the preview scrolled nowhere and wrote document text into the address bar and history. It now moves focus to the heading and leaves the URL unchanged.
