@@ -26,6 +26,9 @@ export function localDownloadFreshness(
 export function markdownDownloadName(kind: DocumentKind, identifier: string) {
   const safeIdentifier = identifier
     .trim()
+    // Keep the base letter of an accented one: "Résumé" becomes "resume".
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9-]+/gu, "-")
     .replace(/^-+|-+$/gu, "");

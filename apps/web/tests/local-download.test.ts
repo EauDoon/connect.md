@@ -28,6 +28,11 @@ describe("local Markdown download", () => {
     expect(preferredMarkdownName("resume", "original-id", "../../CON.md")).toBe("connectmd-con.md");
     expect(preferredMarkdownName("profile", "original-id", "a".repeat(500))).toHaveLength(83);
   });
+  it("keeps accented letters as their base letter in a local filename", () => {
+    expect(preferredMarkdownName("resume", "original-id", "Résumé Zoë")).toBe("resume-zoe.md");
+    expect(markdownDownloadName("profile", "Renée Müller")).toBe("renee-muller.md");
+    expect(markdownDownloadName("profile", "日本語")).toBe("connectmd-profile.md");
+  });
   it("cleans up a failed download without pretending the browser saved it", () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:failed");
     const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);

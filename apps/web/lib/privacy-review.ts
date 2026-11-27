@@ -12,8 +12,8 @@ export function reviewPrivacy(markdown: string) {
     const found: Array<[string, string]> = [];
     const contactText = text.replace(/https?:\/\/[^\s)\]>"']+/giu, "");
     if (/[A-Z0-9._%+-]{1,64}@[A-Z0-9.-]{1,253}\.[A-Z]{2,63}/iu.test(contactText)) found.push(["email", "An email address may be included. Confirm that you intend to share it."]);
-    if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u.test(text) || /\b(?:api[_-]?key|access[_-]?token|secret|password)\s*[:=]\s*["']?\S{8,}/iu.test(text)) found.push(["credential", "Possible credential material. Inspect this line and remove any secret before sharing."]);
-    if (/(?:file:\/\/|\b[A-Z]:\\|\/(?:Users|home)\/)/iu.test(text)) found.push(["local-path", "A local file path may reveal device or folder details and will not be portable."]);
+    if (/-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----/u.test(text) || /\b(?:api[_-]?key|access[_-]?token|secret|password)\s*[:=]\s*["']?\S{8,}/iu.test(text)) found.push(["credential", "Possible credential material. Inspect this line and remove any secret before sharing."]);
+    if (/file:\/\//iu.test(text) || /(?:\b[A-Z]:\\|\/(?:Users|home)\/)/iu.test(contactText)) found.push(["local-path", "A local file path may reveal device or folder details and will not be portable."]);
     if (/!\[[^\]\n]*\]\(/u.test(text)) found.push(["image", "A Markdown image is blocked in this preview but another viewer may load its address."]);
     const urls = text.match(/https?:\/\/[^\s)\]>"']+/giu) ?? [];
     let unsafeUrl = false;
